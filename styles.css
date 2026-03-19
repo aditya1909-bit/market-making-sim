@@ -64,6 +64,10 @@ input {
   gap: 18px;
 }
 
+.single-field {
+  display: grid;
+}
+
 .hero {
   padding: 8px 0 14px;
 }

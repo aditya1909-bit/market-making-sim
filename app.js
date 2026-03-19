@@ -10,7 +10,6 @@
   const elements = {
     connectionStatus: document.getElementById("connection-status"),
     playerName: document.getElementById("player-name"),
-    backendUrl: document.getElementById("backend-url"),
     setupMessage: document.getElementById("setup-message"),
     createRoom: document.getElementById("create-room"),
     joinCode: document.getElementById("join-code"),
@@ -38,6 +37,8 @@
     contractRange: document.getElementById("contract-range"),
     sideInstructions: document.getElementById("side-instructions"),
     resolutionSummary: document.getElementById("resolution-summary"),
+    quoteCard: document.getElementById("quote-card"),
+    takerCard: document.getElementById("taker-card"),
     bidInput: document.getElementById("bid-input"),
     askInput: document.getElementById("ask-input"),
     sizeInput: document.getElementById("size-input"),
@@ -136,9 +137,9 @@
   }
 
   function requireBackendUrl() {
-    state.backendUrl = normalizeBackendUrl(elements.backendUrl.value);
+    state.backendUrl = normalizeBackendUrl(state.backendUrl || defaultBackendUrl());
     if (!state.backendUrl) {
-      throw new Error("Enter a backend URL first.");
+      throw new Error("Backend URL is not configured.");
     }
     safeStorageSet(STORAGE_KEYS.backendUrl, state.backendUrl);
     return state.backendUrl;
@@ -160,7 +161,7 @@
     safeStorageSet(
       STORAGE_KEYS.session,
       JSON.stringify({
-        backendUrl: normalizeBackendUrl(elements.backendUrl.value),
+        backendUrl: normalizeBackendUrl(state.backendUrl || defaultBackendUrl()),
         roomCode: state.roomCode,
         roomId: state.roomId,
         playerId: state.playerId,
@@ -490,7 +491,7 @@
     try {
       const preferredBackend = normalizeBackendUrl(session.backendUrl);
       if (preferredBackend && !safeStorageGet(STORAGE_KEYS.backendUrl)) {
-        elements.backendUrl.value = preferredBackend;
+        state.backendUrl = preferredBackend;
       }
       const payload = await api(`/api/rooms/${encodeURIComponent(session.roomCode)}/state?playerId=${encodeURIComponent(session.playerId)}`);
       await connectToRoom(payload, { restored: true });
@@ -626,6 +627,9 @@
     setText(elements.oppInventory, String(opponent?.inventory || 0));
     setText(elements.settlementValue, game?.settlement === null || game?.settlement === undefined ? "hidden" : format(game.settlement));
 
+    elements.quoteCard.classList.toggle("hidden", Boolean(role) && role !== "market_maker");
+    elements.takerCard.classList.toggle("hidden", Boolean(role) && role !== "market_taker");
+
     elements.submitQuote.disabled = !canQuote;
     elements.takerBuy.disabled = !canTake;
     elements.takerSell.disabled = !canTake;
@@ -680,14 +684,9 @@
     safeStorageSet(STORAGE_KEYS.playerName, (elements.playerName.value || "").trim());
   });
 
-  elements.backendUrl.addEventListener("change", () => {
-    safeStorageSet(STORAGE_KEYS.backendUrl, normalizeBackendUrl(elements.backendUrl.value));
-  });
-
   elements.playerName.value = safeStorageGet(STORAGE_KEYS.playerName) || "";
-  elements.backendUrl.value = defaultBackendUrl();
   state.playerName = elements.playerName.value.trim();
-  state.backendUrl = elements.backendUrl.value.trim();
+  state.backendUrl = defaultBackendUrl();
 
   render();
   resumePreviousSession();

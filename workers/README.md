@@ -10,6 +10,7 @@ This folder is the Cloudflare Workers + Durable Objects backend for the 1v1 make
 - bot rooms against the exported RL policy
 - authoritative role assignment
 - one hidden scalar contract per room
+- a shared pool of `10,000` randomized interview scenarios
 - persistent room state in Durable Objects
 - WebSocket-based turn play
 - rematches with automatic role swap

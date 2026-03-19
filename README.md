@@ -15,6 +15,7 @@
 - Supports 1v1 solo rooms against a server-side RL bot.
 - Restores an active room after page refresh if the same browser reconnects with the stored room code and player id.
 - Runs a hidden-scalar maker/taker game that matches the bluffing interview format much more closely than the earlier single-player prototype.
+- Randomizes every room over a shared pool of `10,000` interview-style scenarios.
 - Assigns one player as `market_maker` and one as `market_taker`.
 - Lets the maker quote `bid / ask / size` and the taker answer with `buy / sell / pass`.
 - Supports rematches that automatically swap roles.
@@ -42,6 +43,8 @@ workers/
   package.json
 rl/
   train-self-play.js # Local self-play trainer that exports rl-policy-data.js
+  train-shard.js     # Worker-thread shard entrypoint for parallel RL training
+  train-lib.js       # Shared self-play training functions
   README.md
 backend/
   src/

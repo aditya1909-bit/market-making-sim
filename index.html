@@ -35,21 +35,17 @@
           <div class="card-head">
             <div>
               <p class="eyebrow">Profile</p>
-              <h2>Player and backend</h2>
+              <h2>Player</h2>
             </div>
           </div>
-          <div class="form-grid">
+          <div class="single-field">
             <label class="field-card">
               <span class="mini-label">Player name</span>
               <input id="player-name" type="text" maxlength="32" placeholder="Aditya" />
             </label>
-            <label class="field-card">
-              <span class="mini-label">Backend URL</span>
-              <input id="backend-url" type="text" placeholder="https://market-making-sim-backend.adityasdutta.workers.dev" />
-            </label>
           </div>
           <p id="setup-message" class="body-copy subtle-copy">
-            GitHub Pages now defaults to your deployed Cloudflare Worker. Override this only when testing locally or against another environment.
+            The site connects to the live game server automatically. Refreshing the page restores your room when possible.
           </p>
         </article>
 
@@ -180,7 +176,7 @@
           </div>
         </article>
 
-        <article class="card quote-card">
+        <article id="quote-card" class="card quote-card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Maker controls</p>
@@ -206,7 +202,7 @@
           </div>
         </article>
 
-        <article class="card taker-card">
+        <article id="taker-card" class="card taker-card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Taker controls</p>
