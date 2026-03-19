@@ -8,187 +8,213 @@
   </head>
   <body>
     <main class="shell">
-      <section class="hero">
-        <div>
+      <header class="topbar panel">
+        <div class="brand-block">
           <p class="eyebrow">market-making-sim</p>
-          <h1>Interview-style market making against your script.</h1>
+          <h1>Make a market in a weird contract.</h1>
           <p class="lede">
-            Quote a two-sided market, manage inventory, and survive a timed interview round. The script reacts to your
-            market once per turn, and the clock gives the human enough room to think instead of forcing arcade clicks.
+            This is an interview-style estimation market. You quote a bid and ask, the interviewer trades once or
+            passes, then the contract eventually settles at a hidden final value.
           </p>
         </div>
 
-        <article class="panel hero-card">
-          <span class="label">Challenge Seed</span>
-          <div class="seed-row">
+        <div class="control-block">
+          <div class="seed-stack">
+            <label class="label" for="seed-input">Challenge Seed</label>
             <input id="seed-input" type="text" spellcheck="false" />
+          </div>
+          <div class="topbar-actions">
             <button id="copy-seed-link">Copy Link</button>
             <button id="randomize-seed">Randomize</button>
-          </div>
-          <p class="microcopy">
-            Same seed, same scenario. Share the link to give someone the same interview tape and hidden script path.
-          </p>
-          <div class="how-grid">
-            <div>
-              <span class="label">1. Quote</span>
-              <p class="microcopy">Make a two-sided market in the contract.</p>
-            </div>
-            <div>
-              <span class="label">2. React</span>
-              <p class="microcopy">The interviewer buys, sells, or passes once.</p>
-            </div>
-            <div>
-              <span class="label">3. Settle</span>
-              <p class="microcopy">Final score uses the hidden settlement value.</p>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section class="status-grid">
-        <article class="panel">
-          <div class="section-head">
-            <h2>Round Status</h2>
             <button id="start-button" class="start-button">Start Interview</button>
           </div>
-          <div class="stats-grid">
+          <div class="micro-grid">
             <div>
-              <span class="label">Adjusted Score</span>
-              <strong id="adjusted-score">0.00</strong>
-            </div>
-            <div>
-              <span class="label">Raw MTM</span>
-              <strong id="raw-mtm">0.00</strong>
-            </div>
-            <div>
-              <span class="label">Local Best</span>
-              <strong id="best-score">0.00</strong>
-            </div>
-            <div>
-              <span class="label">Turn</span>
-              <strong id="round-status">0 / 0</strong>
+              <span class="label">How It Works</span>
+              <p class="microcopy">Quote a two-sided market, get one reaction, update, then settle.</p>
             </div>
             <div>
               <span class="label">Shot Clock</span>
-              <strong id="shot-clock">30s</strong>
-            </div>
-            <div>
-              <span class="label">State</span>
-              <strong id="state-label">ready</strong>
-            </div>
-            <div>
-              <span class="label">Inventory</span>
-              <strong id="inventory">0</strong>
-            </div>
-            <div>
-              <span class="label">Cash</span>
-              <strong id="cash">0.00</strong>
+              <p class="microcopy">You have 30 seconds per turn to think before the turn is forfeited.</p>
             </div>
           </div>
-        </article>
+        </div>
+      </header>
 
-        <article class="panel desk-sheet">
-          <h2>Desk Sheet</h2>
-          <div class="quote-strip">
-            <div class="quote bid">
+      <section class="playbook panel">
+        <div class="section-head">
+          <div>
+            <p class="kicker">Flow</p>
+            <h2>What You Do Each Turn</h2>
+          </div>
+          <span class="subtle">Interview-style, not a live exchange.</span>
+        </div>
+        <div class="playbook-grid">
+          <div class="play-step">
+            <span class="step-number">1</span>
+            <div>
+              <strong>Read the contract</strong>
+              <p class="microcopy">Use the range, benchmark hint, and revealed clues to build a fair-value view.</p>
+            </div>
+          </div>
+          <div class="play-step">
+            <span class="step-number">2</span>
+            <div>
+              <strong>Quote a two-way market</strong>
+              <p class="microcopy">Set a bid and ask where you are willing to buy or sell if the interviewer hits one side.</p>
+            </div>
+          </div>
+          <div class="play-step">
+            <span class="step-number">3</span>
+            <div>
+              <strong>Update after the response</strong>
+              <p class="microcopy">After one trade or pass, adjust your next quote based on inventory and the new clue.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard">
+        <article class="contract-card panel">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Contract</p>
+              <h2 id="asset-name">-</h2>
+            </div>
+            <span id="asset-tag" class="meta-pill">-</span>
+          </div>
+
+          <p id="asset-description" class="body-copy"></p>
+
+          <div class="contract-grid">
+            <div class="stat-box">
+              <span class="label">Code</span>
+              <strong id="asset-ticker">-</strong>
+            </div>
+            <div class="stat-box">
+              <span class="label">Category</span>
+              <strong id="asset-sector">-</strong>
+            </div>
+            <div class="stat-box">
+              <span class="label">Units</span>
+              <strong id="asset-exchange">-</strong>
+            </div>
+            <div class="stat-box">
+              <span class="label">Working Range</span>
+              <strong id="asset-range">-</strong>
+            </div>
+            <div class="stat-box">
+              <span class="label">Opening Anchor</span>
+              <strong id="asset-session">-</strong>
+            </div>
+            <div class="stat-box highlight-box">
+              <span class="label">Benchmark Hint</span>
+              <strong id="benchmark-text">-</strong>
+            </div>
+          </div>
+
+          <div class="desk-strip">
+            <div class="desk-pill">
               <span class="label">Reference</span>
               <strong id="ref-price">-</strong>
             </div>
-            <div class="quote mid">
+            <div class="desk-pill">
               <span class="label">Flow Tone</span>
               <strong id="flow-tone-card">-</strong>
             </div>
-            <div class="quote ask">
-              <span class="label">Last Mark</span>
-              <strong id="last-mark">-</strong>
-            </div>
-          </div>
-          <div class="stats-grid compact">
-            <div>
-              <span class="label">Vol Regime</span>
+            <div class="desk-pill">
+              <span class="label">Volatility</span>
               <strong id="vol-band">-</strong>
             </div>
-            <div>
-              <span class="label">Typical Spread</span>
+            <div class="desk-pill">
+              <span class="label">Spread</span>
               <strong id="spread-band">-</strong>
             </div>
-            <div>
-              <span class="label">Script Style</span>
+            <div class="desk-pill">
+              <span class="label">Style</span>
               <strong id="script-style-brief">-</strong>
             </div>
-            <div>
-              <span class="label">Range</span>
+            <div class="desk-pill">
+              <span class="label">Range Card</span>
               <strong id="range-brief">-</strong>
             </div>
           </div>
         </article>
-      </section>
 
-      <section class="asset-grid">
-        <article class="panel">
+        <article class="score-card panel">
           <div class="section-head">
-            <h2>Contract Brief</h2>
-            <span class="subtle" id="asset-tag">-</span>
+            <div>
+              <p class="kicker">Scoreboard</p>
+              <h2>Round Status</h2>
+            </div>
+            <span id="state-label" class="state-pill">ready</span>
           </div>
-          <div class="stats-grid compact">
-            <div>
-              <span class="label">Code</span>
-              <strong id="asset-ticker">-</strong>
-            </div>
-            <div>
-              <span class="label">Contract</span>
-              <strong id="asset-name">-</strong>
-            </div>
-            <div>
-              <span class="label">Category</span>
-              <strong id="asset-sector">-</strong>
-            </div>
-            <div>
-              <span class="label">Unit</span>
-              <strong id="asset-exchange">-</strong>
-            </div>
-            <div>
-              <span class="label">Opening Range</span>
-              <strong id="asset-range">-</strong>
-            </div>
-            <div>
-              <span class="label">Opening Anchor</span>
-              <strong id="asset-session">-</strong>
-            </div>
-          </div>
-          <p id="asset-description" class="response-copy"></p>
-          <p id="benchmark-text" class="response-copy"></p>
-        </article>
 
-        <article class="panel">
-          <div class="section-head">
-            <h2>Contract & Clues</h2>
-            <span class="subtle" id="settlement-rule">settles to end-of-session print</span>
-          </div>
-          <div class="response-callout">
-            <span class="label">Current Clue</span>
-            <strong id="current-clue">-</strong>
-          </div>
-          <p id="strategy-note" class="response-copy"></p>
-          <div class="stats-grid compact">
-            <div>
-              <span class="label">Settlement</span>
-              <strong id="settlement-value">hidden</strong>
+          <div class="score-grid">
+            <div class="score-tile main">
+              <span class="label">Adjusted Score</span>
+              <strong id="adjusted-score">0.00</strong>
             </div>
-            <div>
-              <span class="label">Revealed Clues</span>
-              <strong id="clue-count">0</strong>
+            <div class="score-tile">
+              <span class="label">Raw MTM</span>
+              <strong id="raw-mtm">0.00</strong>
+            </div>
+            <div class="score-tile">
+              <span class="label">Local Best</span>
+              <strong id="best-score">0.00</strong>
+            </div>
+            <div class="score-tile">
+              <span class="label">Turn</span>
+              <strong id="round-status">0 / 0</strong>
+            </div>
+            <div class="score-tile">
+              <span class="label">Shot Clock</span>
+              <strong id="shot-clock">30s</strong>
+            </div>
+            <div class="score-tile">
+              <span class="label">Inventory</span>
+              <strong id="inventory">0</strong>
+            </div>
+            <div class="score-tile">
+              <span class="label">Cash</span>
+              <strong id="cash">0.00</strong>
+            </div>
+            <div class="score-tile">
+              <span class="label">Penalty</span>
+              <strong id="inventory-penalty">0.00</strong>
             </div>
           </div>
-          <ul id="revealed-clues" class="clue-list"></ul>
+
+          <div class="how-panel">
+            <p class="body-copy">
+              You are quoting the market, not trading aggressively. If your quote is too cheap or too rich, the
+              interviewer will trade against it.
+            </p>
+          </div>
         </article>
       </section>
 
-      <section class="main-grid">
-        <article class="panel quote-panel">
+      <section class="workbench">
+        <article class="quote-card panel">
           <div class="section-head">
-            <h2>Your Market</h2>
-            <span class="subtle" id="bot-rule">Script trades at most once per turn.</span>
+            <div>
+              <p class="kicker">Your Market</p>
+              <h2>Quote This Turn</h2>
+            </div>
+            <span class="meta-pill" id="settlement-rule">-</span>
+          </div>
+
+          <div class="workflow-card">
+            <div>
+              <span class="label">Current Clue</span>
+              <strong id="current-clue">-</strong>
+            </div>
+            <p id="strategy-note" class="body-copy"></p>
+          </div>
+
+          <div class="task-card">
+            <span class="label">What Happens Next</span>
+            <strong id="task-prompt">Press start to begin the interview round.</strong>
           </div>
 
           <div class="preset-row">
@@ -198,83 +224,104 @@
           </div>
 
           <div class="quote-form">
-            <label>
+            <label class="field">
               <span class="label">Bid</span>
               <input id="bid-input" type="number" step="0.05" />
             </label>
-            <label>
+            <label class="field">
               <span class="label">Ask</span>
               <input id="ask-input" type="number" step="0.05" />
             </label>
-            <label>
+            <label class="field">
               <span class="label">Size</span>
               <input id="size-input" type="number" min="1" max="10" value="4" />
             </label>
           </div>
-          <p class="microcopy quote-help">
-            Quote in the displayed contract units. If your market is too generous, the interviewer will trade against you.
-          </p>
 
-          <div class="button-grid">
+          <div class="quote-actions">
             <button id="submit-quote" class="start-button">Submit Quote</button>
             <button id="skip-turn">Forfeit Turn</button>
           </div>
 
-          <div class="stats-grid compact">
-            <div>
+          <div class="quote-feedback">
+            <div class="feedback-tile">
               <span class="label">Suggested Bid</span>
               <strong id="suggested-bid">-</strong>
             </div>
-            <div>
+            <div class="feedback-tile">
               <span class="label">Suggested Ask</span>
               <strong id="suggested-ask">-</strong>
             </div>
-            <div>
+            <div class="feedback-tile">
               <span class="label">Last Submitted Bid</span>
               <strong id="last-quote-bid">-</strong>
             </div>
-            <div>
+            <div class="feedback-tile">
               <span class="label">Last Submitted Ask</span>
               <strong id="last-quote-ask">-</strong>
             </div>
           </div>
         </article>
 
-        <article class="panel response-panel">
-          <h2>Interviewer Action</h2>
-          <div class="response-callout">
-            <span class="label">Latest Action</span>
-            <strong id="script-action">Press start to begin.</strong>
-          </div>
-          <p id="script-reason" class="response-copy">
-            The interview starts idle. Nothing moves until you choose to begin the round.
-          </p>
-          <div class="stats-grid compact">
-            <div>
-              <span class="label">Script Profile</span>
-              <strong id="bot-profile">-</strong>
+        <aside class="side-column">
+          <article class="panel response-card">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Response</p>
+                <h2>Interviewer Action</h2>
+              </div>
+              <span class="meta-pill" id="bot-profile">-</span>
             </div>
-            <div>
-              <span class="label">Mark After Turn</span>
-              <strong id="mark-after">-</strong>
+
+            <div class="response-banner">
+              <span class="label">Latest Action</span>
+              <strong id="script-action">Press start to begin.</strong>
             </div>
-            <div>
-              <span class="label">Missed Turns</span>
-              <strong id="missed-turns">0</strong>
+            <p id="script-reason" class="body-copy">
+              The interview starts idle. Nothing happens until you begin the round.
+            </p>
+
+            <div class="mini-grid">
+              <div class="mini-tile">
+                <span class="label">Mark After Turn</span>
+                <strong id="mark-after">-</strong>
+              </div>
+              <div class="mini-tile">
+                <span class="label">Missed Turns</span>
+                <strong id="missed-turns">0</strong>
+              </div>
+              <div class="mini-tile">
+                <span class="label">Last Mark</span>
+                <strong id="last-mark">-</strong>
+              </div>
+              <div class="mini-tile">
+                <span class="label">Settlement</span>
+                <strong id="settlement-value">hidden</strong>
+              </div>
             </div>
-            <div>
-              <span class="label">Inventory Penalty</span>
-              <strong id="inventory-penalty">0.00</strong>
+          </article>
+
+          <article class="panel clue-card">
+            <div class="section-head">
+              <div>
+                <p class="kicker">Clues</p>
+                <h2>What You Know</h2>
+              </div>
+              <span class="meta-pill"><span id="clue-count">0</span> revealed</span>
             </div>
-          </div>
-        </article>
+            <ul id="revealed-clues" class="clue-list"></ul>
+          </article>
+        </aside>
       </section>
 
       <section class="tape-section">
-        <article class="panel">
+        <article class="panel tape-card">
           <div class="section-head">
-            <h2>Interview Tape</h2>
-            <span class="subtle">Every turn is logged here.</span>
+            <div>
+              <p class="kicker">Tape</p>
+              <h2>Interview History</h2>
+            </div>
+            <span class="subtle">Every turn gets logged here in plain language.</span>
           </div>
           <ul id="history-list" class="tape-list"></ul>
         </article>

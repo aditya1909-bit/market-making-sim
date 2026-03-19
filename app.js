@@ -373,7 +373,7 @@
       this.history.unshift({
         turn: this.turn,
         kind: decision.kind,
-        text: `Turn ${this.turn}. Clue: ${this.currentTurn.clue} You quoted ${format(bid)} / ${format(ask)} for size ${size}. ${decision.headline}`,
+        text: `Turn ${this.turn}. ${this.currentTurn.clue} You made ${format(bid)} bid and ${format(ask)} ask for ${size}. ${decision.headline} Mark moved to ${format(this.lastMark)} and your inventory is now ${this.player.inventory}.`,
       });
       if (this.history.length > 18) {
         this.history.length = 18;
@@ -459,7 +459,7 @@
       this.history.unshift({
         turn: this.turn,
         kind: "timeout",
-        text: `Turn ${this.turn}. No market was submitted before the shot clock expired.`,
+        text: `Turn ${this.turn}. No quote was submitted before the 30-second shot clock expired, so the turn was forfeited and the mark drifted to ${format(this.lastMark)}.`,
       });
       if (this.history.length > 18) {
         this.history.length = 18;
@@ -609,6 +609,7 @@
     clueCount: document.getElementById("clue-count"),
     revealedClues: document.getElementById("revealed-clues"),
     rangeBrief: document.getElementById("range-brief"),
+    taskPrompt: document.getElementById("task-prompt"),
   };
 
   let game = new InterviewGame(parseSeedFromUrl() || randomSeed());
@@ -696,6 +697,12 @@
     elements.startButton.textContent = snapshot.mode === "ready" ? "Start Interview" : "Restart Interview";
     elements.submitQuote.disabled = snapshot.mode !== "quote";
     elements.skipTurn.disabled = snapshot.mode !== "quote";
+    elements.taskPrompt.textContent =
+      snapshot.mode === "ready"
+        ? "Review the contract, decide on a plausible fair range, then press Start Interview when you are ready to quote."
+        : snapshot.mode === "finished"
+          ? `The round is over. Settlement was ${format(snapshot.settlementValue)} ${snapshot.asset.exchange}. Restart to try a new contract.`
+          : `You are on turn ${snapshot.turn} of ${snapshot.maxTurns}. Enter the price where you would buy, the price where you would sell, and the size you are willing to show.`;
 
     renderHistory(snapshot.history);
     renderClues(snapshot.revealedClues);
