@@ -16,6 +16,10 @@
     return Math.round(value / TICK) * TICK;
   }
 
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
   function format(value, digits = 2) {
     if (value === null || value === undefined || Number.isNaN(value)) {
       return "-";
@@ -188,17 +192,88 @@
     }
 
     buildClues(asset) {
+      const clueRng = makeRng(`${this.seed}-clues`);
+      const settlement = this.settlementValue();
+      const rangeLow = roundTick(asset.valueRange.low);
+      const rangeHigh = roundTick(asset.valueRange.high);
+      const rangeWidth = Math.max(TICK * 4, rangeHigh - rangeLow);
       const recentStart = asset.recentPath[0];
       const recentEnd = asset.recentPath[asset.recentPath.length - 1];
       const recentMove = roundTick(recentEnd - recentStart);
+      const midpoint = roundTick((rangeLow + rangeHigh) / 2);
       const spreadStyle =
         asset.averageSpread <= 0.08 ? "tight-spread" : asset.averageSpread <= 0.15 ? "medium-spread" : "wide-spread";
+      const interval = (radius, noise = 0) => {
+        const center = clamp(settlement + noise, rangeLow, rangeHigh);
+        return {
+          low: roundTick(clamp(center - radius, rangeLow, rangeHigh)),
+          high: roundTick(clamp(center + radius, rangeLow, rangeHigh)),
+        };
+      };
+      const benchmarkRadius = rangeWidth * 0.16;
+      const benchmarkNoise = signedNormalish(clueRng) * rangeWidth * 0.06;
+      const firstBand = interval(rangeWidth * 0.22, signedNormalish(clueRng) * rangeWidth * 0.04);
+      const secondBand = interval(rangeWidth * 0.16, signedNormalish(clueRng) * rangeWidth * 0.03);
+      const thirdBand = interval(rangeWidth * 0.11, signedNormalish(clueRng) * rangeWidth * 0.02);
+      const finalBand = interval(rangeWidth * 0.07, signedNormalish(clueRng) * rangeWidth * 0.015);
+
       return [
-        `Contract settles to the hidden final estimate for: ${asset.name}.`,
-        asset.initialClue,
-        asset.benchmarkText,
-        `This is a ${spreadStyle}, ${asset.flowTone} contract with a plausible range of ${asset.valueRange.low} to ${asset.valueRange.high}.`,
-        `The public reference path moved ${format(recentMove)} across the last ${asset.recentPath.length} observations.`,
+        {
+          text: `Contract settles to the hidden final estimate for ${asset.name}.`,
+          low: rangeLow,
+          high: rangeHigh,
+        },
+        {
+          text: asset.initialClue,
+          low: rangeLow,
+          high: rangeHigh,
+        },
+        {
+          text: `${asset.benchmarkText} A workable desk band is ${format(
+            clamp(settlement + benchmarkNoise - benchmarkRadius, rangeLow, rangeHigh)
+          )} to ${format(clamp(settlement + benchmarkNoise + benchmarkRadius, rangeLow, rangeHigh))}.`,
+          low: roundTick(clamp(settlement + benchmarkNoise - benchmarkRadius, rangeLow, rangeHigh)),
+          high: roundTick(clamp(settlement + benchmarkNoise + benchmarkRadius, rangeLow, rangeHigh)),
+        },
+        {
+          text: `This is a ${spreadStyle}, ${asset.flowTone} contract. The hidden settle should land in the ${
+            settlement >= midpoint ? "upper" : "lower"
+          } half of the working range.`,
+          low: settlement >= midpoint ? midpoint : rangeLow,
+          high: settlement >= midpoint ? rangeHigh : midpoint,
+        },
+        {
+          text: `A first-pass fair band is ${format(firstBand.low)} to ${format(firstBand.high)} ${asset.exchange}.`,
+          low: firstBand.low,
+          high: firstBand.high,
+        },
+        {
+          text: `The public reference path moved ${format(recentMove)} across the last ${
+            asset.recentPath.length
+          } observations. The hidden settle is likely ${settlement >= recentEnd ? "above" : "below"} the latest public print.`,
+          low: settlement >= recentEnd ? roundTick(recentEnd) : rangeLow,
+          high: settlement >= recentEnd ? rangeHigh : roundTick(recentEnd),
+        },
+        {
+          text: `A narrower desk band is ${format(secondBand.low)} to ${format(secondBand.high)} ${asset.exchange}.`,
+          low: secondBand.low,
+          high: secondBand.high,
+        },
+        {
+          text: `If you force a midpoint estimate, ${format(roundTick((thirdBand.low + thirdBand.high) / 2))} is defendable.`,
+          low: thirdBand.low,
+          high: thirdBand.high,
+        },
+        {
+          text: `Late-round conversation narrows fair to ${format(thirdBand.low)} to ${format(thirdBand.high)} ${asset.exchange}.`,
+          low: thirdBand.low,
+          high: thirdBand.high,
+        },
+        {
+          text: `Best remaining fair band: ${format(finalBand.low)} to ${format(finalBand.high)} ${asset.exchange}.`,
+          low: finalBand.low,
+          high: finalBand.high,
+        },
       ];
     }
 
@@ -258,21 +333,30 @@
       const pathNow = roundTick(this.asset.turnMarks[pathIndex]);
       const pathNext = roundTick(this.asset.turnMarks[pathIndex + 1]);
       const momentum = roundTick(pathNow - this.previousClose);
-      const realizedVol = clamp(this.asset.realizedVol, 0.12, 0.8);
-      const volatility = clamp(
-        realizedVol * 0.65 + Math.abs(momentum) * 0.18 + Math.abs(signedNormalish(this.rng)) * 0.08,
-        0.12,
-        0.75
+      const clue = this.clues[Math.min(this.turn - 1, this.clues.length - 1)];
+      const clueWidth = Math.max(TICK * 2, clue.high - clue.low);
+      const volatility = clamp(this.asset.realizedVol * 0.55 + clueWidth * 0.08 + Math.abs(momentum) * 0.12, 0.08, 0.7);
+      const settlement = this.settlementValue();
+      const profileRadiusFactor =
+        this.profile === "aggressive" ? 0.42 : this.profile === "inventory-sensitive" ? 0.34 : 0.38;
+      const privateRadius = Math.max(TICK * 2, clueWidth * profileRadiusFactor);
+      const blendedMid = lerp((clue.low + clue.high) / 2, settlement, 0.62);
+      const privateNoise = signedNormalish(this.rng) * privateRadius * 0.22;
+      const beliefMid = roundTick(clamp(blendedMid + privateNoise, this.asset.valueRange.low, this.asset.valueRange.high));
+      const beliefLow = roundTick(clamp(beliefMid - privateRadius, this.asset.valueRange.low, this.asset.valueRange.high));
+      const beliefHigh = roundTick(clamp(beliefMid + privateRadius, this.asset.valueRange.low, this.asset.valueRange.high));
+      const inventoryShiftScale =
+        this.profile === "inventory-sensitive" ? 0.2 : this.profile === "aggressive" ? 0.1 : 0.14;
+      const reservationMid = roundTick(
+        clamp(
+          beliefMid - this.script.inventory * Math.max(TICK, privateRadius * inventoryShiftScale),
+          this.asset.valueRange.low,
+          this.asset.valueRange.high
+        )
       );
-      const flowBiasBase =
-        this.asset.flowTone === "buyer-led" ? 0.22 : this.asset.flowTone === "seller-led" ? -0.22 : 0.0;
-      const flowBias = flowBiasBase + signedNormalish(this.rng) * 0.12;
-      const pressure = signedNormalish(this.rng) * 0.12 + (pathNext - pathNow) * 0.08;
 
       this.previousClose = this.lastMark;
       this.referencePrice = pathNow;
-
-      const hiddenFair = roundTick(pathNext + flowBias * 0.15);
 
       const baseHalfWidth = roundTick(
         Math.max(this.asset.averageSpread / 2, 0.12 + volatility * 0.3 + Math.abs(this.player.inventory) * 0.01)
@@ -280,14 +364,18 @@
 
       this.currentTurn = {
         referencePrice: this.referencePrice,
+        nextReference: pathNext,
         volatility,
         momentum,
-        flowBias,
-        pressure,
-        hiddenFair,
-        clue: this.clues[Math.min(this.turn - 1, this.clues.length - 1)],
-        suggestedBid: roundTick(this.referencePrice - baseHalfWidth),
-        suggestedAsk: roundTick(this.referencePrice + baseHalfWidth),
+        clue: clue.text,
+        clueLow: clue.low,
+        clueHigh: clue.high,
+        beliefMid,
+        beliefLow,
+        beliefHigh,
+        reservationMid,
+        suggestedBid: roundTick(reservationMid - baseHalfWidth),
+        suggestedAsk: roundTick(reservationMid + baseHalfWidth),
       };
 
       this.turnStartedAt = Date.now();
@@ -356,12 +444,15 @@
         this.script.inventory -= decision.qty;
       }
 
-      const markMove =
-        (this.currentTurn.hiddenFair - this.currentTurn.referencePrice) * 0.45 +
-        signedNormalish(this.rng) * this.currentTurn.volatility * 0.25 +
-        (decision.side === "buy" ? 0.08 : decision.side === "sell" ? -0.08 : 0);
+      const targetMove = (this.currentTurn.nextReference - this.currentTurn.referencePrice) * 0.72;
+      const tradeImpact =
+        (decision.side === "buy" ? 1 : decision.side === "sell" ? -1 : 0) *
+        Math.max(TICK, this.currentTurn.volatility * 0.18);
+      const noise = signedNormalish(this.rng) * Math.max(TICK, this.currentTurn.volatility * 0.08);
 
-      this.lastMark = roundTick(Math.max(this.priceFloor(), this.currentTurn.referencePrice + markMove));
+      this.lastMark = roundTick(
+        Math.max(this.priceFloor(), this.currentTurn.referencePrice + targetMove + tradeImpact + noise)
+      );
       this.recentMarks.push(this.lastMark);
       if (this.recentMarks.length > 6) {
         this.recentMarks.shift();
@@ -369,14 +460,14 @@
 
       this.lastResponse = {
         action: decision.headline,
-        reason: `${decision.reason} The contract remains in a ${this.asset.flowTone} setup and settles to the hidden final estimate.`,
+        reason: `${decision.reason} The public mark then moved to ${format(this.lastMark)} ${this.asset.exchange}.`,
         markAfter: this.lastMark,
       };
 
       this.history.unshift({
         turn: this.turn,
         kind: decision.kind,
-        text: `Turn ${this.turn}. ${this.currentTurn.clue} You made ${format(bid)} bid and ${format(ask)} ask for ${size}. ${decision.headline} Mark moved to ${format(this.lastMark)} and your inventory is now ${this.player.inventory}.`,
+        text: `Turn ${this.turn}. ${this.currentTurn.clue} You made ${format(bid)} bid and ${format(ask)} ask for ${size}. ${decision.headline} The mark finished at ${format(this.lastMark)} and your inventory is ${this.player.inventory}.`,
       });
       if (this.history.length > 18) {
         this.history.length = 18;
@@ -392,36 +483,73 @@
     }
 
     resolveScriptDecision(bid, ask, size) {
-      const hiddenFair = this.currentTurn.hiddenFair;
-      const volatility = this.currentTurn.volatility;
-      const thresholdBase =
-        this.profile === "aggressive" ? 0.04 : this.profile === "inventory-sensitive" ? 0.07 : 0.055;
-      const inventoryDrag =
-        this.profile === "inventory-sensitive" ? Math.abs(this.script.inventory) * 0.01 : Math.abs(this.script.inventory) * 0.005;
-      const threshold = roundTick(thresholdBase + volatility * 0.12 + inventoryDrag + Math.max(0, size - 4) * 0.01);
+      const bandLow = Math.min(this.currentTurn.beliefLow, this.currentTurn.beliefHigh);
+      const bandHigh = Math.max(this.currentTurn.beliefLow, this.currentTurn.beliefHigh);
+      const uncertainty = Math.max(TICK * 2, bandHigh - bandLow);
+      const aggression =
+        this.profile === "aggressive" ? 0.1 : this.profile === "inventory-sensitive" ? 0.16 : 0.13;
+      const threshold = Math.max(TICK, uncertainty * aggression + Math.max(0, size - 4) * TICK * 0.4);
+      const fairMid = this.currentTurn.reservationMid;
 
-      const buyEdge = hiddenFair - ask;
-      const sellEdge = bid - hiddenFair;
+      const buyEdge = fairMid - ask;
+      const sellEdge = bid - fairMid;
 
       if (buyEdge > threshold && buyEdge >= sellEdge) {
-        const qty = clamp(Math.ceil((buyEdge - threshold) / TICK) + 1, 1, size);
+        const qty = clamp(1 + Math.floor((buyEdge - threshold) / Math.max(TICK, uncertainty * 0.08)), 1, size);
         return {
           side: "buy",
           qty,
           kind: "buy",
           headline: `${SCRIPT_NAME} buys ${qty} from your ask at ${format(ask)}.`,
-          reason: `Your ask traded through the script's internal fair by ${format(buyEdge)}.`,
+          reason: `Your ask traded below the taker's private fair view of ${format(fairMid)} within a band of ${format(
+            bandLow
+          )} to ${format(bandHigh)}.`,
         };
       }
 
       if (sellEdge > threshold) {
-        const qty = clamp(Math.ceil((sellEdge - threshold) / TICK) + 1, 1, size);
+        const qty = clamp(1 + Math.floor((sellEdge - threshold) / Math.max(TICK, uncertainty * 0.08)), 1, size);
         return {
           side: "sell",
           qty,
           kind: "sell",
           headline: `${SCRIPT_NAME} sells ${qty} to your bid at ${format(bid)}.`,
-          reason: `Your bid was rich relative to the script's internal fair by ${format(sellEdge)}.`,
+          reason: `Your bid traded above the taker's private fair view of ${format(fairMid)} within a band of ${format(
+            bandLow
+          )} to ${format(bandHigh)}.`,
+        };
+      }
+
+      const softWindow = Math.max(TICK, uncertainty * 0.08);
+      const flowShift =
+        this.asset.flowTone === "buyer-led" ? softWindow * 0.75 : this.asset.flowTone === "seller-led" ? -softWindow * 0.75 : 0;
+      const profileShift =
+        this.profile === "aggressive" ? softWindow * 0.25 : this.profile === "patient" ? -softWindow * 0.15 : 0;
+      const leaningMid = fairMid + flowShift + profileShift;
+      const softBuyEdge = leaningMid - ask;
+      const softSellEdge = bid - leaningMid;
+
+      if (softBuyEdge > -softWindow && softBuyEdge >= softSellEdge && this.rng() > 0.48) {
+        return {
+          side: "buy",
+          qty: 1,
+          kind: "buy",
+          headline: `${SCRIPT_NAME} buys 1 from your ask at ${format(ask)}.`,
+          reason: `The taker leaned buy near fair because flow and profile favored lifting the offer around ${format(
+            fairMid
+          )}.`,
+        };
+      }
+
+      if (softSellEdge > -softWindow && this.rng() > 0.48) {
+        return {
+          side: "sell",
+          qty: 1,
+          kind: "sell",
+          headline: `${SCRIPT_NAME} sells 1 to your bid at ${format(bid)}.`,
+          reason: `The taker leaned sell near fair because flow and profile favored hitting the bid around ${format(
+            fairMid
+          )}.`,
         };
       }
 
@@ -430,7 +558,7 @@
         qty: 0,
         kind: "pass",
         headline: `${SCRIPT_NAME} passes.`,
-        reason: "Your spread was defensible enough that the script declined to trade.",
+        reason: `Your market stayed close enough to the taker's private fair view of ${format(fairMid)}.`,
       };
     }
 
@@ -440,14 +568,9 @@
       }
 
       this.missedTurns += 1;
-      this.lastMark = roundTick(
-        Math.max(
-          this.priceFloor(),
-          this.currentTurn.referencePrice +
-            signedNormalish(this.rng) * this.currentTurn.volatility * 0.28 +
-            this.currentTurn.flowBias * 0.18
-        )
-      );
+      const timeoutMove = (this.currentTurn.nextReference - this.currentTurn.referencePrice) * 0.65;
+      const timeoutNoise = signedNormalish(this.rng) * Math.max(TICK, this.currentTurn.volatility * 0.08);
+      this.lastMark = roundTick(Math.max(this.priceFloor(), this.currentTurn.referencePrice + timeoutMove + timeoutNoise));
       this.recentMarks.push(this.lastMark);
       if (this.recentMarks.length > 6) {
         this.recentMarks.shift();
@@ -543,8 +666,8 @@
         momentum: this.currentTurn ? this.currentTurn.momentum : 0,
         flowHint: this.flowHint(),
         pressureHint: this.pressureHint(),
-        currentClue: this.currentTurn ? this.currentTurn.clue : this.clues[0],
-        revealedClues: this.clues.slice(0, Math.max(1, this.turn)),
+        currentClue: this.currentTurn ? this.currentTurn.clue : this.clues[0].text,
+        revealedClues: this.clues.slice(0, Math.max(1, this.turn)).map((clue) => clue.text),
         settlementValue: this.mode === "finished" ? this.settlementValue() : null,
         suggestedBid: this.currentTurn ? this.currentTurn.suggestedBid : null,
         suggestedAsk: this.currentTurn ? this.currentTurn.suggestedAsk : null,
