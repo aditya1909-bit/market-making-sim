@@ -1,12 +1,14 @@
 # market-making-sim
 
-`market-making-sim` is now a GitHub Pages-native, single-player browser game: one human versus one market-making bot, with no backend and no build requirement.
+`market-making-sim` is now a GitHub Pages-native, single-player browser interview sim: the human makes a two-sided market and a scripted counterparty chooses whether to buy, sell, or pass.
 
 ## What It Does
 
 - Runs entirely in the browser with static HTML, CSS, and JavaScript.
-- Simulates a shallow order book with ambient liquidity, a quoting bot, and random external order flow.
-- Lets the player send market orders, place resting bid/ask quotes, cancel quotes, and play a timed round.
+- Starts idle instead of auto-running; the round begins only when the player presses `Start Interview`.
+- Uses turn-based quoting with a 30-second shot clock, so the player can think between decisions.
+- Puts the human in the market-maker role and the script in the taker role, which is closer to quant interview games.
+- Scores the player on marked-to-market PnL with explicit inventory and missed-turn penalties.
 - Stores the local best score in `localStorage`.
 - Supports seeded challenge links so the same scenario can be replayed from GitHub Pages.
 
@@ -35,27 +37,27 @@ Then visit [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 ## Game Model
 
-This is intentionally lighter than `microexec`. It does not try to port the Python/C++ stack into the browser. Instead it borrows the same ideas:
+This is intentionally lighter than `microexec`. It does not try to port the Python/C++ stack into the browser. Instead it borrows the same ideas and repackages them into an interview loop:
 
 - a latent fair price with stochastic movement
-- a market-making bot that skews quotes based on inventory and short-term volatility
-- top-of-book and shallow depth
-- market orders, resting orders, fills, inventory, and mark-to-market PnL
+- public signals like momentum, volatility, and flow hints
+- a hidden script fair value that reacts to your quotes
+- two-sided quoting, fills, inventory, and mark-to-market PnL
 
 That tradeoff is what makes it compatible with GitHub Pages.
 
 ## Controls
 
-- `Buy MKT` and `Sell MKT`: cross the spread immediately.
-- `Join Bid/Ask`: place a quote at the current best price.
-- `Improve Bid/Ask`: step one tick inside the spread when possible.
-- `Cancel Quotes`: remove your resting bid and ask.
-- `Pause`: stop the timer and inspect the book.
-- `Randomize`: start a new seeded scenario.
+- `Start Interview`: begins the round; the site does nothing before this.
+- `Bid / Ask / Size`: your quoted market for the current turn.
+- `Tight / Normal / Wide`: quick quote presets around the reference mark.
+- `Submit Quote`: sends one two-sided market to the script.
+- `Forfeit Turn`: intentionally skip a turn if you do not want to quote.
+- `Randomize`: generate a new seeded scenario.
 
 ## Seeded Challenges
 
-The `seed` field defines the scenario. The `Copy Link` button generates a URL containing that seed, so anyone opening the link gets the same starting conditions and market path.
+The `seed` field defines the scenario. The `Copy Link` button generates a URL containing that seed, so anyone opening the link gets the same interview setup and hidden script path.
 
 That is the GitHub Pages substitute for server-side game/session codes.
 
@@ -69,7 +71,7 @@ The workflow in [`.github/workflows/deploy-pages.yml`](/Users/adityadutta/Deskto
 
 ## Next Extensions
 
-- Swap the current heuristic bot for a compact in-browser ML policy.
-- Add difficulty presets with different volatility and toxicity regimes.
-- Add player analytics: fill ratio, adverse selection, inventory heat map.
-- Add historical scenario packs encoded as seeds or JSON fixtures.
+- Swap the current heuristic counterparty script for a compact in-browser ML policy.
+- Add difficulty presets with different script aggressiveness and inventory budgets.
+- Add post-round analytics: quote width distribution, hit ratio, adverse selection, and inventory path.
+- Add scenario packs encoded as JSON files or deterministic seeds.

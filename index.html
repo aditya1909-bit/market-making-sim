@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Market Making Sim</title>
+    <title>Market Making Interview Sim</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -11,164 +11,190 @@
       <section class="hero">
         <div>
           <p class="eyebrow">market-making-sim</p>
-          <h1>One trader versus one market maker.</h1>
+          <h1>Interview-style market making against your script.</h1>
           <p class="lede">
-            Play a fully client-side market microstructure game from GitHub Pages. Cross the spread, quote passively,
-            and finish the round with better marked-to-market PnL than the bot.
+            Quote a two-sided market, manage inventory, and survive a timed interview round. The script reacts to your
+            market once per turn, and the clock gives the human enough room to think instead of forcing arcade clicks.
           </p>
         </div>
-        <div class="hero-card panel">
+
+        <article class="panel hero-card">
           <span class="label">Challenge Seed</span>
           <div class="seed-row">
             <input id="seed-input" type="text" spellcheck="false" />
             <button id="copy-seed-link">Copy Link</button>
+            <button id="randomize-seed">Randomize</button>
           </div>
-          <p class="microcopy">The seed fully determines the scenario path, so shared links replay the same market.</p>
-        </div>
+          <p class="microcopy">
+            Same seed, same scenario. Share the link to give someone the same interview tape and hidden script path.
+          </p>
+        </article>
       </section>
 
       <section class="status-grid">
         <article class="panel">
-          <h2>Scoreboard</h2>
+          <div class="section-head">
+            <h2>Round Status</h2>
+            <button id="start-button" class="start-button">Start Interview</button>
+          </div>
           <div class="stats-grid">
             <div>
-              <span class="label">Player MTM</span>
-              <strong id="player-mtm">0.00</strong>
+              <span class="label">Adjusted Score</span>
+              <strong id="adjusted-score">0.00</strong>
             </div>
             <div>
-              <span class="label">Bot MTM</span>
-              <strong id="bot-mtm">0.00</strong>
+              <span class="label">Raw MTM</span>
+              <strong id="raw-mtm">0.00</strong>
             </div>
             <div>
               <span class="label">Local Best</span>
               <strong id="best-score">0.00</strong>
             </div>
             <div>
-              <span class="label">Round</span>
+              <span class="label">Turn</span>
               <strong id="round-status">0 / 0</strong>
+            </div>
+            <div>
+              <span class="label">Shot Clock</span>
+              <strong id="shot-clock">30s</strong>
+            </div>
+            <div>
+              <span class="label">State</span>
+              <strong id="state-label">ready</strong>
+            </div>
+            <div>
+              <span class="label">Inventory</span>
+              <strong id="inventory">0</strong>
+            </div>
+            <div>
+              <span class="label">Cash</span>
+              <strong id="cash">0.00</strong>
             </div>
           </div>
         </article>
 
         <article class="panel">
-          <h2>Market</h2>
+          <h2>Market Intel</h2>
           <div class="quote-strip">
             <div class="quote bid">
-              <span class="label">Best Bid</span>
-              <strong id="best-bid">-</strong>
+              <span class="label">Reference</span>
+              <strong id="ref-price">-</strong>
             </div>
             <div class="quote mid">
-              <span class="label">Mid</span>
-              <strong id="mid">-</strong>
+              <span class="label">Prev Close</span>
+              <strong id="prev-close">-</strong>
             </div>
             <div class="quote ask">
-              <span class="label">Best Ask</span>
-              <strong id="best-ask">-</strong>
+              <span class="label">Last Mark</span>
+              <strong id="last-mark">-</strong>
             </div>
           </div>
           <div class="stats-grid compact">
-            <div>
-              <span class="label">Spread</span>
-              <strong id="spread">-</strong>
-            </div>
             <div>
               <span class="label">Volatility</span>
               <strong id="volatility">-</strong>
             </div>
             <div>
-              <span class="label">Regime</span>
-              <strong id="regime">-</strong>
+              <span class="label">Momentum</span>
+              <strong id="momentum">-</strong>
             </div>
             <div>
-              <span class="label">State</span>
-              <strong id="state-label">running</strong>
+              <span class="label">Flow Hint</span>
+              <strong id="flow-hint">-</strong>
+            </div>
+            <div>
+              <span class="label">Pressure</span>
+              <strong id="pressure-hint">-</strong>
             </div>
           </div>
         </article>
       </section>
 
       <section class="main-grid">
-        <article class="panel controls">
+        <article class="panel quote-panel">
           <div class="section-head">
-            <h2>Trade</h2>
-            <div class="qty-row">
-              <label for="qty-input">Qty</label>
-              <input id="qty-input" type="number" min="1" max="10" value="2" />
-            </div>
+            <h2>Your Market</h2>
+            <span class="subtle" id="bot-rule">Script trades at most once per turn.</span>
           </div>
 
-          <div class="control-group">
-            <span class="group-label">Aggressive</span>
-            <div class="button-grid">
-              <button data-action="market-buy" class="buy">Buy MKT</button>
-              <button data-action="market-sell" class="sell">Sell MKT</button>
-            </div>
+          <div class="preset-row">
+            <button data-preset="tight">Tight</button>
+            <button data-preset="normal">Normal</button>
+            <button data-preset="wide">Wide</button>
           </div>
 
-          <div class="control-group">
-            <span class="group-label">Passive</span>
-            <div class="button-grid">
-              <button data-action="join-bid">Join Bid</button>
-              <button data-action="join-ask">Join Ask</button>
-              <button data-action="improve-bid">Improve Bid</button>
-              <button data-action="improve-ask">Improve Ask</button>
-            </div>
+          <div class="quote-form">
+            <label>
+              <span class="label">Bid</span>
+              <input id="bid-input" type="number" step="0.05" />
+            </label>
+            <label>
+              <span class="label">Ask</span>
+              <input id="ask-input" type="number" step="0.05" />
+            </label>
+            <label>
+              <span class="label">Size</span>
+              <input id="size-input" type="number" min="1" max="10" value="4" />
+            </label>
           </div>
 
-          <div class="control-group">
-            <span class="group-label">Round</span>
-            <div class="button-grid">
-              <button data-action="cancel-all">Cancel Quotes</button>
-              <button data-action="pause">Pause</button>
-              <button data-action="resume">Resume</button>
-              <button data-action="randomize">Randomize</button>
-            </div>
+          <div class="button-grid">
+            <button id="submit-quote" class="start-button">Submit Quote</button>
+            <button id="skip-turn">Forfeit Turn</button>
           </div>
 
           <div class="stats-grid compact">
             <div>
-              <span class="label">Player Inv</span>
-              <strong id="player-inventory">0</strong>
+              <span class="label">Suggested Bid</span>
+              <strong id="suggested-bid">-</strong>
             </div>
             <div>
-              <span class="label">Bot Inv</span>
-              <strong id="bot-inventory">0</strong>
+              <span class="label">Suggested Ask</span>
+              <strong id="suggested-ask">-</strong>
             </div>
             <div>
-              <span class="label">Player Cash</span>
-              <strong id="player-cash">0.00</strong>
+              <span class="label">Last Submitted Bid</span>
+              <strong id="last-quote-bid">-</strong>
             </div>
             <div>
-              <span class="label">Bot Cash</span>
-              <strong id="bot-cash">0.00</strong>
+              <span class="label">Last Submitted Ask</span>
+              <strong id="last-quote-ask">-</strong>
             </div>
           </div>
         </article>
 
-        <article class="panel ladder-panel">
-          <div class="section-head">
-            <h2>Order Book</h2>
-            <span class="legend">
-              <span class="pill ambient">Ambient</span>
-              <span class="pill player">Player</span>
-              <span class="pill bot">Bot</span>
-            </span>
+        <article class="panel response-panel">
+          <h2>Script Response</h2>
+          <div class="response-callout">
+            <span class="label">Latest Action</span>
+            <strong id="script-action">Press start to begin.</strong>
           </div>
-          <div class="ladder">
+          <p id="script-reason" class="response-copy">
+            The interview starts idle. Nothing moves until you choose to begin the round.
+          </p>
+          <div class="stats-grid compact">
             <div>
-              <h3>Bids</h3>
-              <ul id="bid-book" class="book-list"></ul>
+              <span class="label">Script Profile</span>
+              <strong id="bot-profile">-</strong>
             </div>
             <div>
-              <h3>Asks</h3>
-              <ul id="ask-book" class="book-list"></ul>
+              <span class="label">Mark After Turn</span>
+              <strong id="mark-after">-</strong>
+            </div>
+            <div>
+              <span class="label">Missed Turns</span>
+              <strong id="missed-turns">0</strong>
+            </div>
+            <div>
+              <span class="label">Inventory Penalty</span>
+              <strong id="inventory-penalty">0.00</strong>
             </div>
           </div>
         </article>
 
         <article class="panel">
-          <h2>Live Tape</h2>
-          <ul id="tape" class="tape-list"></ul>
+          <h2>Interview Tape</h2>
+          <ul id="history-list" class="tape-list"></ul>
         </article>
       </section>
     </main>

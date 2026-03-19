@@ -1,17 +1,18 @@
 (function () {
-  const STORAGE_KEY = "market-making-sim.best-score";
-  const TICK_SIZE = 0.1;
-  const ROUND_TICKS = 180;
-  const DEFAULT_QTY = 2;
-  const BOT_NAME = "Inventory Maker";
-  const BOT_PROFILES = ["balanced", "inventory-heavy", "sharp-spread"];
+  const STORAGE_KEY = "market-making-sim.interview-best-score";
+  const TICK = 0.05;
+  const MAX_TURNS = 10;
+  const TURN_SECONDS = 30;
+  const DEFAULT_SIZE = 4;
+  const SCRIPT_NAME = "Counterparty Script";
+  const SCRIPT_PROFILES = ["patient", "inventory-sensitive", "aggressive"];
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
   }
 
   function roundTick(value) {
-    return Math.round(value / TICK_SIZE) * TICK_SIZE;
+    return Math.round(value / TICK) * TICK;
   }
 
   function format(value, digits = 2) {
@@ -80,7 +81,23 @@
     return Promise.reject(new Error("Clipboard unavailable"));
   }
 
-  class GameEngine {
+  function safeStorageGet(key) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function safeStorageSet(key, value) {
+    try {
+      window.localStorage.setItem(key, String(value));
+    } catch (error) {
+      // ignore storage failures in restricted environments
+    }
+  }
+
+  class InterviewGame {
     constructor(seedText) {
       this.reset(seedText || randomSeed());
     }
@@ -88,582 +105,517 @@
     reset(seedText) {
       this.seed = (seedText || randomSeed()).toUpperCase();
       this.rng = makeRng(this.seed);
-      this.tick = 0;
-      this.maxTicks = ROUND_TICKS;
-      this.state = "running";
-      this.regime = BOT_PROFILES[Math.floor(this.rng() * BOT_PROFILES.length)];
-      this.fairPrice = roundTick(100 + this.rng() * 12 - 6);
-      this.previousFair = this.fairPrice;
-      this.lastTrade = this.fairPrice;
-      this.lastSpread = 0.4;
-      this.returns = [];
-      this.timePriority = 1;
-      this.externalPressure = 0;
-      this.tape = [];
-      this.bestScore = Number(window.localStorage.getItem(STORAGE_KEY) || 0);
-      this.player = {
-        name: "Player",
-        inventory: 0,
-        cash: 0,
-        bidOrder: null,
-        askOrder: null,
+      this.profile = SCRIPT_PROFILES[Math.floor(this.rng() * SCRIPT_PROFILES.length)];
+      this.mode = "ready";
+      this.turn = 0;
+      this.maxTurns = MAX_TURNS;
+      this.bestScore = Number(safeStorageGet(STORAGE_KEY) || 0);
+      this.player = { cash: 0, inventory: 0 };
+      this.script = { inventory: 0, lastDecisionAt: null };
+      this.referencePrice = roundTick(100 + this.rng() * 8 - 4);
+      this.previousClose = this.referencePrice;
+      this.lastMark = this.referencePrice;
+      this.lastQuote = null;
+      this.lastResponse = {
+        action: "Press start to begin.",
+        reason: "The round stays idle until the player explicitly starts it.",
+        markAfter: this.lastMark,
       };
-      this.bot = {
-        name: BOT_NAME,
-        inventory: 0,
-        cash: 0,
-        bidOrder: null,
-        askOrder: null,
-      };
-      this.ambient = { bids: [], asks: [] };
-      this.rebuildMarket();
+      this.shotClock = TURN_SECONDS;
+      this.turnStartedAt = null;
+      this.missedTurns = 0;
+      this.recentMarks = [this.referencePrice];
+      this.history = [];
+      this.currentTurn = null;
       setSeedOnUrl(this.seed);
       return this.snapshot();
     }
 
-    pause() {
-      this.state = "paused";
-      return this.snapshot();
-    }
-
-    resume() {
-      if (this.tick < this.maxTicks) {
-        this.state = "running";
-      }
-      return this.snapshot();
-    }
-
-    act(action, qty) {
-      const size = clamp(Number(qty) || DEFAULT_QTY, 1, 10);
-
-      if (action === "pause") {
-        return this.pause();
-      }
-      if (action === "resume") {
-        return this.resume();
-      }
-      if (action === "randomize") {
-        return this.reset(randomSeed());
-      }
-      if (action === "cancel-all") {
-        this.player.bidOrder = null;
-        this.player.askOrder = null;
-        this.log({
-          kind: "info",
-          message: "Player canceled all resting quotes.",
-        });
-      }
-      if (this.state !== "running") {
+    start() {
+      if (this.mode === "quote") {
         return this.snapshot();
       }
+      this.mode = "quote";
+      this.turn = 0;
+      this.player = { cash: 0, inventory: 0 };
+      this.script = { inventory: 0, lastDecisionAt: null };
+      this.previousClose = this.referencePrice;
+      this.lastMark = this.referencePrice;
+      this.lastQuote = null;
+      this.lastResponse = {
+        action: "Round started.",
+        reason: "Quote a two-way market. The script can trade only once per turn.",
+        markAfter: this.lastMark,
+      };
+      this.missedTurns = 0;
+      this.history = [];
+      this.recentMarks = [this.referencePrice];
+      this.prepareTurn();
+      return this.snapshot();
+    }
 
-      if (this.tick >= this.maxTicks) {
+    updateClock() {
+      if (this.mode !== "quote" || !this.turnStartedAt) {
+        return this.snapshot();
+      }
+      const elapsed = Math.floor((Date.now() - this.turnStartedAt) / 1000);
+      this.shotClock = clamp(TURN_SECONDS - elapsed, 0, TURN_SECONDS);
+      if (this.shotClock <= 0) {
+        this.handleTimeout();
+      }
+      return this.snapshot();
+    }
+
+    prepareTurn() {
+      if (this.turn >= this.maxTurns) {
         this.finishRound();
-        return this.snapshot();
-      }
-
-      if (action === "market-buy") {
-        this.executeMarketOrder("player", "buy", size);
-      } else if (action === "market-sell") {
-        this.executeMarketOrder("player", "sell", size);
-      } else if (action === "join-bid") {
-        this.placePlayerOrder("bid", "join", size);
-      } else if (action === "join-ask") {
-        this.placePlayerOrder("ask", "join", size);
-      } else if (action === "improve-bid") {
-        this.placePlayerOrder("bid", "improve", size);
-      } else if (action === "improve-ask") {
-        this.placePlayerOrder("ask", "improve", size);
-      }
-
-      this.advanceOneTick();
-      return this.snapshot();
-    }
-
-    advanceOneTick() {
-      if (this.state !== "running") {
         return;
       }
 
-      this.tick += 1;
-      this.previousFair = this.fairPrice;
+      this.turn += 1;
+      const rawShock = signedNormalish(this.rng);
+      const momentum = this.recentMarks.length >= 2
+        ? this.recentMarks[this.recentMarks.length - 1] - this.recentMarks[this.recentMarks.length - 2]
+        : 0;
+      const volatility = clamp(0.12 + Math.abs(rawShock) * 0.22 + Math.abs(momentum) * 0.25, 0.12, 0.55);
+      const flowBias = signedNormalish(this.rng) * 0.35;
+      const pressure = signedNormalish(this.rng) * 0.25;
 
-      const noiseScale = this.regime === "sharp-spread" ? 0.45 : this.regime === "inventory-heavy" ? 0.28 : 0.35;
-      const drift = (this.rng() - 0.5) * 0.06 + this.externalPressure * 0.03;
-      const shock = signedNormalish(this.rng) * noiseScale;
-      this.fairPrice = roundTick(Math.max(50, this.fairPrice + drift + shock));
-
-      const ret = this.fairPrice - this.previousFair;
-      this.returns.push(Math.abs(ret));
-      if (this.returns.length > 20) {
-        this.returns.shift();
-      }
-
-      this.externalPressure = clamp(this.externalPressure * 0.72 + signedNormalish(this.rng) * 0.18, -1.5, 1.5);
-      this.rebuildMarket();
-      this.simulateExternalFlow();
-
-      if (this.tick >= this.maxTicks) {
-        this.finishRound();
-      }
-    }
-
-    rebuildMarket() {
-      this.updateBotQuotes();
-      this.rebuildAmbientDepth();
-    }
-
-    updateBotQuotes() {
-      const vol = this.currentVolatility();
-      const inventorySkew = this.bot.inventory * (this.regime === "inventory-heavy" ? 0.08 : 0.05);
-      const reservation = this.fairPrice - inventorySkew + this.externalPressure * 0.07;
-      const halfSpread = Math.max(
-        0.2,
-        (this.regime === "sharp-spread" ? 0.16 : 0.22) + vol * 0.7 + Math.abs(this.bot.inventory) * 0.01
+      this.previousClose = this.lastMark;
+      this.referencePrice = roundTick(
+        Math.max(
+          25,
+          this.lastMark + momentum * 0.25 + pressure * 0.18 + rawShock * volatility * 0.4
+        )
       );
-      const bestBid = roundTick(reservation - halfSpread);
-      const bestAsk = roundTick(Math.max(bestBid + TICK_SIZE, reservation + halfSpread));
-      const qtyBias = clamp(3 - Math.floor(Math.abs(this.bot.inventory) / 4), 1, 5);
 
-      this.bot.bidOrder = {
-        id: `bot-bid-${this.tick}`,
-        owner: "bot",
-        side: "bid",
-        price: bestBid,
-        qty: qtyBias + (this.bot.inventory < 0 ? 1 : 0),
-        ts: this.nextPriority(),
-      };
-      this.bot.askOrder = {
-        id: `bot-ask-${this.tick}`,
-        owner: "bot",
-        side: "ask",
-        price: bestAsk,
-        qty: qtyBias + (this.bot.inventory > 0 ? 1 : 0),
-        ts: this.nextPriority(),
-      };
-      this.lastSpread = roundTick(bestAsk - bestBid);
-    }
+      const hiddenFair = roundTick(
+        this.referencePrice + flowBias * 0.45 + momentum * 0.35 + pressure * 0.15
+      );
 
-    rebuildAmbientDepth() {
-      const spreadPad = Math.max(0.2, this.lastSpread / 2);
-      const baseBid = roundTick(this.fairPrice - spreadPad);
-      const baseAsk = roundTick(this.fairPrice + spreadPad);
-      this.ambient = { bids: [], asks: [] };
+      const baseHalfWidth = roundTick(
+        Math.max(TICK * 2, 0.12 + volatility * 0.3 + Math.abs(this.player.inventory) * 0.01)
+      );
 
-      for (let level = 0; level < 5; level += 1) {
-        this.ambient.bids.push({
-          id: `ambient-bid-${this.tick}-${level}`,
-          owner: "ambient",
-          side: "bid",
-          price: roundTick(baseBid - level * TICK_SIZE),
-          qty: 4 + level * 2 + Math.floor(this.rng() * 4),
-          ts: 10_000 + level,
-        });
-        this.ambient.asks.push({
-          id: `ambient-ask-${this.tick}-${level}`,
-          owner: "ambient",
-          side: "ask",
-          price: roundTick(baseAsk + level * TICK_SIZE),
-          qty: 4 + level * 2 + Math.floor(this.rng() * 4),
-          ts: 10_100 + level,
-        });
-      }
-    }
-
-    placePlayerOrder(side, mode, qty) {
-      const book = this.currentBook();
-      const bestBid = book.bestBid;
-      const bestAsk = book.bestAsk;
-      let price;
-
-      if (side === "bid") {
-        const joined = bestBid ?? roundTick(this.fairPrice - 0.2);
-        const improved = bestAsk !== null ? roundTick(Math.min(bestAsk - TICK_SIZE, joined + TICK_SIZE)) : joined;
-        price = mode === "improve" ? improved : joined;
-        price = Math.max(TICK_SIZE, price);
-      } else {
-        const joined = bestAsk ?? roundTick(this.fairPrice + 0.2);
-        const improved = bestBid !== null ? roundTick(Math.max(bestBid + TICK_SIZE, joined - TICK_SIZE)) : joined;
-        price = mode === "improve" ? improved : joined;
-      }
-
-      const order = {
-        id: `player-${side}-${this.tick}-${this.nextPriority()}`,
-        owner: "player",
-        side,
-        price,
-        qty,
-        ts: this.nextPriority(),
+      this.currentTurn = {
+        referencePrice: this.referencePrice,
+        volatility,
+        momentum,
+        flowBias,
+        pressure,
+        hiddenFair,
+        suggestedBid: roundTick(this.referencePrice - baseHalfWidth),
+        suggestedAsk: roundTick(this.referencePrice + baseHalfWidth),
       };
 
-      if (side === "bid") {
-        this.player.bidOrder = order;
-      } else {
-        this.player.askOrder = order;
-      }
-
-      this.log({
-        kind: "info",
-        message: `Player placed ${side.toUpperCase()} ${qty} @ ${format(price)}.`,
-      });
+      this.turnStartedAt = Date.now();
+      this.shotClock = TURN_SECONDS;
     }
 
-    executeMarketOrder(actor, direction, qty) {
-      const wants = direction === "buy" ? "ask" : "bid";
-      const levels = this.bookLevels(wants, actor);
-      let remaining = qty;
-
-      for (const level of levels) {
-        if (remaining <= 0) {
-          break;
-        }
-        if (level.qty <= 0) {
-          continue;
-        }
-
-        const fillQty = Math.min(remaining, level.qty);
-        remaining -= fillQty;
-        this.applyFill(actor, level.owner, direction, level.price, fillQty, level);
+    preset(widthName) {
+      if (!this.currentTurn) {
+        return null;
       }
 
-      if (remaining > 0) {
-        this.log({
-          kind: "info",
-          message: `${this.actorName(actor)} swept the visible book and left ${remaining} unfilled.`,
-        });
-      }
-    }
-
-    applyFill(taker, maker, direction, price, qty, level) {
-      const buyer = direction === "buy" ? taker : maker;
-      const seller = direction === "buy" ? maker : taker;
-      this.transferInventory(buyer, qty, -price * qty);
-      this.transferInventory(seller, -qty, price * qty);
-
-      if (level.owner === "player") {
-        this.reduceOrder(this.player, level.side, qty);
-      } else if (level.owner === "bot") {
-        this.reduceOrder(this.bot, level.side, qty);
-      } else {
-        this.reduceAmbient(level.side, level.id, qty);
-      }
-
-      this.lastTrade = price;
-      const cssKind =
-        taker === "player" ? `${direction}-fill` : maker === "bot" ? "bot-fill" : direction === "buy" ? "buy-fill" : "sell-fill";
-      this.log({
-        kind: cssKind,
-        message: `${this.actorName(taker)} ${direction.toUpperCase()} ${qty} @ ${format(price)} against ${this.actorName(maker)}.`,
-      });
-    }
-
-    transferInventory(actor, inventoryDelta, cashDelta) {
-      if (actor === "player") {
-        this.player.inventory += inventoryDelta;
-        this.player.cash += cashDelta;
-      } else if (actor === "bot") {
-        this.bot.inventory += inventoryDelta;
-        this.bot.cash += cashDelta;
-      }
-    }
-
-    reduceOrder(account, side, qty) {
-      const key = side === "bid" ? "bidOrder" : "askOrder";
-      if (!account[key]) {
-        return;
-      }
-      account[key].qty -= qty;
-      if (account[key].qty <= 0) {
-        account[key] = null;
-      }
-    }
-
-    reduceAmbient(side, id, qty) {
-      const levels = side === "bid" ? this.ambient.bids : this.ambient.asks;
-      const level = levels.find((entry) => entry.id === id);
-      if (!level) {
-        return;
-      }
-      level.qty -= qty;
-      if (level.qty <= 0) {
-        const index = levels.indexOf(level);
-        if (index >= 0) {
-          levels.splice(index, 1);
-        }
-      }
-    }
-
-    simulateExternalFlow() {
-      const bursts = 1 + (this.rng() > 0.82 ? 1 : 0);
-
-      for (let i = 0; i < bursts; i += 1) {
-        const bias = this.externalPressure * 0.18 + this.bot.inventory * 0.003;
-        const buyProb = clamp(0.5 + bias, 0.18, 0.82);
-        const direction = this.rng() < buyProb ? "buy" : "sell";
-        const qty = 1 + Math.floor(this.rng() * 4);
-        this.executeMarketOrder("flow", direction, qty);
-      }
-    }
-
-    currentBook() {
-      const bids = this.bookLevels("bid", null);
-      const asks = this.bookLevels("ask", null);
+      const widths = {
+        tight: roundTick(Math.max(TICK * 2, this.currentTurn.volatility * 0.22)),
+        normal: roundTick(Math.max(TICK * 3, this.currentTurn.volatility * 0.34)),
+        wide: roundTick(Math.max(TICK * 4, this.currentTurn.volatility * 0.48)),
+      };
+      const halfWidth = widths[widthName] || widths.normal;
       return {
-        bestBid: bids.length ? bids[0].price : null,
-        bestAsk: asks.length ? asks[0].price : null,
-        bids,
-        asks,
+        bid: roundTick(this.currentTurn.referencePrice - halfWidth),
+        ask: roundTick(this.currentTurn.referencePrice + halfWidth),
       };
     }
 
-    bookLevels(side, taker) {
-      const levels = [];
-      const ownBook = side === "bid" ? "bidOrder" : "askOrder";
-      const ambientLevels = side === "bid" ? this.ambient.bids : this.ambient.asks;
-
-      for (const level of ambientLevels) {
-        levels.push({ ...level });
-      }
-      if (this.bot[ownBook]) {
-        levels.push({ ...this.bot[ownBook] });
-      }
-      if (this.player[ownBook]) {
-        levels.push({ ...this.player[ownBook] });
+    submitQuote(bidValue, askValue, sizeValue) {
+      if (this.mode !== "quote" || !this.currentTurn) {
+        return this.snapshot();
       }
 
-      const filtered = levels.filter((level) => {
-        if (taker === "player" && level.owner === "player") {
-          return false;
-        }
-        if (taker === "bot" && level.owner === "bot") {
-          return false;
-        }
-        return level.qty > 0;
+      this.updateClock();
+      if (this.mode !== "quote") {
+        return this.snapshot();
+      }
+
+      const bid = roundTick(Number(bidValue));
+      const ask = roundTick(Number(askValue));
+      const size = clamp(Number(sizeValue) || DEFAULT_SIZE, 1, 10);
+
+      if (!Number.isFinite(bid) || !Number.isFinite(ask)) {
+        this.lastResponse = {
+          action: "Invalid quote.",
+          reason: "Both bid and ask must be numeric prices.",
+          markAfter: this.lastMark,
+        };
+        return this.snapshot();
+      }
+      if (ask <= bid) {
+        this.lastResponse = {
+          action: "Invalid quote.",
+          reason: "Ask must be strictly above bid.",
+          markAfter: this.lastMark,
+        };
+        return this.snapshot();
+      }
+
+      this.lastQuote = { bid, ask, size };
+      const decision = this.resolveScriptDecision(bid, ask, size);
+      this.script.lastDecisionAt = Date.now();
+
+      if (decision.side === "buy") {
+        this.player.inventory -= decision.qty;
+        this.player.cash += ask * decision.qty;
+        this.script.inventory += decision.qty;
+      } else if (decision.side === "sell") {
+        this.player.inventory += decision.qty;
+        this.player.cash -= bid * decision.qty;
+        this.script.inventory -= decision.qty;
+      }
+
+      const markMove =
+        (this.currentTurn.hiddenFair - this.currentTurn.referencePrice) * 0.45 +
+        signedNormalish(this.rng) * this.currentTurn.volatility * 0.25 +
+        (decision.side === "buy" ? 0.08 : decision.side === "sell" ? -0.08 : 0);
+
+      this.lastMark = roundTick(Math.max(25, this.currentTurn.referencePrice + markMove));
+      this.recentMarks.push(this.lastMark);
+      if (this.recentMarks.length > 6) {
+        this.recentMarks.shift();
+      }
+
+      this.lastResponse = {
+        action: decision.headline,
+        reason: decision.reason,
+        markAfter: this.lastMark,
+      };
+
+      this.history.unshift({
+        turn: this.turn,
+        kind: decision.kind,
+        text: `Turn ${this.turn}: ${decision.headline} | You quoted ${format(bid)} / ${format(ask)} x ${size}.`,
       });
-
-      filtered.sort((a, b) => {
-        if (side === "bid") {
-          if (b.price !== a.price) {
-            return b.price - a.price;
-          }
-        } else if (a.price !== b.price) {
-          return a.price - b.price;
-        }
-        return a.ts - b.ts;
-      });
-
-      const merged = [];
-      for (const level of filtered) {
-        const last = merged[merged.length - 1];
-        if (last && last.price === level.price && last.owner === level.owner) {
-          last.qty += level.qty;
-        } else {
-          merged.push({ ...level });
-        }
+      if (this.history.length > 18) {
+        this.history.length = 18;
       }
-      return merged;
+
+      if (this.turn >= this.maxTurns) {
+        this.finishRound();
+      } else {
+        this.prepareTurn();
+      }
+
+      return this.snapshot();
     }
 
-    snapshot() {
-      const book = this.currentBook();
-      const mid =
-        book.bestBid !== null && book.bestAsk !== null
-          ? roundTick((book.bestBid + book.bestAsk) / 2)
-          : this.fairPrice;
-      const playerMtm = this.player.cash + this.player.inventory * mid;
-      const botMtm = this.bot.cash + this.bot.inventory * mid;
+    resolveScriptDecision(bid, ask, size) {
+      const hiddenFair = this.currentTurn.hiddenFair;
+      const volatility = this.currentTurn.volatility;
+      const thresholdBase =
+        this.profile === "aggressive" ? 0.04 : this.profile === "inventory-sensitive" ? 0.07 : 0.055;
+      const inventoryDrag =
+        this.profile === "inventory-sensitive" ? Math.abs(this.script.inventory) * 0.01 : Math.abs(this.script.inventory) * 0.005;
+      const threshold = roundTick(thresholdBase + volatility * 0.12 + inventoryDrag + Math.max(0, size - 4) * 0.01);
 
-      if (this.tick >= this.maxTicks) {
-        this.bestScore = Math.max(this.bestScore, playerMtm);
-        window.localStorage.setItem(STORAGE_KEY, String(this.bestScore));
+      const buyEdge = hiddenFair - ask;
+      const sellEdge = bid - hiddenFair;
+
+      if (buyEdge > threshold && buyEdge >= sellEdge) {
+        const qty = clamp(Math.ceil((buyEdge - threshold) / TICK) + 1, 1, size);
+        return {
+          side: "buy",
+          qty,
+          kind: "buy",
+          headline: `${SCRIPT_NAME} buys ${qty} from your ask at ${format(ask)}.`,
+          reason: `Your ask traded through the script's internal fair by ${format(buyEdge)}.`,
+        };
+      }
+
+      if (sellEdge > threshold) {
+        const qty = clamp(Math.ceil((sellEdge - threshold) / TICK) + 1, 1, size);
+        return {
+          side: "sell",
+          qty,
+          kind: "sell",
+          headline: `${SCRIPT_NAME} sells ${qty} to your bid at ${format(bid)}.`,
+          reason: `Your bid was rich relative to the script's internal fair by ${format(sellEdge)}.`,
+        };
       }
 
       return {
-        seed: this.seed,
-        tick: this.tick,
-        maxTicks: this.maxTicks,
-        state: this.state,
-        regime: this.regime,
-        market: {
-          bestBid: book.bestBid,
-          bestAsk: book.bestAsk,
-          mid,
-          spread: book.bestBid !== null && book.bestAsk !== null ? roundTick(book.bestAsk - book.bestBid) : null,
-          volatility: this.currentVolatility(),
-          bids: book.bids.slice(0, 6),
-          asks: book.asks.slice(0, 6),
-        },
-        player: {
-          inventory: this.player.inventory,
-          cash: this.player.cash,
-          mtm: playerMtm,
-          bidOrder: this.player.bidOrder,
-          askOrder: this.player.askOrder,
-        },
-        bot: {
-          inventory: this.bot.inventory,
-          cash: this.bot.cash,
-          mtm: botMtm,
-          bidOrder: this.bot.bidOrder,
-          askOrder: this.bot.askOrder,
-        },
-        tape: this.tape.slice(0, 14),
-        winner:
-          this.tick >= this.maxTicks
-            ? playerMtm === botMtm
-              ? "tie"
-              : playerMtm > botMtm
-                ? "player"
-                : "bot"
-            : null,
-        bestScore: this.bestScore,
+        side: "pass",
+        qty: 0,
+        kind: "pass",
+        headline: `${SCRIPT_NAME} passes.`,
+        reason: "Your spread was defensible enough that the script declined to trade.",
       };
+    }
+
+    handleTimeout() {
+      if (this.mode !== "quote" || !this.currentTurn) {
+        return this.snapshot();
+      }
+
+      this.missedTurns += 1;
+      this.lastMark = roundTick(
+        Math.max(
+          25,
+          this.currentTurn.referencePrice +
+            signedNormalish(this.rng) * this.currentTurn.volatility * 0.28 +
+            this.currentTurn.flowBias * 0.18
+        )
+      );
+      this.recentMarks.push(this.lastMark);
+      if (this.recentMarks.length > 6) {
+        this.recentMarks.shift();
+      }
+
+      this.lastResponse = {
+        action: "Turn forfeited.",
+        reason: "No quote was submitted before the 30-second shot clock expired.",
+        markAfter: this.lastMark,
+      };
+
+      this.history.unshift({
+        turn: this.turn,
+        kind: "timeout",
+        text: `Turn ${this.turn}: no quote submitted before the shot clock expired.`,
+      });
+      if (this.history.length > 18) {
+        this.history.length = 18;
+      }
+
+      if (this.turn >= this.maxTurns) {
+        this.finishRound();
+      } else {
+        this.prepareTurn();
+      }
+
+      return this.snapshot();
     }
 
     finishRound() {
-      this.state = "finished";
+      this.mode = "finished";
+      this.turnStartedAt = null;
+      this.shotClock = 0;
+      this.lastMark = roundTick(this.lastMark);
+      const score = this.adjustedScore();
+      this.bestScore = Math.max(this.bestScore, score);
+      safeStorageSet(STORAGE_KEY, this.bestScore);
+      this.lastResponse = {
+        action: "Round complete.",
+        reason: "Final score includes inventory and missed-turn penalties.",
+        markAfter: this.lastMark,
+      };
     }
 
-    currentVolatility() {
-      if (!this.returns.length) {
-        return 0.1;
-      }
-      const mean = this.returns.reduce((sum, value) => sum + value, 0) / this.returns.length;
-      return roundTick(mean + 0.1);
+    rawMtm() {
+      return this.player.cash + this.player.inventory * this.lastMark;
     }
 
-    nextPriority() {
-      this.timePriority += 1;
-      return this.timePriority;
+    inventoryPenalty() {
+      return Math.abs(this.player.inventory) * 0.35 + this.missedTurns * 0.25;
     }
 
-    actorName(actor) {
-      if (actor === "player") {
-        return "Player";
-      }
-      if (actor === "bot") {
-        return BOT_NAME;
-      }
-      if (actor === "ambient") {
-        return "Market";
-      }
-      return "Flow";
+    adjustedScore() {
+      return this.rawMtm() - this.inventoryPenalty();
     }
 
-    log(entry) {
-      this.tape.unshift({
-        ...entry,
-        tick: this.tick,
-      });
-      if (this.tape.length > 18) {
-        this.tape.length = 18;
+    flowHint() {
+      const x = this.currentTurn ? this.currentTurn.flowBias : 0;
+      if (x > 0.18) {
+        return "buyer skew";
       }
+      if (x < -0.18) {
+        return "seller skew";
+      }
+      return "two-way";
+    }
+
+    pressureHint() {
+      const x = this.currentTurn ? this.currentTurn.pressure : 0;
+      if (x > 0.12) {
+        return "up pressure";
+      }
+      if (x < -0.12) {
+        return "down pressure";
+      }
+      return "balanced";
+    }
+
+    snapshot() {
+      return {
+        seed: this.seed,
+        mode: this.mode,
+        turn: this.turn,
+        maxTurns: this.maxTurns,
+        shotClock: this.shotClock,
+        profile: this.profile,
+        referencePrice: this.currentTurn ? this.currentTurn.referencePrice : this.referencePrice,
+        previousClose: this.previousClose,
+        lastMark: this.lastMark,
+        volatility: this.currentTurn ? this.currentTurn.volatility : 0,
+        momentum: this.currentTurn ? this.currentTurn.momentum : 0,
+        flowHint: this.flowHint(),
+        pressureHint: this.pressureHint(),
+        suggestedBid: this.currentTurn ? this.currentTurn.suggestedBid : null,
+        suggestedAsk: this.currentTurn ? this.currentTurn.suggestedAsk : null,
+        rawMtm: this.rawMtm(),
+        adjustedScore: this.adjustedScore(),
+        bestScore: this.bestScore,
+        inventoryPenalty: this.inventoryPenalty(),
+        player: { ...this.player },
+        lastQuote: this.lastQuote,
+        lastResponse: this.lastResponse,
+        missedTurns: this.missedTurns,
+        history: this.history.slice(0, 12),
+      };
     }
   }
 
   const elements = {
     seedInput: document.getElementById("seed-input"),
-    qtyInput: document.getElementById("qty-input"),
     copySeedLink: document.getElementById("copy-seed-link"),
-    playerMtm: document.getElementById("player-mtm"),
-    botMtm: document.getElementById("bot-mtm"),
+    randomizeSeed: document.getElementById("randomize-seed"),
+    startButton: document.getElementById("start-button"),
+    adjustedScore: document.getElementById("adjusted-score"),
+    rawMtm: document.getElementById("raw-mtm"),
     bestScore: document.getElementById("best-score"),
     roundStatus: document.getElementById("round-status"),
-    bestBid: document.getElementById("best-bid"),
-    bestAsk: document.getElementById("best-ask"),
-    mid: document.getElementById("mid"),
-    spread: document.getElementById("spread"),
-    volatility: document.getElementById("volatility"),
-    regime: document.getElementById("regime"),
+    shotClock: document.getElementById("shot-clock"),
     stateLabel: document.getElementById("state-label"),
-    playerInventory: document.getElementById("player-inventory"),
-    botInventory: document.getElementById("bot-inventory"),
-    playerCash: document.getElementById("player-cash"),
-    botCash: document.getElementById("bot-cash"),
-    bidBook: document.getElementById("bid-book"),
-    askBook: document.getElementById("ask-book"),
-    tape: document.getElementById("tape"),
+    inventory: document.getElementById("inventory"),
+    cash: document.getElementById("cash"),
+    refPrice: document.getElementById("ref-price"),
+    prevClose: document.getElementById("prev-close"),
+    lastMark: document.getElementById("last-mark"),
+    volatility: document.getElementById("volatility"),
+    momentum: document.getElementById("momentum"),
+    flowHint: document.getElementById("flow-hint"),
+    pressureHint: document.getElementById("pressure-hint"),
+    bidInput: document.getElementById("bid-input"),
+    askInput: document.getElementById("ask-input"),
+    sizeInput: document.getElementById("size-input"),
+    submitQuote: document.getElementById("submit-quote"),
+    skipTurn: document.getElementById("skip-turn"),
+    suggestedBid: document.getElementById("suggested-bid"),
+    suggestedAsk: document.getElementById("suggested-ask"),
+    lastQuoteBid: document.getElementById("last-quote-bid"),
+    lastQuoteAsk: document.getElementById("last-quote-ask"),
+    scriptAction: document.getElementById("script-action"),
+    scriptReason: document.getElementById("script-reason"),
+    botProfile: document.getElementById("bot-profile"),
+    markAfter: document.getElementById("mark-after"),
+    missedTurns: document.getElementById("missed-turns"),
+    inventoryPenalty: document.getElementById("inventory-penalty"),
+    historyList: document.getElementById("history-list"),
   };
 
-  let engine = new GameEngine(parseSeedFromUrl() || randomSeed());
+  let game = new InterviewGame(parseSeedFromUrl() || randomSeed());
+  let renderedTurn = -1;
 
-  function renderLevels(target, levels) {
-    target.innerHTML = "";
-    levels.forEach((level) => {
+  function renderHistory(items) {
+    elements.historyList.innerHTML = "";
+    items.forEach((item) => {
       const li = document.createElement("li");
-      li.className = level.owner;
-      li.textContent = `${format(level.price)} x ${level.qty} · ${level.owner}`;
-      target.appendChild(li);
+      li.className = item.kind;
+      li.textContent = item.text;
+      elements.historyList.appendChild(li);
     });
   }
 
-  function renderTape(entries) {
-    elements.tape.innerHTML = "";
-    entries.forEach((entry) => {
-      const li = document.createElement("li");
-      li.className = entry.kind;
-      li.textContent = `t=${entry.tick} · ${entry.message}`;
-      elements.tape.appendChild(li);
-    });
-  }
-
-  function render() {
-    const snapshot = engine.snapshot();
-    elements.seedInput.value = snapshot.seed;
-    elements.playerMtm.textContent = format(snapshot.player.mtm);
-    elements.botMtm.textContent = format(snapshot.bot.mtm);
-    elements.bestScore.textContent = format(snapshot.bestScore);
-    elements.roundStatus.textContent = `${snapshot.tick} / ${snapshot.maxTicks}`;
-    elements.bestBid.textContent = format(snapshot.market.bestBid);
-    elements.bestAsk.textContent = format(snapshot.market.bestAsk);
-    elements.mid.textContent = format(snapshot.market.mid);
-    elements.spread.textContent = format(snapshot.market.spread);
-    elements.volatility.textContent = format(snapshot.market.volatility);
-    elements.regime.textContent = snapshot.regime;
-    elements.stateLabel.textContent =
-      snapshot.state === "finished" && snapshot.winner
-        ? `finished · ${snapshot.winner}`
-        : snapshot.state;
-    elements.playerInventory.textContent = String(snapshot.player.inventory);
-    elements.botInventory.textContent = String(snapshot.bot.inventory);
-    elements.playerCash.textContent = format(snapshot.player.cash);
-    elements.botCash.textContent = format(snapshot.bot.cash);
-
-    renderLevels(elements.bidBook, snapshot.market.bids);
-    renderLevels(elements.askBook, snapshot.market.asks);
-    renderTape(snapshot.tape);
-  }
-
-  function qtyValue() {
-    return clamp(Number(elements.qtyInput.value) || DEFAULT_QTY, 1, 10);
-  }
-
-  function handleAction(action) {
-    engine.act(action, qtyValue());
-    render();
-  }
-
-  function tickLoop() {
-    if (engine.state === "running") {
-      engine.act("wait", qtyValue());
-      render();
+  function applySuggestedQuote(snapshot) {
+    if (snapshot.turn !== renderedTurn && snapshot.mode === "quote") {
+      elements.bidInput.value = format(snapshot.suggestedBid, 2);
+      elements.askInput.value = format(snapshot.suggestedAsk, 2);
+      elements.sizeInput.value = String(DEFAULT_SIZE);
     }
   }
 
-  document.querySelectorAll("[data-action]").forEach((button) => {
+  function render() {
+    const snapshot = game.snapshot();
+    applySuggestedQuote(snapshot);
+    renderedTurn = snapshot.turn;
+
+    elements.seedInput.value = snapshot.seed;
+    elements.adjustedScore.textContent = format(snapshot.adjustedScore);
+    elements.rawMtm.textContent = format(snapshot.rawMtm);
+    elements.bestScore.textContent = format(snapshot.bestScore);
+    elements.roundStatus.textContent = `${snapshot.turn} / ${snapshot.maxTurns}`;
+    elements.shotClock.textContent = `${snapshot.shotClock}s`;
+    elements.stateLabel.textContent = snapshot.mode;
+    elements.inventory.textContent = String(snapshot.player.inventory);
+    elements.cash.textContent = format(snapshot.player.cash);
+    elements.refPrice.textContent = format(snapshot.referencePrice);
+    elements.prevClose.textContent = format(snapshot.previousClose);
+    elements.lastMark.textContent = format(snapshot.lastMark);
+    elements.volatility.textContent = format(snapshot.volatility);
+    elements.momentum.textContent = format(snapshot.momentum);
+    elements.flowHint.textContent = snapshot.flowHint;
+    elements.pressureHint.textContent = snapshot.pressureHint;
+    elements.suggestedBid.textContent = format(snapshot.suggestedBid);
+    elements.suggestedAsk.textContent = format(snapshot.suggestedAsk);
+    elements.lastQuoteBid.textContent = snapshot.lastQuote ? format(snapshot.lastQuote.bid) : "-";
+    elements.lastQuoteAsk.textContent = snapshot.lastQuote ? format(snapshot.lastQuote.ask) : "-";
+    elements.scriptAction.textContent = snapshot.lastResponse.action;
+    elements.scriptReason.textContent = snapshot.lastResponse.reason;
+    elements.botProfile.textContent = snapshot.profile;
+    elements.markAfter.textContent = format(snapshot.lastResponse.markAfter);
+    elements.missedTurns.textContent = String(snapshot.missedTurns);
+    elements.inventoryPenalty.textContent = format(snapshot.inventoryPenalty);
+    elements.startButton.textContent = snapshot.mode === "ready" ? "Start Interview" : "Restart Interview";
+    elements.submitQuote.disabled = snapshot.mode !== "quote";
+    elements.skipTurn.disabled = snapshot.mode !== "quote";
+
+    renderHistory(snapshot.history);
+  }
+
+  function submitQuote() {
+    game.submitQuote(elements.bidInput.value, elements.askInput.value, elements.sizeInput.value);
+    render();
+  }
+
+  document.querySelectorAll("[data-preset]").forEach((button) => {
     button.addEventListener("click", () => {
-      handleAction(button.dataset.action);
+      const preset = game.preset(button.dataset.preset);
+      if (!preset) {
+        return;
+      }
+      elements.bidInput.value = format(preset.bid);
+      elements.askInput.value = format(preset.ask);
     });
   });
 
+  elements.startButton.addEventListener("click", () => {
+    if (game.mode === "ready" || game.mode === "finished") {
+      game.start();
+    } else {
+      game.reset(elements.seedInput.value.trim() || randomSeed());
+      game.start();
+    }
+    render();
+  });
+
+  elements.submitQuote.addEventListener("click", submitQuote);
+  elements.skipTurn.addEventListener("click", () => {
+    game.handleTimeout();
+    render();
+  });
+
   elements.seedInput.addEventListener("change", () => {
-    engine.reset(elements.seedInput.value.trim() || randomSeed());
+    game.reset(elements.seedInput.value.trim() || randomSeed());
+    render();
+  });
+
+  elements.randomizeSeed.addEventListener("click", () => {
+    game.reset(randomSeed());
     render();
   });
 
   elements.copySeedLink.addEventListener("click", async () => {
     const url = new URL(window.location.href);
-    url.searchParams.set("seed", elements.seedInput.value.trim() || engine.seed);
+    url.searchParams.set("seed", elements.seedInput.value.trim() || game.seed);
     try {
       await copyText(url.toString());
       elements.copySeedLink.textContent = "Copied";
@@ -679,11 +631,19 @@
   });
 
   window.__marketMakingSim = {
-    getSnapshot: () => engine.snapshot(),
-    act: (action, qty) => engine.act(action, qty),
-    reset: (seed) => engine.reset(seed),
+    snapshot: () => game.snapshot(),
+    reset: (seed) => game.reset(seed),
+    start: () => game.start(),
+    submitQuote: (bid, ask, size) => game.submitQuote(bid, ask, size),
+    timeout: () => game.handleTimeout(),
   };
 
-  window.setInterval(tickLoop, 1000);
+  window.setInterval(() => {
+    if (game.mode === "quote") {
+      game.updateClock();
+      render();
+    }
+  }, 1000);
+
   render();
 })();
