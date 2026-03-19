@@ -8,13 +8,13 @@ This folder contains the local self-play trainer for the Worker bot policy.
 - trains a hierarchical taker policy with explicit `take`, `pass`, and `probe` modes plus an action layer
 - shards training across worker threads when you pass `--workers`
 - samples from the same `10,000` scenario pool the live game uses
-- exports the learned tables into [`workers/src/rl-policy-data.js`](/Users/adityadutta/Desktop/GitHub/market-making-sim/workers/src/rl-policy-data.js)
+- exports the learned tables into `workers/src/rl-policy-data.js`
 - includes a benchmark script to compare RL and fallback policies on the live scenario pool
 
 ## Run it
 
 ```bash
-cd /Users/adityadutta/Desktop/GitHub/market-making-sim
+cd market-making-sim
 node rl/train-self-play.js --episodes 50000 --workers 8 --min-samples 20
 ```
 
@@ -36,7 +36,7 @@ The taker also uses short quote memory and mode selection before choosing a buy/
 ## Evaluate it
 
 ```bash
-cd /Users/adityadutta/Desktop/GitHub/market-making-sim
+cd market-making-sim
 node rl/evaluate-policy.js --scenarios 2000 --games-per-scenario 2
 ```
 

@@ -1,6 +1,6 @@
 # Cloudflare Workers Backend
 
-This folder is the Cloudflare Workers + Durable Objects backend for the 1v1 maker/taker game.
+This folder contains the authoritative backend for live matches.
 
 ## What It Supports
 
@@ -31,7 +31,7 @@ This folder is the Cloudflare Workers + Durable Objects backend for the 1v1 make
 ## Local Run
 
 ```bash
-cd /Users/adityadutta/Desktop/GitHub/market-making-sim/workers
+cd workers
 npm install
 npm run dev
 ```

@@ -1,126 +1,163 @@
 # market-making-sim
 
-`market-making-sim` now contains:
+A multiplayer hidden-value market-making game with authoritative server state, private room codes, random matchmaking, reconnect handling, and a server-side RL bot.
 
-- a browser client in the repo root for room creation, room-code joins, and random matchmaking
-- a Cloudflare Workers + Durable Objects backend in [`workers/`](/Users/adityadutta/Desktop/GitHub/market-making-sim/workers/README.md) for the 1v1 bluffing game
-- the older Node prototype in [`backend/`](/Users/adityadutta/Desktop/GitHub/market-making-sim/backend/README.md), retained only as a reference path
+Frontend runs as a static site. Live game state runs on Cloudflare Workers + Durable Objects. Local RL training exports the policy the live bot uses.
 
-## What It Does
+Live demo: [GitHub Pages](https://aditya1909-bit.github.io/market-making-sim/)  
+Live backend: [Cloudflare Worker](https://market-making-sim-backend.adityasdutta.workers.dev)
 
-- Serves a static browser client from GitHub Pages or any simple file host.
-- Connects that client to an authoritative Cloudflare Worker over HTTP and WebSocket.
-- Supports private room creation with short join codes.
-- Supports random matchmaking into a 1v1 game.
-- Supports 1v1 solo rooms against a server-side RL bot.
-- Restores an active room after page refresh if the same browser reconnects with the stored room code and player id.
-- Runs a hidden-scalar maker/taker game that matches the bluffing interview format much more closely than the earlier single-player prototype.
-- Randomizes every room over a shared pool of `10,000` interview-style scenarios.
-- Assigns one player as `market_maker` and one as `market_taker`.
-- Lets the maker quote `bid / ask / size` and the taker answer with `buy / sell / pass`.
-- Supports rematches that automatically swap roles.
-- Settles both sides against a hidden true value at the end of the game.
+## Why This Is Interesting
+
+- It is not a toy frontend. Room state, hidden settlement value, matchmaking, and rematch flow are all authoritative on the backend.
+- It uses Durable Objects in the right place: one room object per live match, plus a dedicated matchmaking object.
+- The solo mode is not scripted in the browser. It uses a server-side RL policy exported from local self-play training.
+- The game format matches market-making interview dynamics more closely than a normal order-book sim: one maker, one taker, one hidden value, repeated quote/response rounds.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A["Static frontend<br/>index.html / app.js / styles.css"] -->|HTTP + WebSocket| B["Cloudflare Worker"]
+    B --> C["Room Durable Object<br/>authoritative game state"]
+    B --> D["Matchmaker Durable Object<br/>queue + pairing"]
+    C --> E["Game engine<br/>maker/taker turn loop"]
+    C --> F["RL bot runtime<br/>policy lookup + fallbacks"]
+    G["Local self-play trainer"] --> H["rl-policy-data.js"]
+    H --> F
+```
+
+## Engineering Highlights
+
+- Authoritative multiplayer state with one Durable Object per room
+- Private room codes and random matchmaking
+- Browser refresh reconnect using stored room code + player id
+- Rematch flow with automatic role swap
+- Hidden-value settlement model so neither client can inspect the answer early
+- Shared `10,000`-scenario pool across live play and RL training
+- Hierarchical taker policy with `take`, `pass`, and `probe` modes
+- Local parallel self-play trainer with progress, ETA, and policy export
+
+## Gameplay Model
+
+Each match is a hidden scalar contract.
+
+- One player is the `market_maker`
+- One player is the `market_taker`
+- Maker submits `bid / ask / size`
+- Taker responds with `buy / sell / pass`
+- After a fixed number of turns, both sides settle against the hidden true value
+
+This structure is closer to interview-style market games than to a continuous limit order book.
+
+## Latest RL Snapshot
+
+Latest local holdout benchmark from the current policy:
+
+- fallback maker vs fallback taker: maker `177.261`, taker `-177.261`
+- RL maker vs fallback taker: maker `414.849`
+- fallback maker vs RL taker: taker `-93.692`
+- maker uplift vs fallback baseline: `+237.588`
+- taker uplift vs fallback baseline: `+83.570`
+
+Interpretation:
+
+- the learned maker is materially better than the fallback maker
+- the learned taker is also better than the fallback taker
+- the environment is still somewhat maker-favored, which is the next area to improve
 
 ## Repo Layout
 
 ```text
-index.html          # Browser client shell
-styles.css          # Browser client styles
-app.js              # Browser client logic for create/join/matchmaking/ws
-asset-data.js       # Older browser-only scenario pack retained from prototype stage
+index.html             # Static client shell
+styles.css             # Frontend styling
+app.js                 # Frontend state, room flow, WebSocket client
+asset-data.js          # Older browser-only prototype data
+
 workers/
   src/
-    index.js        # Worker entrypoint and HTTP/WebSocket routing
-    room-do.js      # One Durable Object per room
-    matchmaker-do.js# Global matchmaking Durable Object
-    game-engine.js  # Authoritative maker/taker game loop
-    bot-policy.js   # Worker-side RL bot runtime
-    rl-core.js      # Shared RL state/action helpers
-    rl-policy-data.js # Exported RL policy table used by the Worker
-    contracts.js    # Hidden scalar contract generator
-    protocol.js     # Client/server event names and enums
+    index.js           # Worker entrypoint and routing
+    room-do.js         # One Durable Object per room
+    matchmaker-do.js   # Matchmaking queue Durable Object
+    game-engine.js     # Authoritative turn logic
+    bot-policy.js      # Live RL bot runtime
+    rl-core.js         # Shared RL state/action helpers
+    rl-policy-data.js  # Exported policy used in production
+    contracts.js       # Hidden-value contract generator
+    protocol.js        # Shared protocol enums and message names
   wrangler.jsonc
   package.json
+
 rl/
-  train-self-play.js # Local self-play trainer that exports rl-policy-data.js
-  train-shard.js     # Worker-thread shard entrypoint for parallel RL training
-  train-lib.js       # Shared self-play training functions
+  train-self-play.js   # Parallel self-play trainer
+  train-shard.js       # Worker-thread shard runner
+  train-lib.js         # Training and export helpers
+  evaluate-policy.js   # Benchmark script
   README.md
-backend/
-  src/
-    server.js       # HTTP + WebSocket server
-    room-manager.js # Rooms, players, matchmaking, broadcasts
-    game-engine.js  # Authoritative maker/taker game loop
-    contracts.js    # Hidden scalar contract generator
-  shared/
-    protocol.js     # Client/server event names and enums
-  package.json
-.github/workflows/
-  deploy-pages.yml  # GitHub Pages deployment workflow
+
+backend/               # Older Node prototype path, retained as reference
 ```
 
-## Local Run
+## Local Development
 
-Run the Cloudflare Worker backend first:
+Clone the repo:
 
 ```bash
-cd /Users/adityadutta/Desktop/GitHub/market-making-sim/workers
+git clone https://github.com/aditya1909-bit/market-making-sim.git
+cd market-making-sim
+```
+
+Run the Worker backend:
+
+```bash
+cd workers
 npm install
 npm run dev
 ```
 
-Then serve the frontend from the repo root:
+In another terminal, serve the frontend:
 
 ```bash
-cd /Users/adityadutta/Desktop/GitHub/market-making-sim
+cd market-making-sim
 python3 -m http.server 8000
 ```
 
-Then visit [http://127.0.0.1:8000](http://127.0.0.1:8000) and use backend URL `http://127.0.0.1:8787`.
+Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).  
+On localhost the client defaults to `http://127.0.0.1:8787`.
 
-## Live Backend
+## RL Training
 
-The deployed Cloudflare Worker is:
+Train a new policy:
 
-- [https://market-making-sim-backend.adityasdutta.workers.dev](https://market-making-sim-backend.adityasdutta.workers.dev)
+```bash
+node rl/train-self-play.js --episodes 1000000 --workers 8 --min-samples 20 --progress-every 50000
+```
 
-The frontend now defaults to that Worker on GitHub Pages. You can still override it with:
+Evaluate it:
 
-- the `Backend URL` field in the UI
-- a query parameter like `?backend=https://market-making-sim-backend.adityasdutta.workers.dev`
+```bash
+node rl/evaluate-policy.js --scenarios 1000 --games-per-scenario 2 --split holdout
+node rl/evaluate-policy.js --scenarios 1000 --games-per-scenario 2 --split all
+```
 
-## Multiplayer Game Model
+Deploy the updated policy:
 
-- one hidden scalar contract value per room
-- one market maker
-- one market taker
-- maker submits `bid / ask / size`
-- taker responds with `buy / sell / pass`
-- settlement at the hidden true value
-- room-code private games and random matchmaking
+```bash
+cd workers
+npm run deploy
+```
 
-## Browser Client Controls
+## Frontend + Backend Split
 
-- `Player name` and `Backend URL`
-- `Create Private Room`
-- `Join Room` by code
-- `Find Random Opponent`
-- `Play as Maker` / `Play as Taker` against the RL bot
-- `Mark Ready`
-- `Request Rematch`
-- maker-side quote submission
-- taker-side `Buy Ask / Sell Bid / Pass`
+- Frontend: static hosting, currently deployed via GitHub Pages
+- Backend: Cloudflare Worker + Durable Objects
 
-## Deploy Split
+This split keeps the UI simple to host while preserving authoritative game state and hidden settlement logic.
 
-- frontend: GitHub Pages is fine
-- backend: deploy the Worker separately on Cloudflare
+## Future Work
 
-The workflow in [`.github/workflows/deploy-pages.yml`](/Users/adityadutta/Desktop/GitHub/market-making-sim/.github/workflows/deploy-pages.yml) still deploys the static frontend to Pages.
-
-## Next Extensions
-
-- add a custom domain for the Worker if you do not want the `workers.dev` URL
-- add turn timers server-side
-- let the bot policy version be selected from the UI
-- add rated matchmaking or a leaderboard once you want persistence beyond a single room
+- Reduce remaining maker-side structural advantage in the environment
+- Add screenshots or a short gameplay GIF to improve first impression
+- Add post-game analytics or replay review
+- Add bot difficulty / policy version selection
+- Add time controls and optional rated matchmaking
