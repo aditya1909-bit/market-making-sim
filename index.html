@@ -7,292 +7,287 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <header class="masthead">
-        <div class="title-block">
-          <p class="eyebrow">market-making-sim</p>
-          <h1>Quote a weird contract like it is a quant interview.</h1>
-          <p class="subtitle">
-            You are the market maker. Read the brief, decide where fair value should live, quote a bid and ask, and
-            see whether the counterparty lifts your offer, hits your bid, or passes.
+    <main class="page-shell">
+      <section class="hero">
+        <div class="hero-nav glass-panel">
+          <div class="brand-lockup">
+            <p class="eyebrow">market-making-sim</p>
+            <span class="nav-title">Interview mode</span>
+          </div>
+
+          <div class="nav-controls">
+            <label class="seed-field" for="seed-input">
+              <span class="mini-label">Seed</span>
+              <input id="seed-input" type="text" spellcheck="false" />
+            </label>
+            <button id="copy-seed-link" class="secondary-button">Copy Link</button>
+            <button id="randomize-seed" class="secondary-button">Randomize</button>
+            <button id="start-button" class="primary-button">Start Interview</button>
+          </div>
+        </div>
+
+        <div class="hero-copy">
+          <p class="eyebrow">Single-player market making</p>
+          <h1>Quote a market in a strange contract.</h1>
+          <p class="hero-text">
+            Read the brief, form a view, make a two-sided market, and react to a single counterparty decision each
+            turn. This is built to feel closer to a clean interview prompt than a trading dashboard.
           </p>
         </div>
 
-        <div class="command-panel">
-          <div class="command-top">
-            <label class="field-label" for="seed-input">Challenge Seed</label>
-            <input id="seed-input" class="seed-input" type="text" spellcheck="false" />
-          </div>
-          <div class="command-actions">
-            <button id="copy-seed-link" class="ghost-button">Copy Link</button>
-            <button id="randomize-seed" class="ghost-button">Randomize</button>
-            <button id="start-button" class="primary-button">Start Interview</button>
-          </div>
-          <div class="command-notes">
-            <div class="note-chip">
-              <span class="field-label">Format</span>
-              <strong>One response per turn</strong>
-            </div>
-            <div class="note-chip">
-              <span class="field-label">Clock</span>
-              <strong>30 seconds each turn</strong>
-            </div>
-          </div>
+        <div class="hero-stats">
+          <article class="stat-pill">
+            <span class="mini-label">State</span>
+            <strong id="state-label">Ready</strong>
+          </article>
+          <article class="stat-pill">
+            <span class="mini-label">Turn</span>
+            <strong id="round-status">0 / 0</strong>
+          </article>
+          <article class="stat-pill">
+            <span class="mini-label">Clock</span>
+            <strong id="shot-clock">30s</strong>
+          </article>
+          <article class="stat-pill accent">
+            <span class="mini-label">Adjusted Score</span>
+            <strong id="adjusted-score">0.00</strong>
+          </article>
         </div>
-      </header>
-
-      <section class="metrics-strip">
-        <article class="metric-card accent">
-          <span class="field-label">Adjusted Score</span>
-          <strong id="adjusted-score">0.00</strong>
-        </article>
-        <article class="metric-card">
-          <span class="field-label">State</span>
-          <strong id="state-label">ready</strong>
-        </article>
-        <article class="metric-card">
-          <span class="field-label">Turn</span>
-          <strong id="round-status">0 / 0</strong>
-        </article>
-        <article class="metric-card">
-          <span class="field-label">Shot Clock</span>
-          <strong id="shot-clock">30s</strong>
-        </article>
-        <article class="metric-card">
-          <span class="field-label">Inventory</span>
-          <strong id="inventory">0</strong>
-        </article>
-        <article class="metric-card">
-          <span class="field-label">Cash</span>
-          <strong id="cash">0.00</strong>
-        </article>
-        <article class="metric-card">
-          <span class="field-label">Raw MTM</span>
-          <strong id="raw-mtm">0.00</strong>
-        </article>
-        <article class="metric-card">
-          <span class="field-label">Local Best</span>
-          <strong id="best-score">0.00</strong>
-        </article>
       </section>
 
-      <section class="board-grid">
-        <article class="panel contract-panel">
-          <div class="panel-head">
+      <section class="overview-grid">
+        <article class="card contract-card">
+          <div class="card-head">
             <div>
-              <p class="eyebrow">Contract Brief</p>
+              <p class="eyebrow">Contract brief</p>
               <h2 id="asset-name">-</h2>
             </div>
-            <span id="asset-tag" class="tag-pill">-</span>
+            <span id="asset-tag" class="badge">-</span>
           </div>
 
           <p id="asset-description" class="body-copy"></p>
 
-          <div class="contract-meta">
-            <div class="meta-box">
-              <span class="field-label">Code</span>
+          <div class="info-grid">
+            <div class="info-cell">
+              <span class="mini-label">Code</span>
               <strong id="asset-ticker">-</strong>
             </div>
-            <div class="meta-box">
-              <span class="field-label">Category</span>
+            <div class="info-cell">
+              <span class="mini-label">Category</span>
               <strong id="asset-sector">-</strong>
             </div>
-            <div class="meta-box">
-              <span class="field-label">Units</span>
+            <div class="info-cell">
+              <span class="mini-label">Units</span>
               <strong id="asset-exchange">-</strong>
             </div>
-            <div class="meta-box">
-              <span class="field-label">Anchor</span>
+            <div class="info-cell">
+              <span class="mini-label">Anchor</span>
               <strong id="asset-session">-</strong>
             </div>
-            <div class="meta-box">
-              <span class="field-label">Working Range</span>
+            <div class="info-cell">
+              <span class="mini-label">Working Range</span>
               <strong id="asset-range">-</strong>
             </div>
-            <div class="meta-box">
-              <span class="field-label">Penalty</span>
-              <strong id="inventory-penalty">0.00</strong>
+            <div class="info-cell">
+              <span class="mini-label">Range Card</span>
+              <strong id="range-brief">-</strong>
             </div>
           </div>
 
-          <div class="briefing-layout">
-            <div class="callout-block">
-              <span class="field-label">Benchmark Hint</span>
+          <div class="split-callouts">
+            <div class="soft-panel">
+              <span class="mini-label">Benchmark hint</span>
               <p id="benchmark-text" class="body-copy"></p>
             </div>
-            <div class="callout-block dark">
-              <span class="field-label">What You Should Do</span>
+            <div class="soft-panel emphasis">
+              <span class="mini-label">What to do now</span>
               <p id="task-prompt" class="body-copy">Press start to begin the interview round.</p>
             </div>
           </div>
         </article>
 
-        <aside class="side-rail">
-          <article class="panel response-panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Counterparty</p>
-                <h2>Latest Response</h2>
+        <aside class="summary-stack">
+          <article class="card compact-card">
+            <p class="eyebrow">Score</p>
+            <div class="mini-grid">
+              <div class="mini-metric">
+                <span class="mini-label">Raw MTM</span>
+                <strong id="raw-mtm">0.00</strong>
               </div>
-              <span id="bot-profile" class="tag-pill subtle-pill">-</span>
-            </div>
-
-            <div class="response-box">
-              <span class="field-label">Action</span>
-              <strong id="script-action">Press start to begin.</strong>
-              <p id="script-reason" class="body-copy">
-                The interview starts idle. Read the brief, decide on a fair range, and start when ready.
-              </p>
-            </div>
-
-            <div class="response-stats">
-              <div class="mini-box">
-                <span class="field-label">Mark After Turn</span>
-                <strong id="mark-after">-</strong>
+              <div class="mini-metric">
+                <span class="mini-label">Local Best</span>
+                <strong id="best-score">0.00</strong>
               </div>
-              <div class="mini-box">
-                <span class="field-label">Last Mark</span>
-                <strong id="last-mark">-</strong>
+              <div class="mini-metric">
+                <span class="mini-label">Inventory</span>
+                <strong id="inventory">0</strong>
               </div>
-              <div class="mini-box">
-                <span class="field-label">Missed Turns</span>
-                <strong id="missed-turns">0</strong>
+              <div class="mini-metric">
+                <span class="mini-label">Cash</span>
+                <strong id="cash">0.00</strong>
               </div>
-              <div class="mini-box">
-                <span class="field-label">Settlement</span>
+              <div class="mini-metric">
+                <span class="mini-label">Penalty</span>
+                <strong id="inventory-penalty">0.00</strong>
+              </div>
+              <div class="mini-metric">
+                <span class="mini-label">Settlement</span>
                 <strong id="settlement-value">hidden</strong>
               </div>
             </div>
           </article>
 
-          <article class="panel clue-panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Clues</p>
-                <h2>Known Information</h2>
+          <article class="card compact-card">
+            <p class="eyebrow">Desk read</p>
+            <div class="mini-grid">
+              <div class="mini-metric">
+                <span class="mini-label">Reference</span>
+                <strong id="ref-price">-</strong>
               </div>
-              <span class="tag-pill subtle-pill"><span id="clue-count">0</span> revealed</span>
+              <div class="mini-metric">
+                <span class="mini-label">Flow Tone</span>
+                <strong id="flow-tone-card">-</strong>
+              </div>
+              <div class="mini-metric">
+                <span class="mini-label">Volatility</span>
+                <strong id="vol-band">-</strong>
+              </div>
+              <div class="mini-metric">
+                <span class="mini-label">Spread</span>
+                <strong id="spread-band">-</strong>
+              </div>
+              <div class="mini-metric">
+                <span class="mini-label">Script Style</span>
+                <strong id="script-style-brief">-</strong>
+              </div>
+              <div class="mini-metric">
+                <span class="mini-label">Profile</span>
+                <strong id="bot-profile">-</strong>
+              </div>
             </div>
-
-            <div class="current-clue-box">
-              <span class="field-label">Current Clue</span>
-              <strong id="current-clue">-</strong>
-            </div>
-
-            <ul id="revealed-clues" class="clue-list"></ul>
           </article>
         </aside>
       </section>
 
-      <section class="workspace-grid">
-        <article class="panel quote-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Quote Station</p>
-              <h2>Make Your Market</h2>
+      <section class="quote-stage card">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">Quote station</p>
+            <h2>Make your market</h2>
+          </div>
+          <span id="settlement-rule" class="badge">-</span>
+        </div>
+
+        <p id="strategy-note" class="body-copy quote-note"></p>
+
+        <div class="quote-stage-grid">
+          <div class="quote-main">
+            <div class="preset-row">
+              <button data-preset="tight" class="secondary-button">Tight</button>
+              <button data-preset="normal" class="secondary-button">Normal</button>
+              <button data-preset="wide" class="secondary-button">Wide</button>
             </div>
-            <span id="settlement-rule" class="tag-pill">-</span>
+
+            <div class="quote-inputs">
+              <label class="quote-field">
+                <span class="mini-label">Bid</span>
+                <input id="bid-input" type="number" step="0.05" />
+              </label>
+              <label class="quote-field">
+                <span class="mini-label">Ask</span>
+                <input id="ask-input" type="number" step="0.05" />
+              </label>
+              <label class="quote-field">
+                <span class="mini-label">Size</span>
+                <input id="size-input" type="number" min="1" max="10" value="4" />
+              </label>
+            </div>
+
+            <div class="action-row">
+              <button id="submit-quote" class="primary-button">Submit Quote</button>
+              <button id="skip-turn" class="secondary-button danger">Forfeit Turn</button>
+            </div>
           </div>
 
-          <p id="strategy-note" class="strategy-copy"></p>
-
-          <div class="quote-layout">
-            <div class="quote-inputs">
-              <div class="preset-row">
-                <button data-preset="tight" class="ghost-button">Tight</button>
-                <button data-preset="normal" class="ghost-button">Normal</button>
-                <button data-preset="wide" class="ghost-button">Wide</button>
-              </div>
-
-              <div class="input-grid">
-                <label class="input-card">
-                  <span class="field-label">Bid</span>
-                  <input id="bid-input" type="number" step="0.05" />
-                </label>
-                <label class="input-card">
-                  <span class="field-label">Ask</span>
-                  <input id="ask-input" type="number" step="0.05" />
-                </label>
-                <label class="input-card">
-                  <span class="field-label">Size</span>
-                  <input id="size-input" type="number" min="1" max="10" value="4" />
-                </label>
-              </div>
-
-              <div class="action-row">
-                <button id="submit-quote" class="primary-button">Submit Quote</button>
-                <button id="skip-turn" class="ghost-button danger-button">Forfeit Turn</button>
-              </div>
+          <div class="quote-sidebar">
+            <div class="quote-suggestion">
+              <span class="mini-label">Suggested Bid</span>
+              <strong id="suggested-bid">-</strong>
             </div>
+            <div class="quote-suggestion">
+              <span class="mini-label">Suggested Ask</span>
+              <strong id="suggested-ask">-</strong>
+            </div>
+            <div class="quote-suggestion">
+              <span class="mini-label">Last Submitted Bid</span>
+              <strong id="last-quote-bid">-</strong>
+            </div>
+            <div class="quote-suggestion">
+              <span class="mini-label">Last Submitted Ask</span>
+              <strong id="last-quote-ask">-</strong>
+            </div>
+          </div>
+        </div>
+      </section>
 
-            <div class="quote-sidecar">
-              <div class="sidecar-box">
-                <span class="field-label">Suggested Bid</span>
-                <strong id="suggested-bid">-</strong>
-              </div>
-              <div class="sidecar-box">
-                <span class="field-label">Suggested Ask</span>
-                <strong id="suggested-ask">-</strong>
-              </div>
-              <div class="sidecar-box">
-                <span class="field-label">Last Submitted Bid</span>
-                <strong id="last-quote-bid">-</strong>
-              </div>
-              <div class="sidecar-box">
-                <span class="field-label">Last Submitted Ask</span>
-                <strong id="last-quote-ask">-</strong>
-              </div>
+      <section class="lower-grid">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Latest response</p>
+              <h2>What the counterparty did</h2>
+            </div>
+          </div>
+
+          <div class="response-highlight">
+            <span class="mini-label">Action</span>
+            <strong id="script-action">Press start to begin.</strong>
+            <p id="script-reason" class="body-copy">
+              The round starts idle. Read the contract, form a view, and begin when ready.
+            </p>
+          </div>
+
+          <div class="info-grid">
+            <div class="info-cell">
+              <span class="mini-label">Mark After Turn</span>
+              <strong id="mark-after">-</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Last Mark</span>
+              <strong id="last-mark">-</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Missed Turns</span>
+              <strong id="missed-turns">0</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Current Clue</span>
+              <strong id="current-clue">-</strong>
             </div>
           </div>
         </article>
 
-        <article class="panel desk-panel">
-          <div class="panel-head">
+        <article class="card">
+          <div class="card-head">
             <div>
-              <p class="eyebrow">Desk View</p>
-              <h2>Fast Read</h2>
+              <p class="eyebrow">Revealed clues</p>
+              <h2>What you know so far</h2>
             </div>
+            <span class="badge subtle"><span id="clue-count">0</span> revealed</span>
           </div>
 
-          <div class="desk-grid">
-            <div class="desk-box">
-              <span class="field-label">Reference</span>
-              <strong id="ref-price">-</strong>
-            </div>
-            <div class="desk-box">
-              <span class="field-label">Flow Tone</span>
-              <strong id="flow-tone-card">-</strong>
-            </div>
-            <div class="desk-box">
-              <span class="field-label">Volatility</span>
-              <strong id="vol-band">-</strong>
-            </div>
-            <div class="desk-box">
-              <span class="field-label">Spread</span>
-              <strong id="spread-band">-</strong>
-            </div>
-            <div class="desk-box">
-              <span class="field-label">Script Style</span>
-              <strong id="script-style-brief">-</strong>
-            </div>
-            <div class="desk-box">
-              <span class="field-label">Range Card</span>
-              <strong id="range-brief">-</strong>
-            </div>
-          </div>
+          <ul id="revealed-clues" class="clue-list"></ul>
         </article>
       </section>
 
-      <section class="tape-section">
-        <article class="panel tape-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Tape</p>
-              <h2>Turn-by-Turn History</h2>
-            </div>
+      <section class="card tape-card">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">Tape</p>
+            <h2>Turn-by-turn history</h2>
           </div>
-          <ul id="history-list" class="tape-list"></ul>
-        </article>
+        </div>
+        <ul id="history-list" class="tape-list"></ul>
       </section>
     </main>
 
