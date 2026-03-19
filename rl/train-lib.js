@@ -1,6 +1,17 @@
 import { contractFromScenarioIndex, SCENARIO_COUNT } from "../workers/src/contracts.js";
-import { MAKER_ACTIONS, TAKER_ACTIONS, makerStateKey, quoteFromMakerAction, takerStateKey } from "../workers/src/rl-core.js";
-import { TAKER_ACTION } from "../workers/src/protocol.js";
+import {
+  MAKER_ACTIONS,
+  TAKER_ACTIONS,
+  fallbackMakerActionIndex,
+  fallbackTakerAction,
+  makerStateKey,
+  pickActionFromPolicy,
+  quoteFromMakerAction,
+  takerStateKey,
+  updateEstimateFromQuote,
+  updateEstimateFromResolution,
+} from "../workers/src/rl-core.js";
+import { GAME_ROLE, TAKER_ACTION } from "../workers/src/protocol.js";
 
 function ensureRow(table, key, count) {
   if (!table[key]) {
@@ -32,6 +43,24 @@ function epsilonGreedy(table, key, count, epsilon) {
   return bestIndex;
 }
 
+function mixedMakerAction(room, estimate, qMaker, countsMaker, epsilon) {
+  if (Math.random() < 0.32) {
+    return fallbackMakerActionIndex(room, estimate);
+  }
+  const stateKey = makerStateKey(room, estimate);
+  return epsilonGreedy(qMaker, stateKey, MAKER_ACTIONS.length, epsilon) ??
+    pickActionFromPolicy(qMaker, stateKey, fallbackMakerActionIndex(room, estimate), 0, countsMaker, 4);
+}
+
+function mixedTakerAction(room, estimate, qTaker, countsTaker, epsilon) {
+  if (Math.random() < 0.32) {
+    return fallbackTakerAction(room, estimate);
+  }
+  const stateKey = takerStateKey(room, estimate);
+  const choice = epsilonGreedy(qTaker, stateKey, TAKER_ACTIONS.length, epsilon);
+  return TAKER_ACTIONS[choice] || pickActionFromPolicy(qTaker, stateKey, fallbackTakerAction(room, estimate), 0, countsTaker, 4);
+}
+
 function settle(room, hiddenValue) {
   return {
     makerPnl: room.game.maker.cash + room.game.maker.inventory * hiddenValue,
@@ -49,6 +78,7 @@ function buildRoom(contract) {
       maxTurns: contract.maxTurns,
       activeActor: "maker",
       currentQuote: null,
+      previousQuote: null,
       lastResolution: { type: "game_started", text: "Game started." },
       maker: { cash: 0, inventory: 0 },
       taker: { cash: 0, inventory: 0 },
@@ -59,6 +89,8 @@ function buildRoom(contract) {
 function applyTaker(room, action) {
   const quote = room.game.currentQuote;
   const qty = quote.size;
+  const spread = quote.ask - quote.bid;
+  let traded = false;
 
   if (action === TAKER_ACTION.BUY) {
     room.game.maker.cash += quote.ask * qty;
@@ -66,12 +98,14 @@ function applyTaker(room, action) {
     room.game.taker.cash -= quote.ask * qty;
     room.game.taker.inventory += qty;
     room.game.lastResolution = { type: "turn_resolved", action: "buy", mark: quote.ask };
+    traded = true;
   } else if (action === TAKER_ACTION.SELL) {
     room.game.maker.cash -= quote.bid * qty;
     room.game.maker.inventory += qty;
     room.game.taker.cash += quote.bid * qty;
     room.game.taker.inventory -= qty;
     room.game.lastResolution = { type: "turn_resolved", action: "sell", mark: quote.bid };
+    traded = true;
   } else {
     room.game.lastResolution = {
       type: "turn_resolved",
@@ -80,19 +114,56 @@ function applyTaker(room, action) {
     };
   }
 
+  room.game.previousQuote = quote;
   room.game.currentQuote = null;
   room.game.turn += 1;
+  return { traded, spread, action };
 }
 
-export function exportModule(qMaker, qTaker, countsMaker, countsTaker, metadata) {
+function compressPolicy(table, counts, minSamples) {
+  const policy = {};
+  const support = {};
+
+  for (const [stateKey, values] of Object.entries(table)) {
+    const countRow = counts[stateKey] || [];
+    const total = countRow.reduce((sum, value) => sum + value, 0);
+    if (total < minSamples) {
+      continue;
+    }
+
+    let bestIndex = 0;
+    let bestValue = values[0];
+    for (let index = 1; index < values.length; index += 1) {
+      if (values[index] > bestValue) {
+        bestValue = values[index];
+        bestIndex = index;
+      }
+    }
+
+    policy[stateKey] = bestIndex;
+    support[stateKey] = total;
+  }
+
+  return { policy, support };
+}
+
+export function exportModule(qMaker, qTaker, countsMaker, countsTaker, metadata, minSamples = 12) {
+  const maker = compressPolicy(qMaker, countsMaker, minSamples);
+  const taker = compressPolicy(qTaker, countsTaker, minSamples);
+
   return `export const RL_POLICY = ${JSON.stringify(
     {
-      metadata,
-      maker: qMaker,
-      taker: qTaker,
+      metadata: {
+        ...metadata,
+        exportMinSamples: minSamples,
+        exportedMakerStates: Object.keys(maker.policy).length,
+        exportedTakerStates: Object.keys(taker.policy).length,
+      },
+      maker: maker.policy,
+      taker: taker.policy,
       counts: {
-        maker: countsMaker,
-        taker: countsTaker,
+        maker: maker.support,
+        taker: taker.support,
       },
     },
     null,
@@ -113,33 +184,49 @@ export function runEpisodes(config) {
     const contract = contractFromScenarioIndex(scenarioIndex);
     const width = Math.max(1, contract.rangeHigh - contract.rangeLow);
     const room = buildRoom(contract);
-    const makerEstimate = contract.hiddenValue + (Math.random() * 2 - 1) * width * 0.14;
-    const takerEstimate = contract.hiddenValue + (Math.random() * 2 - 1) * width * 0.14;
+    let makerEstimate = contract.hiddenValue + (Math.random() * 2 - 1) * width * 0.14;
+    let takerEstimate = contract.hiddenValue + (Math.random() * 2 - 1) * width * 0.14;
     const makerTrace = [];
     const takerTrace = [];
+    let tradeCount = 0;
+    let passCount = 0;
+    let spreadSum = 0;
     const epsilon = config.epsilon * (1 - episode / Math.max(1, config.episodes));
 
     for (let turn = 1; turn <= contract.maxTurns; turn += 1) {
       room.game.turn = turn;
 
       const makerKey = makerStateKey(room, makerEstimate);
-      const makerActionIndex = epsilonGreedy(qMaker, makerKey, MAKER_ACTIONS.length, epsilon);
+      const makerActionIndex = mixedMakerAction(room, makerEstimate, qMaker, countsMaker, epsilon);
       const quote = quoteFromMakerAction(room, makerEstimate, makerActionIndex);
       room.game.currentQuote = quote;
       room.game.lastResolution = { type: "quote_submitted", text: "maker quote" };
       makerTrace.push([makerKey, makerActionIndex]);
 
+      takerEstimate = updateEstimateFromQuote(room, GAME_ROLE.TAKER, takerEstimate);
       const takerKey = takerStateKey(room, takerEstimate);
-      const takerActionIndex = epsilonGreedy(qTaker, takerKey, TAKER_ACTIONS.length, epsilon);
-      const takerAction = TAKER_ACTIONS[takerActionIndex];
-      takerTrace.push([takerKey, takerActionIndex]);
+      const takerAction = mixedTakerAction(room, takerEstimate, qTaker, countsTaker, epsilon);
+      const takerActionIndex = TAKER_ACTIONS.indexOf(takerAction);
+      takerTrace.push([takerKey, Math.max(0, takerActionIndex)]);
 
-      applyTaker(room, takerAction);
+      const outcome = applyTaker(room, takerAction);
+      makerEstimate = updateEstimateFromResolution(room, GAME_ROLE.MAKER, makerEstimate);
+      spreadSum += outcome.spread / width;
+      if (outcome.traded) {
+        tradeCount += 1;
+      } else if (outcome.action === TAKER_ACTION.PASS) {
+        passCount += 1;
+      }
     }
 
     const { makerPnl, takerPnl } = settle(room, contract.hiddenValue);
-    const makerReward = makerPnl / width;
-    const takerReward = takerPnl / width;
+    const makerInventoryPenalty = Math.abs(room.game.maker.inventory) * 0.02;
+    const takerInventoryPenalty = Math.abs(room.game.taker.inventory) * 0.02;
+    const tradeBonus = tradeCount / Math.max(1, contract.maxTurns);
+    const passPenalty = passCount / Math.max(1, contract.maxTurns);
+    const spreadPenalty = spreadSum / Math.max(1, contract.maxTurns);
+    const makerReward = makerPnl / width - makerInventoryPenalty + 0.02 * tradeBonus - 0.03 * spreadPenalty;
+    const takerReward = takerPnl / width - takerInventoryPenalty - 0.05 * passPenalty;
 
     makerTrace.forEach(([key, index]) => {
       const row = ensureRow(qMaker, key, MAKER_ACTIONS.length);

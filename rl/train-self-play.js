@@ -13,6 +13,7 @@ function parseArgs(argv) {
     episodes: 20000,
     alpha: 0.08,
     epsilon: 0.18,
+    minSamples: 12,
     workers: Math.max(1, Math.min(os.availableParallelism?.() || os.cpus().length || 1, 8)),
     output: path.resolve(__dirname, "../workers/src/rl-policy-data.js"),
   };
@@ -30,6 +31,9 @@ function parseArgs(argv) {
       index += 1;
     } else if (token === "--workers") {
       out.workers = Math.max(1, Number(argv[index + 1] || out.workers));
+      index += 1;
+    } else if (token === "--min-samples") {
+      out.minSamples = Math.max(1, Number(argv[index + 1] || out.minSamples));
       index += 1;
     } else if (token === "--out") {
       out.output = path.resolve(process.cwd(), argv[index + 1] || out.output);
@@ -108,7 +112,7 @@ async function main() {
 
   fs.writeFileSync(
     config.output,
-    exportModule(result.qMaker, result.qTaker, result.countsMaker, result.countsTaker, metadata),
+    exportModule(result.qMaker, result.qTaker, result.countsMaker, result.countsTaker, metadata, config.minSamples),
     "utf8"
   );
 
@@ -116,6 +120,7 @@ async function main() {
   console.log(`Workers: ${effectiveWorkers}`);
   console.log(`Scenario pool: ${SCENARIO_COUNT}`);
   console.log(`States: maker=${Object.keys(result.qMaker).length}, taker=${Object.keys(result.qTaker).length}`);
+  console.log(`Export min samples: ${config.minSamples}`);
 }
 
 main().catch((error) => {

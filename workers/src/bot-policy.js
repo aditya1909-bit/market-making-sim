@@ -1,12 +1,20 @@
 import { GAME_ROLE } from "./protocol.js";
 import {
   MAKER_ACTIONS,
+  blendTakerAction,
   fallbackAction,
   pickActionFromPolicy,
   quoteFromMakerAction,
   roleStateKey,
+  updateEstimateFromQuote,
+  updateEstimateFromResolution,
 } from "./rl-core.js";
 import { RL_POLICY } from "./rl-policy-data.js";
+
+const MIN_POLICY_SUPPORT = {
+  maker: 20,
+  taker: 20,
+};
 
 function botRole(room, botPlayerId) {
   return room.makerId === botPlayerId ? GAME_ROLE.MAKER : GAME_ROLE.TAKER;
@@ -21,13 +29,31 @@ export function refreshBotEstimate(room) {
   room.bot.privateEstimate = room.game.contract.hiddenValue + noise;
 }
 
+export function observeBotQuote(room, botPlayerId) {
+  if (!room.bot?.enabled || room.bot.playerId !== botPlayerId || room.bot.privateEstimate === null) {
+    return;
+  }
+  const role = botRole(room, botPlayerId);
+  room.bot.privateEstimate = updateEstimateFromQuote(room, role, room.bot.privateEstimate);
+}
+
+export function observeBotResolution(room, botPlayerId) {
+  if (!room.bot?.enabled || room.bot.playerId !== botPlayerId || room.bot.privateEstimate === null) {
+    return;
+  }
+  const role = botRole(room, botPlayerId);
+  room.bot.privateEstimate = updateEstimateFromResolution(room, role, room.bot.privateEstimate);
+}
+
 export function botDecision(room, botPlayerId) {
   const role = botRole(room, botPlayerId);
   const estimate = room.bot?.privateEstimate ?? room.game.contract.hiddenValue;
   const stateKey = roleStateKey(room, role, estimate);
   const policyTable = role === GAME_ROLE.MAKER ? RL_POLICY.maker : RL_POLICY.taker;
+  const countTable = role === GAME_ROLE.MAKER ? RL_POLICY.counts?.maker : RL_POLICY.counts?.taker;
   const fallbackValue = fallbackAction(room, role, estimate);
-  const picked = pickActionFromPolicy(policyTable, stateKey, fallbackValue);
+  const minSupport = role === GAME_ROLE.MAKER ? MIN_POLICY_SUPPORT.maker : MIN_POLICY_SUPPORT.taker;
+  const picked = pickActionFromPolicy(policyTable, stateKey, fallbackValue, 0, countTable, minSupport);
 
   if (role === GAME_ROLE.MAKER) {
     const quote = quoteFromMakerAction(room, estimate, typeof picked === "number" ? picked : fallbackValue);
@@ -42,15 +68,16 @@ export function botDecision(room, botPlayerId) {
     };
   }
 
+  const action = blendTakerAction(room, estimate, typeof picked === "string" ? picked : fallbackValue, fallbackValue);
   return {
     type: "taker_action",
     payload: {
-      action: typeof picked === "string" ? picked : fallbackValue,
+      action,
     },
     debug: {
       role,
       stateKey,
-      actionId: typeof picked === "string" ? picked : fallbackValue,
+      actionId: action,
     },
   };
 }

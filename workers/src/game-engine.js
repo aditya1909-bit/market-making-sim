@@ -39,6 +39,7 @@ export function createGameState(contract = null) {
     maxTurns: contract?.maxTurns ?? 0,
     activeActor: null,
     currentQuote: null,
+    previousQuote: null,
     lastResolution: null,
     maker: { cash: 0, inventory: 0 },
     taker: { cash: 0, inventory: 0 },
@@ -182,6 +183,7 @@ export function startGame(room) {
   room.game.maxTurns = room.game.contract.maxTurns;
   room.game.activeActor = GAME_ACTOR.MAKER;
   room.game.currentQuote = null;
+  room.game.previousQuote = null;
   room.game.lastResolution = {
     type: "game_started",
     text: `Game ${room.gameNumber} started. Market maker quotes first.`,
@@ -306,6 +308,7 @@ export function takeAction(room, playerId, payload) {
     turn: room.game.turn,
     text: `Turn ${room.game.turn}. Quote ${quote.bid} / ${quote.ask} x ${quote.size}. ${text}`,
   });
+  room.game.previousQuote = quote;
   room.game.currentQuote = null;
 
   if (room.game.turn >= room.game.maxTurns) {

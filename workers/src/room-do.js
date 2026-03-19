@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { botDecision, refreshBotEstimate } from "./bot-policy.js";
+import { botDecision, observeBotQuote, observeBotResolution, refreshBotEstimate } from "./bot-policy.js";
 import { sampleContract } from "./contracts.js";
 import {
   addPlayerToRoom,
@@ -286,12 +286,18 @@ export class RoomDurableObject extends DurableObject {
           return;
         case CLIENT_EVENTS.SUBMIT_QUOTE:
           submitQuote(this.room, playerId, parsed.payload || {});
+          if (this.room.bot?.enabled && this.room.takerId === this.room.bot.playerId) {
+            observeBotQuote(this.room, this.room.bot.playerId);
+          }
           await this.advanceBotUntilHumanTurn();
           await this.persist();
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.TAKER_ACTION:
           takeAction(this.room, playerId, parsed.payload || {});
+          if (this.room.bot?.enabled && this.room.makerId === this.room.bot.playerId) {
+            observeBotResolution(this.room, this.room.bot.playerId);
+          }
           await this.advanceBotUntilHumanTurn();
           await this.persist();
           this.broadcastRoom();
