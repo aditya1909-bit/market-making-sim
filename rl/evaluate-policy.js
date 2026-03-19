@@ -3,13 +3,17 @@ import { RL_POLICY } from "../workers/src/rl-policy-data.js";
 import {
   MAKER_ACTIONS,
   TAKER_ACTIONS,
-  blendTakerAction,
+  TAKER_DIRECTIONAL_ACTIONS,
+  TAKER_MODES,
   fallbackMakerActionIndex,
+  fallbackTakerMode,
   fallbackTakerAction,
   makerStateKey,
   pickActionFromPolicy,
   quoteFromMakerAction,
-  takerStateKey,
+  takerActionForMode,
+  takerActionStateKey,
+  takerModeStateKey,
   updateEstimateFromQuote,
   updateEstimateFromResolution,
 } from "../workers/src/rl-core.js";
@@ -17,8 +21,30 @@ import { GAME_ROLE, TAKER_ACTION } from "../workers/src/protocol.js";
 
 const MIN_POLICY_SUPPORT = {
   maker: 20,
-  taker: 20,
+  takerMode: 28,
+  takerAction: 45,
 };
+
+function hybridTakerExecution(room, estimate, modeledAction, fallbackAction) {
+  const quote = room.game.currentQuote;
+  if (!quote) {
+    return modeledAction;
+  }
+
+  const width = Math.max(1, room.game.contract.rangeHigh - room.game.contract.rangeLow);
+  const buyEdge = (estimate - quote.ask) / width;
+  const sellEdge = (quote.bid - estimate) / width;
+  const bestEdge = Math.max(buyEdge, sellEdge);
+  const spread = (quote.ask - quote.bid) / width;
+
+  if (fallbackAction !== "pass" && (bestEdge > 0.012 || spread < 0.012)) {
+    return fallbackAction;
+  }
+  if (modeledAction === "pass" && fallbackAction !== "pass" && bestEdge > 0.004) {
+    return fallbackAction;
+  }
+  return modeledAction;
+}
 
 function parseArgs(argv) {
   const out = {
@@ -86,6 +112,8 @@ function buildRoom(contract) {
       activeActor: "maker",
       currentQuote: null,
       previousQuote: null,
+      quoteHistory: [],
+      actionHistory: [],
       lastResolution: { type: "game_started", text: "Game started." },
       maker: { cash: 0, inventory: 0 },
       taker: { cash: 0, inventory: 0 },
@@ -121,18 +149,30 @@ function chooseTaker(strategy, room, estimate) {
   if (strategy === "fallback") {
     return fallbackTakerAction(room, estimate);
   }
-  const stateKey = takerStateKey(room, estimate);
+  const modeStateKey = takerModeStateKey(room, estimate);
+  const fallbackMode = fallbackTakerMode(room, estimate);
+  const pickedMode = pickActionFromPolicy(
+    RL_POLICY.takerModes,
+    modeStateKey,
+    fallbackMode,
+    0,
+    RL_POLICY.counts?.takerModes,
+    MIN_POLICY_SUPPORT.takerMode
+  );
+  const mode = typeof pickedMode === "number" ? TAKER_MODES[pickedMode] || fallbackMode : pickedMode;
   const fallback = fallbackTakerAction(room, estimate);
-  const picked = pickActionFromPolicy(
+  const actionStateKey = takerActionStateKey(room, estimate, mode);
+  const pickedAction = pickActionFromPolicy(
     RL_POLICY.taker,
-    stateKey,
+    actionStateKey,
     fallback,
     0,
     RL_POLICY.counts?.taker,
-    MIN_POLICY_SUPPORT.taker
+    MIN_POLICY_SUPPORT.takerAction
   );
-  const preferred = typeof picked === "number" ? TAKER_ACTIONS[picked] || fallback : picked;
-  return blendTakerAction(room, estimate, preferred, fallback);
+  const preferred = typeof pickedAction === "number" ? TAKER_DIRECTIONAL_ACTIONS[pickedAction] || fallback : pickedAction;
+  const modeledAction = takerActionForMode(room, estimate, mode, preferred, fallback);
+  return hybridTakerExecution(room, estimate, modeledAction, fallback);
 }
 
 function applyTrade(room, action) {
@@ -160,6 +200,7 @@ function applyTrade(room, action) {
   }
 
   room.game.previousQuote = quote;
+  room.game.actionHistory = [...(room.game.actionHistory || []), action].slice(-6);
 }
 
 function settle(room) {
@@ -187,6 +228,7 @@ function simulateGame(makerStrategy, takerStrategy, scenarioIndex, variant) {
     const makerAction = chooseMaker(makerStrategy, room, makerEstimate);
     const quote = quoteFromMakerAction(room, makerEstimate, makerAction);
     room.game.currentQuote = quote;
+    room.game.quoteHistory = [...(room.game.quoteHistory || []), quote].slice(-4);
     room.game.lastResolution = { type: "quote_submitted", text: "maker quote" };
     spreads += quote.ask - quote.bid;
     quotes += 1;

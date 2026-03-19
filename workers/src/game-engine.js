@@ -40,6 +40,8 @@ export function createGameState(contract = null) {
     activeActor: null,
     currentQuote: null,
     previousQuote: null,
+    quoteHistory: [],
+    actionHistory: [],
     lastResolution: null,
     maker: { cash: 0, inventory: 0 },
     taker: { cash: 0, inventory: 0 },
@@ -184,6 +186,8 @@ export function startGame(room) {
   room.game.activeActor = GAME_ACTOR.MAKER;
   room.game.currentQuote = null;
   room.game.previousQuote = null;
+  room.game.quoteHistory = [];
+  room.game.actionHistory = [];
   room.game.lastResolution = {
     type: "game_started",
     text: `Game ${room.gameNumber} started. Market maker quotes first.`,
@@ -250,6 +254,7 @@ export function submitQuote(room, playerId, payload) {
   }
 
   room.game.currentQuote = { bid: round2(bid), ask: round2(ask), size };
+  room.game.quoteHistory = [...(room.game.quoteHistory || []), room.game.currentQuote].slice(-4);
   room.game.activeActor = GAME_ACTOR.TAKER;
   room.game.lastResolution = {
     type: "quote_submitted",
@@ -310,6 +315,7 @@ export function takeAction(room, playerId, payload) {
   });
   room.game.previousQuote = quote;
   room.game.currentQuote = null;
+  room.game.actionHistory = [...(room.game.actionHistory || []), action].slice(-6);
 
   if (room.game.turn >= room.game.maxTurns) {
     finishGame(room);
@@ -394,6 +400,7 @@ export function buildPlayerView(room, playerId, connectedIds = new Set()) {
       activeActor: room.game.activeActor,
       currentQuote: room.game.currentQuote,
       previousQuote: room.game.previousQuote,
+      quoteHistory: (room.game.quoteHistory || []).slice(-4),
       lastResolution: room.game.lastResolution,
       maker: room.game.maker,
       taker: room.game.taker,

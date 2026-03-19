@@ -5,7 +5,7 @@ This folder contains the local self-play trainer for the Worker bot policy.
 ## What it does
 
 - trains a simple tabular Q-learning style policy for the maker side
-- trains a simple tabular Q-learning style policy for the taker side
+- trains a hierarchical taker policy with explicit `take`, `pass`, and `probe` modes plus an action layer
 - shards training across worker threads when you pass `--workers`
 - samples from the same `10,000` scenario pool the live game uses
 - exports the learned tables into [`workers/src/rl-policy-data.js`](/Users/adityadutta/Desktop/GitHub/market-making-sim/workers/src/rl-policy-data.js)
@@ -25,11 +25,13 @@ Optional flags:
 - `--epsilon 0.15`
 - `--workers 8`
 - `--min-samples 20`
+- `--progress-every 25000`
 - `--out workers/src/rl-policy-data.js`
 
 After training, redeploy the Worker so the new policy is live.
 
 The live bot also gates RL decisions by state support and falls back to the heuristic policy in sparse states.
+The taker also uses short quote memory and mode selection before choosing a buy/sell/pass action.
 
 ## Evaluate it
 

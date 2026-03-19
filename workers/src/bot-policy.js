@@ -1,11 +1,18 @@
 import { GAME_ROLE } from "./protocol.js";
 import {
   MAKER_ACTIONS,
-  blendTakerAction,
+  TAKER_ACTIONS,
+  TAKER_DIRECTIONAL_ACTIONS,
+  TAKER_MODES,
   fallbackAction,
+  fallbackTakerAction,
+  fallbackTakerMode,
   pickActionFromPolicy,
   quoteFromMakerAction,
   roleStateKey,
+  takerActionForMode,
+  takerActionStateKey,
+  takerModeStateKey,
   updateEstimateFromQuote,
   updateEstimateFromResolution,
 } from "./rl-core.js";
@@ -13,7 +20,8 @@ import { RL_POLICY } from "./rl-policy-data.js";
 
 const MIN_POLICY_SUPPORT = {
   maker: 20,
-  taker: 20,
+  takerMode: 28,
+  takerAction: 45,
 };
 
 function botRole(room, botPlayerId) {
@@ -55,6 +63,27 @@ function takerQuoteOverride(room, estimate, currentAction) {
   return currentAction;
 }
 
+function hybridTakerExecution(room, estimate, modeledAction, fallbackAction) {
+  const quote = room.game.currentQuote;
+  if (!quote) {
+    return modeledAction;
+  }
+
+  const width = Math.max(1, room.game.contract.rangeHigh - room.game.contract.rangeLow);
+  const buyEdge = (estimate - quote.ask) / width;
+  const sellEdge = (quote.bid - estimate) / width;
+  const bestEdge = Math.max(buyEdge, sellEdge);
+  const spread = (quote.ask - quote.bid) / width;
+
+  if (fallbackAction !== "pass" && (bestEdge > 0.012 || spread < 0.012)) {
+    return fallbackAction;
+  }
+  if (modeledAction === "pass" && fallbackAction !== "pass" && bestEdge > 0.004) {
+    return fallbackAction;
+  }
+  return modeledAction;
+}
+
 export function refreshBotEstimate(room) {
   if (!room.bot?.enabled || !room.game.contract) {
     return;
@@ -83,14 +112,11 @@ export function observeBotResolution(room, botPlayerId) {
 export function botDecision(room, botPlayerId) {
   const role = botRole(room, botPlayerId);
   const estimate = room.bot?.privateEstimate ?? room.game.contract.hiddenValue;
-  const stateKey = roleStateKey(room, role, estimate);
-  const policyTable = role === GAME_ROLE.MAKER ? RL_POLICY.maker : RL_POLICY.taker;
-  const countTable = role === GAME_ROLE.MAKER ? RL_POLICY.counts?.maker : RL_POLICY.counts?.taker;
   const fallbackValue = fallbackAction(room, role, estimate);
-  const minSupport = role === GAME_ROLE.MAKER ? MIN_POLICY_SUPPORT.maker : MIN_POLICY_SUPPORT.taker;
-  const picked = pickActionFromPolicy(policyTable, stateKey, fallbackValue, 0, countTable, minSupport);
 
   if (role === GAME_ROLE.MAKER) {
+    const stateKey = roleStateKey(room, role, estimate);
+    const picked = pickActionFromPolicy(RL_POLICY.maker, stateKey, fallbackValue, 0, RL_POLICY.counts?.maker, MIN_POLICY_SUPPORT.maker);
     const quote = quoteFromMakerAction(room, estimate, typeof picked === "number" ? picked : fallbackValue);
     return {
       type: "submit_quote",
@@ -103,8 +129,32 @@ export function botDecision(room, botPlayerId) {
     };
   }
 
-  const blendedAction = blendTakerAction(room, estimate, typeof picked === "string" ? picked : fallbackValue, fallbackValue);
-  const action = takerQuoteOverride(room, estimate, blendedAction);
+  const modeStateKey = takerModeStateKey(room, estimate);
+  const fallbackMode = fallbackTakerMode(room, estimate);
+  const pickedMode = pickActionFromPolicy(
+    RL_POLICY.takerModes,
+    modeStateKey,
+    fallbackMode,
+    0,
+    RL_POLICY.counts?.takerModes,
+    MIN_POLICY_SUPPORT.takerMode
+  );
+  const mode = typeof pickedMode === "number" ? TAKER_MODES[pickedMode] || fallbackMode : pickedMode;
+  const actionStateKey = takerActionStateKey(room, estimate, mode);
+  const fallbackActionValue = fallbackTakerAction(room, estimate);
+  const pickedAction = pickActionFromPolicy(
+    RL_POLICY.taker,
+    actionStateKey,
+    fallbackActionValue,
+    0,
+    RL_POLICY.counts?.taker,
+    MIN_POLICY_SUPPORT.takerAction
+  );
+  const preferredAction =
+    typeof pickedAction === "number" ? TAKER_DIRECTIONAL_ACTIONS[pickedAction] || fallbackActionValue : pickedAction;
+  const modeledAction = takerActionForMode(room, estimate, mode, preferredAction, fallbackActionValue);
+  const hybridAction = hybridTakerExecution(room, estimate, modeledAction, fallbackActionValue);
+  const action = takerQuoteOverride(room, estimate, hybridAction);
   return {
     type: "taker_action",
     payload: {
@@ -112,7 +162,8 @@ export function botDecision(room, botPlayerId) {
     },
     debug: {
       role,
-      stateKey,
+      stateKey: actionStateKey,
+      mode,
       actionId: action,
     },
   };

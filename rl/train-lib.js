@@ -2,11 +2,17 @@ import { contractFromScenarioIndex, SCENARIO_COUNT } from "../workers/src/contra
 import {
   MAKER_ACTIONS,
   TAKER_ACTIONS,
+  TAKER_DIRECTIONAL_ACTIONS,
+  TAKER_MODES,
   fallbackMakerActionIndex,
+  fallbackTakerMode,
   fallbackTakerAction,
   makerStateKey,
   pickActionFromPolicy,
   quoteFromMakerAction,
+  takerActionForMode,
+  takerActionStateKey,
+  takerModeStateKey,
   takerStateKey,
   updateEstimateFromQuote,
   updateEstimateFromResolution,
@@ -20,10 +26,8 @@ function ensureRow(table, key, count) {
   return table[key];
 }
 
-function ensureCountRow(table, key, count) {
-  if (!table[key]) {
-    table[key] = new Array(count).fill(0);
-  }
+function incrementCount(table, key) {
+  table[key] = Number(table[key] || 0) + 1;
   return table[key];
 }
 
@@ -70,13 +74,13 @@ function makerProfileAction(room, estimate, profile) {
   return fallbackMakerActionIndex(room, estimate);
 }
 
-function takerProfileAction(room, estimate, profile) {
-  const fallback = fallbackTakerAction(room, estimate);
+function takerProfileMode(room, estimate, profile) {
+  const fallback = fallbackTakerMode(room, estimate);
   const quote = room.game.currentQuote;
   const previous = room.game.previousQuote;
 
   if (!quote) {
-    return TAKER_ACTION.PASS;
+    return "pass";
   }
 
   const width = Math.max(1, room.game.contract.rangeHigh - room.game.contract.rangeLow);
@@ -88,30 +92,27 @@ function takerProfileAction(room, estimate, profile) {
 
   if (profile === "patient") {
     if (Math.max(buyEdge, sellEdge) < 0.028 && room.game.turn < room.game.maxTurns) {
-      return TAKER_ACTION.PASS;
+      return "pass";
     }
-    return fallback;
+    return "take";
   }
 
   if (profile === "sniper") {
-    if (buyEdge > 0.006) {
-      return TAKER_ACTION.BUY;
-    }
-    if (sellEdge > 0.006) {
-      return TAKER_ACTION.SELL;
+    if (buyEdge > 0.006 || sellEdge > 0.006) {
+      return "take";
     }
     return fallback;
   }
 
   if (profile === "bluff") {
     if (room.game.turn <= 3 && Math.max(buyEdge, sellEdge) < 0.025) {
-      return TAKER_ACTION.PASS;
+      return "pass";
     }
     if (drift > 0.02 && sellEdge > -0.002) {
-      return TAKER_ACTION.SELL;
+      return "probe";
     }
     if (drift < -0.02 && buyEdge > -0.002) {
-      return TAKER_ACTION.BUY;
+      return "probe";
     }
     return fallback;
   }
@@ -154,16 +155,32 @@ function mixedMakerAction(room, estimate, qMaker, countsMaker, epsilon, profile)
     pickActionFromPolicy(qMaker, stateKey, fallbackMakerActionIndex(room, estimate), 0, countsMaker, 4);
 }
 
-function mixedTakerAction(room, estimate, qTaker, countsTaker, epsilon, profile) {
+function mixedTakerMode(room, estimate, qTakerModes, countsTakerModes, epsilon, profile) {
   if (Math.random() < 0.26) {
-    return takerProfileAction(room, estimate, profile);
+    return takerProfileMode(room, estimate, profile);
   }
   if (Math.random() < 0.24) {
-    return fallbackTakerAction(room, estimate);
+    return fallbackTakerMode(room, estimate);
   }
-  const stateKey = takerStateKey(room, estimate);
-  const choice = epsilonGreedy(qTaker, stateKey, TAKER_ACTIONS.length, epsilon);
-  return TAKER_ACTIONS[choice] || pickActionFromPolicy(qTaker, stateKey, fallbackTakerAction(room, estimate), 0, countsTaker, 4);
+  const stateKey = takerModeStateKey(room, estimate);
+  const choice = epsilonGreedy(qTakerModes, stateKey, TAKER_MODES.length, epsilon);
+  return TAKER_MODES[choice] || pickActionFromPolicy(qTakerModes, stateKey, fallbackTakerMode(room, estimate), 0, countsTakerModes, 4);
+}
+
+function mixedTakerAction(room, estimate, mode, qTaker, countsTaker, epsilon) {
+  const fallback = fallbackTakerAction(room, estimate);
+  if (mode === "pass") {
+    return TAKER_ACTION.PASS;
+  }
+  if (Math.random() < 0.2) {
+    return takerActionForMode(room, estimate, mode, fallback, fallback);
+  }
+  const stateKey = takerActionStateKey(room, estimate, mode);
+  const choice = epsilonGreedy(qTaker, stateKey, TAKER_DIRECTIONAL_ACTIONS.length, epsilon);
+  const preferred =
+    TAKER_DIRECTIONAL_ACTIONS[choice] ||
+    pickActionFromPolicy(qTaker, stateKey, fallback === TAKER_ACTION.PASS ? TAKER_ACTION.BUY : fallback, 0, countsTaker, 4);
+  return takerActionForMode(room, estimate, mode, preferred, fallback);
 }
 
 function settle(room, hiddenValue) {
@@ -184,6 +201,8 @@ function buildRoom(contract) {
       activeActor: "maker",
       currentQuote: null,
       previousQuote: null,
+      quoteHistory: [],
+      actionHistory: [],
       lastResolution: { type: "game_started", text: "Game started." },
       maker: { cash: 0, inventory: 0 },
       taker: { cash: 0, inventory: 0 },
@@ -196,6 +215,8 @@ function applyTaker(room, action) {
   const qty = quote.size;
   const spread = quote.ask - quote.bid;
   let traded = false;
+  let makerEdge = 0;
+  let takerEdge = 0;
 
   if (action === TAKER_ACTION.BUY) {
     room.game.maker.cash += quote.ask * qty;
@@ -204,6 +225,8 @@ function applyTaker(room, action) {
     room.game.taker.inventory += qty;
     room.game.lastResolution = { type: "turn_resolved", action: "buy", mark: quote.ask };
     traded = true;
+    makerEdge = (quote.ask - room.game.contract.hiddenValue) * qty;
+    takerEdge = (room.game.contract.hiddenValue - quote.ask) * qty;
   } else if (action === TAKER_ACTION.SELL) {
     room.game.maker.cash -= quote.bid * qty;
     room.game.maker.inventory += qty;
@@ -211,6 +234,8 @@ function applyTaker(room, action) {
     room.game.taker.inventory -= qty;
     room.game.lastResolution = { type: "turn_resolved", action: "sell", mark: quote.bid };
     traded = true;
+    makerEdge = (room.game.contract.hiddenValue - quote.bid) * qty;
+    takerEdge = (quote.bid - room.game.contract.hiddenValue) * qty;
   } else {
     room.game.lastResolution = {
       type: "turn_resolved",
@@ -221,17 +246,17 @@ function applyTaker(room, action) {
 
   room.game.previousQuote = quote;
   room.game.currentQuote = null;
+  room.game.actionHistory = [...(room.game.actionHistory || []), action].slice(-6);
   room.game.turn += 1;
-  return { traded, spread, action };
+  return { traded, spread, action, makerEdge, takerEdge };
 }
 
-function compressPolicy(table, counts, minSamples) {
+export function compressPolicy(table, counts, minSamples) {
   const policy = {};
   const support = {};
 
   for (const [stateKey, values] of Object.entries(table)) {
-    const countRow = counts[stateKey] || [];
-    const total = countRow.reduce((sum, value) => sum + value, 0);
+    const total = Number(counts[stateKey] || 0);
     if (total < minSamples) {
       continue;
     }
@@ -252,8 +277,95 @@ function compressPolicy(table, counts, minSamples) {
   return { policy, support };
 }
 
-export function exportModule(qMaker, qTaker, countsMaker, countsTaker, metadata, minSamples = 12) {
+export function compressShardResult(result, minSamples = 12) {
+  const maker = compressPolicy(result.qMaker, result.countsMaker, minSamples);
+  const takerModes = compressPolicy(result.qTakerModes, result.countsTakerModes, minSamples);
+  const taker = compressPolicy(result.qTaker, result.countsTaker, minSamples);
+
+  return {
+    maker,
+    takerModes,
+    taker,
+    rawStates: {
+      maker: Object.keys(result.qMaker).length,
+      takerModes: Object.keys(result.qTakerModes).length,
+      taker: Object.keys(result.qTaker).length,
+    },
+  };
+}
+
+export function mergeCompressedShardOutputs(outputs) {
+  function mergeSide(sideKey) {
+    const votes = {};
+    const support = {};
+
+    outputs.forEach((output) => {
+      const side = output[sideKey];
+      for (const [stateKey, actionIndex] of Object.entries(side.policy || {})) {
+        const stateVotes = votes[stateKey] || (votes[stateKey] = {});
+        const weight = Number(side.support?.[stateKey] || 0);
+        stateVotes[actionIndex] = (stateVotes[actionIndex] || 0) + weight;
+        support[stateKey] = (support[stateKey] || 0) + weight;
+      }
+    });
+
+    const policy = {};
+    for (const [stateKey, actionVotes] of Object.entries(votes)) {
+      let bestAction = null;
+      let bestWeight = -Infinity;
+      for (const [actionIndex, weight] of Object.entries(actionVotes)) {
+        if (weight > bestWeight) {
+          bestWeight = weight;
+          bestAction = Number(actionIndex);
+        }
+      }
+      policy[stateKey] = bestAction;
+    }
+
+    return { policy, support };
+  }
+
+  return {
+    maker: mergeSide("maker"),
+    takerModes: mergeSide("takerModes"),
+    taker: mergeSide("taker"),
+    rawStates: outputs.reduce(
+      (acc, output) => ({
+        maker: acc.maker + Number(output.rawStates?.maker || 0),
+        takerModes: acc.takerModes + Number(output.rawStates?.takerModes || 0),
+        taker: acc.taker + Number(output.rawStates?.taker || 0),
+      }),
+      { maker: 0, takerModes: 0, taker: 0 }
+    ),
+  };
+}
+
+export function exportCompressedPolicy(policyBundle, metadata) {
+  return `export const RL_POLICY = ${JSON.stringify(
+    {
+      metadata: {
+        ...metadata,
+        exportedMakerStates: Object.keys(policyBundle.maker.policy).length,
+        exportedTakerModeStates: Object.keys(policyBundle.takerModes.policy).length,
+        exportedTakerStates: Object.keys(policyBundle.taker.policy).length,
+      },
+      maker: policyBundle.maker.policy,
+      takerModes: policyBundle.takerModes.policy,
+      taker: policyBundle.taker.policy,
+      counts: {
+        maker: policyBundle.maker.support,
+        takerModes: policyBundle.takerModes.support,
+        taker: policyBundle.taker.support,
+      },
+    },
+    null,
+    2
+  )};\n`;
+}
+
+export function exportModule(qMaker, qTakerModes, qTaker, countsMaker, countsTakerModes, countsTaker, metadata, minSamples = 12) {
   const maker = compressPolicy(qMaker, countsMaker, minSamples);
+  const takerModes = compressPolicy(qTakerModes, countsTakerModes, minSamples);
   const taker = compressPolicy(qTaker, countsTaker, minSamples);
 
   return `export const RL_POLICY = ${JSON.stringify(
@@ -262,12 +374,15 @@ export function exportModule(qMaker, qTaker, countsMaker, countsTaker, metadata,
         ...metadata,
         exportMinSamples: minSamples,
         exportedMakerStates: Object.keys(maker.policy).length,
+        exportedTakerModeStates: Object.keys(takerModes.policy).length,
         exportedTakerStates: Object.keys(taker.policy).length,
       },
       maker: maker.policy,
+      takerModes: takerModes.policy,
       taker: taker.policy,
       counts: {
         maker: maker.support,
+        takerModes: takerModes.support,
         taker: taker.support,
       },
     },
@@ -278,11 +393,17 @@ export function exportModule(qMaker, qTaker, countsMaker, countsTaker, metadata,
 
 export function runEpisodes(config) {
   const qMaker = {};
+  const qTakerModes = {};
   const qTaker = {};
   const countsMaker = {};
+  const countsTakerModes = {};
   const countsTaker = {};
   const startOffset = Number(config.startOffset || 0);
   const stride = Number(config.scenarioStride || 1);
+  const progressEvery = Math.max(
+    1,
+    Number(config.progressEvery || Math.min(25000, Math.ceil(Math.max(1, config.episodes) / 100)))
+  );
 
   for (let episode = 0; episode < config.episodes; episode += 1) {
     const styles = sampleEpisodeStyles(episode, config.episodes);
@@ -293,10 +414,13 @@ export function runEpisodes(config) {
     let makerEstimate = contract.hiddenValue + (Math.random() * 2 - 1) * width * 0.14;
     let takerEstimate = contract.hiddenValue + (Math.random() * 2 - 1) * width * 0.14;
     const makerTrace = [];
+    const takerModeTrace = [];
     const takerTrace = [];
     let tradeCount = 0;
     let passCount = 0;
     let spreadSum = 0;
+    let makerEdgeSum = 0;
+    let takerEdgeSum = 0;
     const epsilon = config.epsilon * (1 - episode / Math.max(1, config.episodes));
 
     for (let turn = 1; turn <= contract.maxTurns; turn += 1) {
@@ -307,17 +431,25 @@ export function runEpisodes(config) {
       const quote = quoteFromMakerAction(room, makerEstimate, makerActionIndex);
       room.game.currentQuote = quote;
       room.game.lastResolution = { type: "quote_submitted", text: "maker quote" };
+      room.game.quoteHistory = [...(room.game.quoteHistory || []), quote].slice(-4);
       makerTrace.push([makerKey, makerActionIndex]);
 
       takerEstimate = updateEstimateFromQuote(room, GAME_ROLE.TAKER, takerEstimate);
-      const takerKey = takerStateKey(room, takerEstimate);
-      const takerAction = mixedTakerAction(room, takerEstimate, qTaker, countsTaker, epsilon, styles.takerProfile);
-      const takerActionIndex = TAKER_ACTIONS.indexOf(takerAction);
-      takerTrace.push([takerKey, Math.max(0, takerActionIndex)]);
+      const takerModeKey = takerModeStateKey(room, takerEstimate);
+      const takerMode = mixedTakerMode(room, takerEstimate, qTakerModes, countsTakerModes, epsilon, styles.takerProfile);
+      takerModeTrace.push([takerModeKey, TAKER_MODES.indexOf(takerMode)]);
+      const takerKey = takerActionStateKey(room, takerEstimate, takerMode);
+      const takerAction = mixedTakerAction(room, takerEstimate, takerMode, qTaker, countsTaker, epsilon);
+      const takerActionIndex = TAKER_DIRECTIONAL_ACTIONS.indexOf(takerAction);
+      if (takerMode !== "pass" && takerActionIndex >= 0) {
+        takerTrace.push([takerKey, takerActionIndex]);
+      }
 
       const outcome = applyTaker(room, takerAction);
       makerEstimate = updateEstimateFromResolution(room, GAME_ROLE.MAKER, makerEstimate);
       spreadSum += outcome.spread / width;
+      makerEdgeSum += outcome.makerEdge / width;
+      takerEdgeSum += outcome.takerEdge / width;
       if (outcome.traded) {
         tradeCount += 1;
       } else if (outcome.action === TAKER_ACTION.PASS) {
@@ -331,69 +463,104 @@ export function runEpisodes(config) {
     const tradeBonus = tradeCount / Math.max(1, contract.maxTurns);
     const passPenalty = passCount / Math.max(1, contract.maxTurns);
     const spreadPenalty = spreadSum / Math.max(1, contract.maxTurns);
-    const makerReward = makerPnl / width - makerInventoryPenalty + 0.02 * tradeBonus - 0.03 * spreadPenalty;
-    const takerReward = takerPnl / width - takerInventoryPenalty - 0.05 * passPenalty;
+    const makerReward =
+      makerPnl / width -
+      makerInventoryPenalty +
+      0.06 * tradeBonus -
+      0.05 * passPenalty -
+      0.035 * spreadPenalty +
+      0.06 * makerEdgeSum;
+    const takerReward =
+      takerPnl / width -
+      takerInventoryPenalty -
+      0.05 * passPenalty +
+      0.11 * takerEdgeSum +
+      0.03 * tradeBonus;
 
     makerTrace.forEach(([key, index]) => {
       const row = ensureRow(qMaker, key, MAKER_ACTIONS.length);
-      const counts = ensureCountRow(countsMaker, key, MAKER_ACTIONS.length);
-      counts[index] += 1;
+      incrementCount(countsMaker, key);
       row[index] += config.alpha * (makerReward - row[index]);
     });
 
-    takerTrace.forEach(([key, index]) => {
-      const row = ensureRow(qTaker, key, TAKER_ACTIONS.length);
-      const counts = ensureCountRow(countsTaker, key, TAKER_ACTIONS.length);
-      counts[index] += 1;
+    takerModeTrace.forEach(([key, index]) => {
+      const row = ensureRow(qTakerModes, key, TAKER_MODES.length);
+      incrementCount(countsTakerModes, key);
       row[index] += config.alpha * (takerReward - row[index]);
     });
+
+    takerTrace.forEach(([key, index]) => {
+      const row = ensureRow(qTaker, key, TAKER_DIRECTIONAL_ACTIONS.length);
+      incrementCount(countsTaker, key);
+      row[index] += config.alpha * (takerReward - row[index]);
+    });
+
+    if (typeof config.onProgress === "function" && ((episode + 1) % progressEvery === 0 || episode + 1 === config.episodes)) {
+      config.onProgress({
+        completedEpisodes: episode + 1,
+        totalEpisodes: config.episodes,
+        stateCounts: {
+          maker: Object.keys(qMaker).length,
+          takerModes: Object.keys(qTakerModes).length,
+          taker: Object.keys(qTaker).length,
+        },
+        heapUsedMB: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),
+      });
+    }
   }
 
   return {
     qMaker,
+    qTakerModes,
     qTaker,
     countsMaker,
+    countsTakerModes,
     countsTaker,
   };
 }
 
 export function mergeShardOutputs(outputs) {
   const maker = {};
+  const takerModes = {};
   const taker = {};
   const countsMaker = {};
+  const countsTakerModes = {};
   const countsTaker = {};
 
   function mergeSide(target, targetCounts, shardTable, shardCounts) {
     for (const [stateKey, values] of Object.entries(shardTable)) {
       if (!target[stateKey]) {
         target[stateKey] = new Array(values.length).fill(0);
-        targetCounts[stateKey] = new Array(values.length).fill(0);
+        targetCounts[stateKey] = 0;
       }
 
-      const counts = shardCounts[stateKey] || new Array(values.length).fill(0);
+      const incomingCount = Number(shardCounts[stateKey] || 0);
+      if (!incomingCount) {
+        continue;
+      }
+
+      const existingCount = Number(targetCounts[stateKey] || 0);
+      const total = existingCount + incomingCount;
       for (let index = 0; index < values.length; index += 1) {
-        const incomingCount = counts[index] || 0;
-        if (!incomingCount) {
-          continue;
-        }
-        const existingCount = targetCounts[stateKey][index];
-        const total = existingCount + incomingCount;
         target[stateKey][index] =
           total === 0 ? 0 : (target[stateKey][index] * existingCount + values[index] * incomingCount) / total;
-        targetCounts[stateKey][index] = total;
       }
+      targetCounts[stateKey] = total;
     }
   }
 
   outputs.forEach((output) => {
     mergeSide(maker, countsMaker, output.qMaker, output.countsMaker);
+    mergeSide(takerModes, countsTakerModes, output.qTakerModes, output.countsTakerModes);
     mergeSide(taker, countsTaker, output.qTaker, output.countsTaker);
   });
 
   return {
     qMaker: maker,
+    qTakerModes: takerModes,
     qTaker: taker,
     countsMaker,
+    countsTakerModes,
     countsTaker,
   };
 }

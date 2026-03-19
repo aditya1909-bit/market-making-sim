@@ -1,5 +1,17 @@
 import { parentPort, workerData } from "node:worker_threads";
-import { runEpisodes } from "./train-lib.js";
+import { compressShardResult, runEpisodes } from "./train-lib.js";
 
-const result = runEpisodes(workerData);
-parentPort.postMessage(result);
+const result = runEpisodes({
+  ...workerData,
+  onProgress(progress) {
+    parentPort.postMessage({
+      type: "progress",
+      ...progress,
+    });
+  },
+});
+
+parentPort.postMessage({
+  type: "result",
+  result: compressShardResult(result, workerData.minSamples),
+});
