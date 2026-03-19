@@ -199,12 +199,15 @@
         asset.benchmarkText,
         `This is a ${spreadStyle}, ${asset.flowTone} contract with a plausible range of ${asset.valueRange.low} to ${asset.valueRange.high}.`,
         `The public reference path moved ${format(recentMove)} across the last ${asset.recentPath.length} observations.`,
-        asset.strategyNote,
       ];
     }
 
     settlementValue() {
       return roundTick(this.asset.turnMarks[this.asset.turnMarks.length - 1]);
+    }
+
+    priceFloor() {
+      return TICK;
     }
 
     start() {
@@ -358,7 +361,7 @@
         signedNormalish(this.rng) * this.currentTurn.volatility * 0.25 +
         (decision.side === "buy" ? 0.08 : decision.side === "sell" ? -0.08 : 0);
 
-      this.lastMark = roundTick(Math.max(25, this.currentTurn.referencePrice + markMove));
+      this.lastMark = roundTick(Math.max(this.priceFloor(), this.currentTurn.referencePrice + markMove));
       this.recentMarks.push(this.lastMark);
       if (this.recentMarks.length > 6) {
         this.recentMarks.shift();
@@ -439,7 +442,7 @@
       this.missedTurns += 1;
       this.lastMark = roundTick(
         Math.max(
-          25,
+          this.priceFloor(),
           this.currentTurn.referencePrice +
             signedNormalish(this.rng) * this.currentTurn.volatility * 0.28 +
             this.currentTurn.flowBias * 0.18
@@ -610,6 +613,9 @@
     revealedClues: document.getElementById("revealed-clues"),
     rangeBrief: document.getElementById("range-brief"),
     taskPrompt: document.getElementById("task-prompt"),
+    adjustedScoreEcho: document.getElementById("adjusted-score-echo"),
+    stateEcho: document.getElementById("state-echo"),
+    shotClockEcho: document.getElementById("shot-clock-echo"),
   };
 
   let game = new InterviewGame(parseSeedFromUrl() || randomSeed());
@@ -664,7 +670,9 @@
     elements.assetSession.textContent = snapshot.asset.sessionDate;
     elements.assetDescription.textContent = snapshot.asset.description;
     elements.benchmarkText.textContent = snapshot.asset.benchmarkText;
-    elements.strategyNote.textContent = snapshot.asset.strategyNote;
+    if (elements.strategyNote) {
+      elements.strategyNote.textContent = "";
+    }
     elements.settlementRule.textContent = snapshot.asset.exchange;
     elements.currentClue.textContent = snapshot.currentClue;
     elements.settlementValue.textContent = snapshot.settlementValue === null ? "hidden" : format(snapshot.settlementValue);
@@ -675,6 +683,15 @@
     elements.roundStatus.textContent = `${snapshot.turn} / ${snapshot.maxTurns}`;
     elements.shotClock.textContent = `${snapshot.shotClock}s`;
     elements.stateLabel.textContent = capWords(snapshot.mode);
+    if (elements.adjustedScoreEcho) {
+      elements.adjustedScoreEcho.textContent = format(snapshot.adjustedScore);
+    }
+    if (elements.stateEcho) {
+      elements.stateEcho.textContent = capWords(snapshot.mode);
+    }
+    if (elements.shotClockEcho) {
+      elements.shotClockEcho.textContent = `${snapshot.shotClock}s`;
+    }
     elements.inventory.textContent = String(snapshot.player.inventory);
     elements.cash.textContent = format(snapshot.player.cash);
     elements.refPrice.textContent = format(snapshot.referencePrice);
@@ -699,10 +716,10 @@
     elements.skipTurn.disabled = snapshot.mode !== "quote";
     elements.taskPrompt.textContent =
       snapshot.mode === "ready"
-        ? "Review the contract, decide on a plausible fair range, then press Start Interview when you are ready to quote."
+        ? "Ready to begin."
         : snapshot.mode === "finished"
-          ? `The round is over. Settlement was ${format(snapshot.settlementValue)} ${snapshot.asset.exchange}. Restart to try a new contract.`
-          : `You are on turn ${snapshot.turn} of ${snapshot.maxTurns}. Enter the price where you would buy, the price where you would sell, and the size you are willing to show.`;
+          ? `Finished. Settlement: ${format(snapshot.settlementValue)} ${snapshot.asset.exchange}.`
+          : `Turn ${snapshot.turn} of ${snapshot.maxTurns}.`;
 
     renderHistory(snapshot.history);
     renderClues(snapshot.revealedClues);

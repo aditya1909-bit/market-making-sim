@@ -100,39 +100,33 @@
               <p id="benchmark-text" class="body-copy"></p>
             </div>
             <div class="soft-panel emphasis">
-              <span class="mini-label">What to do now</span>
+              <span class="mini-label">Round Status</span>
               <p id="task-prompt" class="body-copy">Press start to begin the interview round.</p>
             </div>
           </div>
+
+          <p id="strategy-note" class="visually-hidden"></p>
         </article>
 
         <aside class="summary-stack">
           <article class="card compact-card">
-            <p class="eyebrow">Score</p>
+            <p class="eyebrow">Session</p>
             <div class="mini-grid">
               <div class="mini-metric">
-                <span class="mini-label">Raw MTM</span>
-                <strong id="raw-mtm">0.00</strong>
+                <span class="mini-label">Adjusted Score</span>
+                <strong id="adjusted-score-echo">0.00</strong>
               </div>
               <div class="mini-metric">
                 <span class="mini-label">Local Best</span>
                 <strong id="best-score">0.00</strong>
               </div>
               <div class="mini-metric">
-                <span class="mini-label">Inventory</span>
-                <strong id="inventory">0</strong>
+                <span class="mini-label">State</span>
+                <strong id="state-echo">Ready</strong>
               </div>
               <div class="mini-metric">
-                <span class="mini-label">Cash</span>
-                <strong id="cash">0.00</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Penalty</span>
-                <strong id="inventory-penalty">0.00</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Settlement</span>
-                <strong id="settlement-value">hidden</strong>
+                <span class="mini-label">Clock</span>
+                <strong id="shot-clock-echo">30s</strong>
               </div>
             </div>
           </article>
@@ -178,8 +172,6 @@
           <span id="settlement-rule" class="badge">-</span>
         </div>
 
-        <p id="strategy-note" class="body-copy quote-note"></p>
-
         <div class="quote-stage-grid">
           <div class="quote-main">
             <div class="preset-row">
@@ -210,6 +202,17 @@
           </div>
 
           <div class="quote-sidebar">
+            <div class="response-highlight compact">
+              <span class="mini-label">Latest Action</span>
+              <strong id="script-action">Press start to begin.</strong>
+              <p id="script-reason" class="body-copy">
+                The round starts idle. Read the contract, form a view, and begin when ready.
+              </p>
+            </div>
+            <div class="quote-suggestion">
+              <span class="mini-label">Current Clue</span>
+              <strong id="current-clue">-</strong>
+            </div>
             <div class="quote-suggestion">
               <span class="mini-label">Suggested Bid</span>
               <strong id="suggested-bid">-</strong>
@@ -226,6 +229,14 @@
               <span class="mini-label">Last Submitted Ask</span>
               <strong id="last-quote-ask">-</strong>
             </div>
+            <div class="quote-suggestion">
+              <span class="mini-label">Mark After Turn</span>
+              <strong id="mark-after">-</strong>
+            </div>
+            <div class="quote-suggestion">
+              <span class="mini-label">Last Mark</span>
+              <strong id="last-mark">-</strong>
+            </div>
           </div>
         </div>
       </section>
@@ -234,35 +245,35 @@
         <article class="card">
           <div class="card-head">
             <div>
-              <p class="eyebrow">Latest response</p>
-              <h2>What the counterparty did</h2>
+              <p class="eyebrow">Round details</p>
+              <h2>Position and penalties</h2>
             </div>
-          </div>
-
-          <div class="response-highlight">
-            <span class="mini-label">Action</span>
-            <strong id="script-action">Press start to begin.</strong>
-            <p id="script-reason" class="body-copy">
-              The round starts idle. Read the contract, form a view, and begin when ready.
-            </p>
           </div>
 
           <div class="info-grid">
-            <div class="info-cell">
-              <span class="mini-label">Mark After Turn</span>
-              <strong id="mark-after">-</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Last Mark</span>
-              <strong id="last-mark">-</strong>
-            </div>
             <div class="info-cell">
               <span class="mini-label">Missed Turns</span>
               <strong id="missed-turns">0</strong>
             </div>
             <div class="info-cell">
-              <span class="mini-label">Current Clue</span>
-              <strong id="current-clue">-</strong>
+              <span class="mini-label">Settlement</span>
+              <strong id="settlement-value">hidden</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Inventory</span>
+              <strong id="inventory">0</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Cash</span>
+              <strong id="cash">0.00</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Raw MTM</span>
+              <strong id="raw-mtm">0.00</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Penalty</span>
+              <strong id="inventory-penalty">0.00</strong>
             </div>
           </div>
         </article>
