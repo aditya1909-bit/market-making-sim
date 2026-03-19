@@ -1,82 +1,91 @@
 # market-making-sim
 
-`market-making-sim` is now a GitHub Pages-native, single-player browser interview sim: the human makes a two-sided market in an estimation contract and a scripted counterparty chooses whether to buy, sell, or pass.
+`market-making-sim` now contains:
+
+- a browser client in the repo root for room creation, room-code joins, and random matchmaking
+- a multiplayer backend prototype in [`backend/`](/Users/adityadutta/Desktop/GitHub/market-making-sim/backend/README.md) for the 1v1 bluffing game
 
 ## What It Does
 
-- Runs entirely in the browser with static HTML, CSS, and JavaScript.
-- Starts idle instead of auto-running; the round begins only when the player presses `Start Interview`.
-- Maps each seed to one of 1000 built-in estimation contracts so the player sees a random interview-style prompt instead of a stock ticker.
-- Frames each round as a contract that settles to a hidden end-of-session print, which is closer to public descriptions of interview market-making games.
-- Uses turn-based quoting with a 30-second shot clock, so the player can think between decisions.
-- Puts the human in the market-maker role and the script in the taker role, which is closer to quant interview games.
-- Scores the player on marked-to-market PnL with explicit inventory and missed-turn penalties.
-- Stores the local best score in `localStorage`.
-- Supports seeded challenge links so the same scenario can be replayed from GitHub Pages.
+- Serves a static browser client from GitHub Pages or any simple file host.
+- Connects that client to a small authoritative realtime backend over HTTP and WebSocket.
+- Supports private room creation with short join codes.
+- Supports random matchmaking into a 1v1 game.
+- Runs a hidden-scalar maker/taker game that matches the bluffing interview format much more closely than the earlier single-player prototype.
+- Assigns one player as `market_maker` and one as `market_taker`.
+- Lets the maker quote `bid / ask / size` and the taker answer with `buy / sell / pass`.
+- Settles both sides against a hidden true value at the end of the game.
 
 ## Repo Layout
 
 ```text
-index.html          # App shell
-styles.css          # Visual design
-asset-data.js       # 1000 procedurally generated interview-style contracts
-app.js              # Browser-only game engine and UI bindings
+index.html          # Browser client shell
+styles.css          # Browser client styles
+app.js              # Browser client logic for create/join/matchmaking/ws
+asset-data.js       # Older browser-only scenario pack retained from prototype stage
+backend/
+  src/
+    server.js       # HTTP + WebSocket server
+    room-manager.js # Rooms, players, matchmaking, broadcasts
+    game-engine.js  # Authoritative maker/taker game loop
+    contracts.js    # Hidden scalar contract generator
+  shared/
+    protocol.js     # Client/server event names and enums
+  package.json
 .github/workflows/
   deploy-pages.yml  # GitHub Pages deployment workflow
 ```
 
 ## Local Run
 
-No install step is required. Open [`index.html`](/Users/adityadutta/Desktop/GitHub/market-making-sim/index.html) in a browser, or serve the repo root with any static file server.
+Run the backend first:
 
-For example:
+```bash
+cd /Users/adityadutta/Desktop/GitHub/market-making-sim/backend
+npm install
+npm run dev
+```
+
+Then serve the frontend from the repo root:
 
 ```bash
 cd /Users/adityadutta/Desktop/GitHub/market-making-sim
 python3 -m http.server 8000
 ```
 
-Then visit [http://127.0.0.1:8000](http://127.0.0.1:8000).
+Then visit [http://127.0.0.1:8000](http://127.0.0.1:8000) and use backend URL `http://127.0.0.1:8787`.
 
-## Game Model
+## Multiplayer Game Model
 
-This is intentionally lighter than `microexec`. It does not try to port the Python/C++ stack into the browser. Instead it borrows the same ideas and repackages them into an interview loop:
+- one hidden scalar contract value per room
+- one market maker
+- one market taker
+- maker submits `bid / ask / size`
+- taker responds with `buy / sell / pass`
+- settlement at the hidden true value
+- room-code private games and random matchmaking
 
-- a latent fair price with stochastic movement
-- a seeded contract brief with units, range, and benchmark clues
-- a compact desk sheet with only the reference, flow tone, spread regime, and script style
-- a hidden settlement value and script fair value that react to your quotes
-- two-sided quoting, fills, inventory, and mark-to-market PnL
+## Browser Client Controls
 
-That tradeoff is what makes it compatible with GitHub Pages.
+- `Player name` and `Backend URL`
+- `Create Private Room`
+- `Join Room` by code
+- `Find Random Opponent`
+- `Mark Ready`
+- maker-side quote submission
+- taker-side `Buy Ask / Sell Bid / Pass`
 
-## Controls
+## Deploy Split
 
-- `Start Interview`: begins the round; the site does nothing before this.
-- `Contract Brief`: tells you what random thing you are making a market in, the contract units, and a plausible working range.
-- `Bid / Ask / Size`: your quoted market for the current turn.
-- `Tight / Normal / Wide`: quick quote presets around the reference mark.
-- `Submit Quote`: sends one two-sided market to the script.
-- `Forfeit Turn`: intentionally skip a turn if you do not want to quote.
-- `Randomize`: generate a new seeded scenario.
+- frontend: GitHub Pages is fine
+- backend: deploy elsewhere as a small realtime service with WebSocket support
 
-## Seeded Challenges
-
-The `seed` field defines the scenario. The `Copy Link` button generates a URL containing that seed, so anyone opening the link gets the same contract, same clue sequence, and same hidden settlement path.
-
-That is the GitHub Pages substitute for server-side game/session codes.
-
-## Deploy To GitHub Pages
-
-1. Push this repo to GitHub.
-2. In the repo settings, enable GitHub Pages and choose `GitHub Actions` as the source.
-3. Push to `main`.
-
-The workflow in [`.github/workflows/deploy-pages.yml`](/Users/adityadutta/Desktop/GitHub/market-making-sim/.github/workflows/deploy-pages.yml) uploads a static artifact and deploys it to Pages.
+The workflow in [`.github/workflows/deploy-pages.yml`](/Users/adityadutta/Desktop/GitHub/market-making-sim/.github/workflows/deploy-pages.yml) still deploys the static frontend to Pages.
 
 ## Next Extensions
 
-- Swap the current heuristic counterparty script for a compact in-browser ML policy.
-- Add difficulty presets with different script aggressiveness and inventory budgets.
-- Add post-round analytics: quote width distribution, hit ratio, adverse selection, and inventory path.
-- Add scenario packs encoded as JSON files or deterministic seeds.
+- deploy the backend to a public host
+- point the browser client at that deployed backend
+- add turn timers server-side
+- add rematch / role-swap flow
+- add a bluffing bot so a solo player can face the authoritative server model

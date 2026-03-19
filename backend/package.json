@@ -1,0 +1,13 @@
+{
+  "name": "market-making-sim-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/room-manager.js && node --check src/game-engine.js && node --check src/contracts.js && node --check shared/protocol.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

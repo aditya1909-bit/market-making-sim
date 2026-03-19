@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Market Making Interview Sim</title>
+    <title>Market Making Sim</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -12,264 +12,236 @@
         <div class="hero-nav glass-panel">
           <div class="brand-lockup">
             <p class="eyebrow">market-making-sim</p>
-            <span class="nav-title">Interview mode</span>
+            <span class="nav-title">1v1 bluff game</span>
           </div>
-
-          <div class="nav-controls">
-            <label class="seed-field" for="seed-input">
-              <span class="mini-label">Seed</span>
-              <input id="seed-input" type="text" spellcheck="false" />
-            </label>
-            <button id="copy-seed-link" class="secondary-button">Copy Link</button>
-            <button id="randomize-seed" class="secondary-button">Randomize</button>
-            <button id="start-button" class="primary-button">Start Interview</button>
+          <div class="status-inline">
+            <span class="mini-label">Connection</span>
+            <strong id="connection-status">Not connected</strong>
           </div>
         </div>
 
         <div class="hero-copy">
-          <p class="eyebrow">Single-player market making</p>
-          <h1>Quote a market in a strange contract.</h1>
+          <p class="eyebrow">Authoritative room-based game</p>
+          <h1>One hidden value. One maker. One taker.</h1>
           <p class="hero-text">
-            Read the brief, form a view, make a two-sided market, and react to a single counterparty decision each
-            turn. This is built to feel closer to a clean interview prompt than a trading dashboard.
+            Create a private room, join by code, or queue into a random 1v1. The maker quotes a market. The taker
+            chooses buy, sell, or pass. Settlement happens on a hidden scalar value known only to the server.
           </p>
-        </div>
-
-        <div class="hero-stats">
-          <article class="stat-pill">
-            <span class="mini-label">State</span>
-            <strong id="state-label">Ready</strong>
-          </article>
-          <article class="stat-pill">
-            <span class="mini-label">Turn</span>
-            <strong id="round-status">0 / 0</strong>
-          </article>
-          <article class="stat-pill">
-            <span class="mini-label">Clock</span>
-            <strong id="shot-clock">30s</strong>
-          </article>
-          <article class="stat-pill accent">
-            <span class="mini-label">Adjusted Score</span>
-            <strong id="adjusted-score">0.00</strong>
-          </article>
         </div>
       </section>
 
-      <section class="overview-grid">
+      <section class="setup-grid">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Profile</p>
+              <h2>Player and backend</h2>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label class="field-card">
+              <span class="mini-label">Player name</span>
+              <input id="player-name" type="text" maxlength="32" placeholder="Aditya" />
+            </label>
+            <label class="field-card">
+              <span class="mini-label">Backend URL</span>
+              <input id="backend-url" type="text" placeholder="http://127.0.0.1:8787" />
+            </label>
+          </div>
+          <p id="setup-message" class="body-copy subtle-copy">
+            Use a local backend URL while developing. Later this can point at your deployed realtime server.
+          </p>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Private match</p>
+              <h2>Create or join by code</h2>
+            </div>
+          </div>
+          <div class="action-stack">
+            <button id="create-room" class="primary-button">Create Private Room</button>
+            <div class="join-row">
+              <label class="field-card join-card">
+                <span class="mini-label">Room code</span>
+                <input id="join-code" type="text" maxlength="8" placeholder="AB12CD" />
+              </label>
+              <button id="join-room" class="secondary-button">Join Room</button>
+            </div>
+          </div>
+          <p id="room-action-message" class="body-copy subtle-copy">Private rooms are best for playing a specific friend.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Random match</p>
+              <h2>Queue into the next game</h2>
+            </div>
+          </div>
+          <div class="action-stack">
+            <button id="queue-match" class="secondary-button">Find Random Opponent</button>
+            <button id="cancel-queue" class="secondary-button" disabled>Cancel Queue</button>
+          </div>
+          <p id="queue-status" class="body-copy subtle-copy">Not in matchmaking queue.</p>
+        </article>
+      </section>
+
+      <section class="session-grid">
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Session</p>
+              <h2>Room state</h2>
+            </div>
+            <span id="room-code-display" class="badge">No room</span>
+          </div>
+          <div class="mini-grid">
+            <div class="mini-metric">
+              <span class="mini-label">Role</span>
+              <strong id="role-label">-</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Status</span>
+              <strong id="game-status">Lobby</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Turn</span>
+              <strong id="turn-label">0 / 0</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Active actor</span>
+              <strong id="active-actor">-</strong>
+            </div>
+          </div>
+          <div class="action-row top-gap">
+            <button id="copy-room-code" class="secondary-button" disabled>Copy Room Code</button>
+            <button id="ready-toggle" class="primary-button" disabled>Mark Ready</button>
+            <button id="leave-room" class="secondary-button danger">Leave Room</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Players</p>
+              <h2>Lobby</h2>
+            </div>
+          </div>
+          <ul id="players-list" class="players-list"></ul>
+        </article>
+      </section>
+
+      <section class="game-grid">
         <article class="card contract-card">
           <div class="card-head">
             <div>
-              <p class="eyebrow">Contract brief</p>
-              <h2 id="asset-name">-</h2>
+              <p class="eyebrow">Contract</p>
+              <h2 id="contract-prompt">Waiting for room</h2>
             </div>
-            <span id="asset-tag" class="badge">-</span>
+            <span id="contract-unit" class="badge">-</span>
           </div>
-
-          <p id="asset-description" class="body-copy"></p>
-
-          <div class="info-grid">
-            <div class="info-cell">
-              <span class="mini-label">Code</span>
-              <strong id="asset-ticker">-</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Category</span>
-              <strong id="asset-sector">-</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Units</span>
-              <strong id="asset-exchange">-</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Anchor</span>
-              <strong id="asset-session">-</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Working Range</span>
-              <strong id="asset-range">-</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Range Card</span>
-              <strong id="range-brief">-</strong>
-            </div>
-          </div>
-
-          <div class="split-callouts">
+          <p id="contract-range" class="body-copy">Range: -</p>
+          <div class="split-callouts top-gap">
             <div class="soft-panel">
-              <span class="mini-label">Benchmark hint</span>
-              <p id="benchmark-text" class="body-copy"></p>
+              <span class="mini-label">Your side</span>
+              <p id="side-instructions" class="body-copy">Join a room to get a role.</p>
             </div>
             <div class="soft-panel emphasis">
-              <span class="mini-label">Round Status</span>
-              <p id="task-prompt" class="body-copy">Press start to begin the interview round.</p>
+              <span class="mini-label">Latest resolution</span>
+              <p id="resolution-summary" class="body-copy">No turns have resolved yet.</p>
             </div>
           </div>
-
-          <p id="strategy-note" class="visually-hidden"></p>
         </article>
 
-        <aside class="summary-stack">
-          <article class="card compact-card">
-            <p class="eyebrow">Session</p>
-            <div class="mini-grid">
-              <div class="mini-metric">
-                <span class="mini-label">Adjusted Score</span>
-                <strong id="adjusted-score-echo">0.00</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Local Best</span>
-                <strong id="best-score">0.00</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">State</span>
-                <strong id="state-echo">Ready</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Clock</span>
-                <strong id="shot-clock-echo">30s</strong>
-              </div>
-            </div>
-          </article>
-
-          <article class="card compact-card">
-            <p class="eyebrow">Desk read</p>
-            <div class="mini-grid">
-              <div class="mini-metric">
-                <span class="mini-label">Reference</span>
-                <strong id="ref-price">-</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Flow Tone</span>
-                <strong id="flow-tone-card">-</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Volatility</span>
-                <strong id="vol-band">-</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Spread</span>
-                <strong id="spread-band">-</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Script Style</span>
-                <strong id="script-style-brief">-</strong>
-              </div>
-              <div class="mini-metric">
-                <span class="mini-label">Profile</span>
-                <strong id="bot-profile">-</strong>
-              </div>
-            </div>
-          </article>
-        </aside>
-      </section>
-
-      <section class="quote-stage card">
-        <div class="card-head">
-          <div>
-            <p class="eyebrow">Quote station</p>
-            <h2>Make your market</h2>
-          </div>
-          <span id="settlement-rule" class="badge">-</span>
-        </div>
-
-        <div class="quote-stage-grid">
-          <div class="quote-main">
-            <div class="quote-toolbar">
-              <div class="quote-toolbar-copy">
-                <span class="mini-label">Current clue</span>
-                <strong id="current-clue">-</strong>
-              </div>
-              <div class="preset-row">
-                <button data-preset="tight" class="secondary-button">Tight</button>
-                <button data-preset="normal" class="secondary-button">Normal</button>
-                <button data-preset="wide" class="secondary-button">Wide</button>
-              </div>
-            </div>
-
-            <div class="quote-inputs">
-              <label class="quote-field">
-                <span class="mini-label">Bid</span>
-                <input id="bid-input" type="number" step="0.05" />
-              </label>
-              <label class="quote-field">
-                <span class="mini-label">Ask</span>
-                <input id="ask-input" type="number" step="0.05" />
-              </label>
-              <label class="quote-field">
-                <span class="mini-label">Size</span>
-                <input id="size-input" type="number" min="1" max="10" value="4" />
-              </label>
-            </div>
-
-            <div class="action-row">
-              <button id="submit-quote" class="primary-button">Submit Quote</button>
-              <button id="skip-turn" class="secondary-button danger">Forfeit Turn</button>
+        <article class="card quote-card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Maker controls</p>
+              <h2>Submit a quote</h2>
             </div>
           </div>
+          <div class="quote-inputs">
+            <label class="quote-field">
+              <span class="mini-label">Bid</span>
+              <input id="bid-input" type="number" step="0.01" />
+            </label>
+            <label class="quote-field">
+              <span class="mini-label">Ask</span>
+              <input id="ask-input" type="number" step="0.01" />
+            </label>
+            <label class="quote-field">
+              <span class="mini-label">Size</span>
+              <input id="size-input" type="number" min="1" max="10" value="1" />
+            </label>
+          </div>
+          <div class="action-row top-gap">
+            <button id="submit-quote" class="primary-button" disabled>Submit Quote</button>
+          </div>
+        </article>
 
-          <div class="quote-sidebar">
-            <div class="response-highlight compact">
-              <span class="mini-label">Latest Action</span>
-              <strong id="script-action">Press start to begin.</strong>
-              <p id="script-reason" class="body-copy">
-                The round starts idle. Read the contract, form a view, and begin when ready.
-              </p>
-            </div>
-            <div class="quote-sidebar-grid">
-              <div class="quote-suggestion">
-                <span class="mini-label">Last Submitted Bid</span>
-                <strong id="last-quote-bid">-</strong>
-              </div>
-              <div class="quote-suggestion">
-                <span class="mini-label">Last Submitted Ask</span>
-                <strong id="last-quote-ask">-</strong>
-              </div>
-              <div class="quote-suggestion">
-                <span class="mini-label">Mark After Turn</span>
-                <strong id="mark-after">-</strong>
-              </div>
-              <div class="quote-suggestion">
-                <span class="mini-label">Last Mark</span>
-                <strong id="last-mark">-</strong>
-              </div>
+        <article class="card taker-card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Taker controls</p>
+              <h2>Respond to quote</h2>
             </div>
           </div>
-        </div>
+          <div class="mini-grid">
+            <div class="mini-metric">
+              <span class="mini-label">Bid</span>
+              <strong id="current-quote-bid">-</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Ask</span>
+              <strong id="current-quote-ask">-</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Size</span>
+              <strong id="current-quote-size">-</strong>
+            </div>
+          </div>
+          <div class="action-row top-gap">
+            <button id="taker-buy" class="primary-button" disabled>Buy Ask</button>
+            <button id="taker-sell" class="secondary-button" disabled>Sell Bid</button>
+            <button id="taker-pass" class="secondary-button" disabled>Pass</button>
+          </div>
+        </article>
       </section>
 
       <section class="lower-grid">
         <article class="card">
           <div class="card-head">
             <div>
-              <p class="eyebrow">Round details</p>
-              <h2>Position and penalties</h2>
+              <p class="eyebrow">Position</p>
+              <h2>Your book</h2>
             </div>
           </div>
-
           <div class="info-grid">
             <div class="info-cell">
-              <span class="mini-label">Missed Turns</span>
-              <strong id="missed-turns">0</strong>
+              <span class="mini-label">Cash</span>
+              <strong id="you-cash">0.00</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Inventory</span>
+              <strong id="you-inventory">0</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">PnL</span>
+              <strong id="you-pnl">-</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Opponent Cash</span>
+              <strong id="opp-cash">0.00</strong>
+            </div>
+            <div class="info-cell">
+              <span class="mini-label">Opponent Inventory</span>
+              <strong id="opp-inventory">0</strong>
             </div>
             <div class="info-cell">
               <span class="mini-label">Settlement</span>
               <strong id="settlement-value">hidden</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Inventory</span>
-              <strong id="inventory">0</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Cash</span>
-              <strong id="cash">0.00</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Raw MTM</span>
-              <strong id="raw-mtm">0.00</strong>
-            </div>
-            <div class="info-cell">
-              <span class="mini-label">Penalty</span>
-              <strong id="inventory-penalty">0.00</strong>
             </div>
           </div>
         </article>
@@ -277,28 +249,15 @@
         <article class="card">
           <div class="card-head">
             <div>
-              <p class="eyebrow">Revealed clues</p>
-              <h2>What you know so far</h2>
+              <p class="eyebrow">Tape</p>
+              <h2>Turn history</h2>
             </div>
-            <span class="badge subtle"><span id="clue-count">0</span> revealed</span>
           </div>
-
-          <ul id="revealed-clues" class="clue-list"></ul>
+          <ul id="history-list" class="tape-list"></ul>
         </article>
-      </section>
-
-      <section class="card tape-card">
-        <div class="card-head">
-          <div>
-            <p class="eyebrow">Tape</p>
-            <h2>Turn-by-turn history</h2>
-          </div>
-        </div>
-        <ul id="history-list" class="tape-list"></ul>
       </section>
     </main>
 
-    <script src="./asset-data.js"></script>
     <script src="./app.js" defer></script>
   </body>
 </html>
