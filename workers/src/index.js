@@ -168,7 +168,7 @@ export default {
           headers: {
             "content-type": "application/json",
           },
-          body: JSON.stringify({ name: body.name }),
+          body: JSON.stringify({ name: body.name, clientId: body.clientId }),
         });
         return withCors(response);
       }

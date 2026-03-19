@@ -5,6 +5,7 @@
     backendUrl: "market-making-sim.backend-url",
     playerName: "market-making-sim.player-name",
     session: "market-making-sim.session",
+    clientId: "market-making-sim.client-id",
   };
 
   const elements = {
@@ -74,6 +75,7 @@
     ws: null,
     queueTicketId: null,
     queuePollHandle: null,
+    queueJoinPending: false,
     restoring: false,
     manualClose: false,
   };
@@ -140,6 +142,16 @@
     return String(input || "")
       .trim()
       .replace(/\/+$/, "");
+  }
+
+  function getOrCreateClientId() {
+    const existing = safeStorageGet(STORAGE_KEYS.clientId);
+    if (existing) {
+      return existing;
+    }
+    const created = window.crypto?.randomUUID ? window.crypto.randomUUID() : `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    safeStorageSet(STORAGE_KEYS.clientId, created);
+    return created;
   }
 
   function formatQuote(quote) {
@@ -499,9 +511,14 @@
   }
 
   async function queueRandomMatch() {
+    if (state.queueTicketId || state.queueJoinPending) {
+      return;
+    }
     try {
+      state.queueJoinPending = true;
+      render();
       const name = requirePlayerName();
-      const payload = await api("/api/matchmaking/join", { method: "POST", body: { name } });
+      const payload = await api("/api/matchmaking/join", { method: "POST", body: { name, clientId: state.clientId } });
       state.queueTicketId = payload.ticketId;
 
       if (payload.status === "matched") {
@@ -541,6 +558,9 @@
       }, 1200);
     } catch (error) {
       setQueueStatus(error.message, true);
+    } finally {
+      state.queueJoinPending = false;
+      render();
     }
   }
 
@@ -777,6 +797,9 @@
     elements.takerSell.disabled = !canTake;
     elements.takerPass.disabled = !canTake;
     elements.queueMatch.disabled = Boolean(state.queueTicketId) || Boolean(state.roomCode);
+    if (state.queueJoinPending) {
+      elements.queueMatch.disabled = true;
+    }
     elements.cancelQueue.disabled = !state.queueTicketId;
     elements.createRoom.disabled = Boolean(state.roomCode);
     elements.joinRoom.disabled = Boolean(state.roomCode);
@@ -829,6 +852,7 @@
   elements.playerName.value = safeStorageGet(STORAGE_KEYS.playerName) || "";
   state.playerName = elements.playerName.value.trim();
   state.backendUrl = defaultBackendUrl();
+  state.clientId = getOrCreateClientId();
 
   render();
   resumePreviousSession();

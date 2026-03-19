@@ -43,8 +43,110 @@ function epsilonGreedy(table, key, count, epsilon) {
   return bestIndex;
 }
 
-function mixedMakerAction(room, estimate, qMaker, countsMaker, epsilon) {
-  if (Math.random() < 0.32) {
+function makerProfileAction(room, estimate, profile) {
+  const lastAction = room.game.lastResolution?.action || null;
+  const inventory = room.game.maker.inventory;
+
+  if (profile === "pressure") {
+    if (inventory >= 2) {
+      return 9;
+    }
+    if (inventory <= -2) {
+      return 8;
+    }
+    return room.game.turn >= room.game.maxTurns - 1 ? 3 : 2;
+  }
+
+  if (profile === "bluff") {
+    if (lastAction === TAKER_ACTION.BUY) {
+      return inventory < 0 ? 9 : 4;
+    }
+    if (lastAction === TAKER_ACTION.SELL) {
+      return inventory > 0 ? 8 : 5;
+    }
+    return room.game.turn <= 2 ? 6 : 3;
+  }
+
+  return fallbackMakerActionIndex(room, estimate);
+}
+
+function takerProfileAction(room, estimate, profile) {
+  const fallback = fallbackTakerAction(room, estimate);
+  const quote = room.game.currentQuote;
+  const previous = room.game.previousQuote;
+
+  if (!quote) {
+    return TAKER_ACTION.PASS;
+  }
+
+  const width = Math.max(1, room.game.contract.rangeHigh - room.game.contract.rangeLow);
+  const buyEdge = (estimate - quote.ask) / width;
+  const sellEdge = (quote.bid - estimate) / width;
+  const quoteMid = (quote.bid + quote.ask) / 2;
+  const previousMid = previous ? (previous.bid + previous.ask) / 2 : quoteMid;
+  const drift = (quoteMid - previousMid) / width;
+
+  if (profile === "patient") {
+    if (Math.max(buyEdge, sellEdge) < 0.028 && room.game.turn < room.game.maxTurns) {
+      return TAKER_ACTION.PASS;
+    }
+    return fallback;
+  }
+
+  if (profile === "sniper") {
+    if (buyEdge > 0.006) {
+      return TAKER_ACTION.BUY;
+    }
+    if (sellEdge > 0.006) {
+      return TAKER_ACTION.SELL;
+    }
+    return fallback;
+  }
+
+  if (profile === "bluff") {
+    if (room.game.turn <= 3 && Math.max(buyEdge, sellEdge) < 0.025) {
+      return TAKER_ACTION.PASS;
+    }
+    if (drift > 0.02 && sellEdge > -0.002) {
+      return TAKER_ACTION.SELL;
+    }
+    if (drift < -0.02 && buyEdge > -0.002) {
+      return TAKER_ACTION.BUY;
+    }
+    return fallback;
+  }
+
+  return fallback;
+}
+
+function sampleEpisodeStyles(episode, totalEpisodes) {
+  const progress = episode / Math.max(1, totalEpisodes);
+  const makerRoll = Math.random();
+  const takerRoll = Math.random();
+
+  const makerProfile =
+    progress < 0.25 ? (makerRoll < 0.2 ? "pressure" : "baseline") : makerRoll < 0.16 ? "pressure" : makerRoll < 0.32 ? "bluff" : "baseline";
+  const takerProfile =
+    progress < 0.25
+      ? takerRoll < 0.25
+        ? "sniper"
+        : "baseline"
+      : takerRoll < 0.16
+        ? "patient"
+        : takerRoll < 0.32
+          ? "bluff"
+          : takerRoll < 0.48
+            ? "sniper"
+            : "baseline";
+
+  return { makerProfile, takerProfile };
+}
+
+function mixedMakerAction(room, estimate, qMaker, countsMaker, epsilon, profile) {
+  if (Math.random() < 0.26) {
+    return makerProfileAction(room, estimate, profile);
+  }
+  if (Math.random() < 0.24) {
     return fallbackMakerActionIndex(room, estimate);
   }
   const stateKey = makerStateKey(room, estimate);
@@ -52,8 +154,11 @@ function mixedMakerAction(room, estimate, qMaker, countsMaker, epsilon) {
     pickActionFromPolicy(qMaker, stateKey, fallbackMakerActionIndex(room, estimate), 0, countsMaker, 4);
 }
 
-function mixedTakerAction(room, estimate, qTaker, countsTaker, epsilon) {
-  if (Math.random() < 0.32) {
+function mixedTakerAction(room, estimate, qTaker, countsTaker, epsilon, profile) {
+  if (Math.random() < 0.26) {
+    return takerProfileAction(room, estimate, profile);
+  }
+  if (Math.random() < 0.24) {
     return fallbackTakerAction(room, estimate);
   }
   const stateKey = takerStateKey(room, estimate);
@@ -180,6 +285,7 @@ export function runEpisodes(config) {
   const stride = Number(config.scenarioStride || 1);
 
   for (let episode = 0; episode < config.episodes; episode += 1) {
+    const styles = sampleEpisodeStyles(episode, config.episodes);
     const scenarioIndex = (startOffset + episode * stride) % SCENARIO_COUNT;
     const contract = contractFromScenarioIndex(scenarioIndex);
     const width = Math.max(1, contract.rangeHigh - contract.rangeLow);
@@ -197,7 +303,7 @@ export function runEpisodes(config) {
       room.game.turn = turn;
 
       const makerKey = makerStateKey(room, makerEstimate);
-      const makerActionIndex = mixedMakerAction(room, makerEstimate, qMaker, countsMaker, epsilon);
+      const makerActionIndex = mixedMakerAction(room, makerEstimate, qMaker, countsMaker, epsilon, styles.makerProfile);
       const quote = quoteFromMakerAction(room, makerEstimate, makerActionIndex);
       room.game.currentQuote = quote;
       room.game.lastResolution = { type: "quote_submitted", text: "maker quote" };
@@ -205,7 +311,7 @@ export function runEpisodes(config) {
 
       takerEstimate = updateEstimateFromQuote(room, GAME_ROLE.TAKER, takerEstimate);
       const takerKey = takerStateKey(room, takerEstimate);
-      const takerAction = mixedTakerAction(room, takerEstimate, qTaker, countsTaker, epsilon);
+      const takerAction = mixedTakerAction(room, takerEstimate, qTaker, countsTaker, epsilon, styles.takerProfile);
       const takerActionIndex = TAKER_ACTIONS.indexOf(takerAction);
       takerTrace.push([takerKey, Math.max(0, takerActionIndex)]);
 

@@ -25,6 +25,14 @@ function validateName(name) {
   return value;
 }
 
+function validateClientId(clientId) {
+  const value = String(clientId || "").trim().slice(0, 96);
+  if (!value) {
+    throw new Error("Client id is required.");
+  }
+  return value;
+}
+
 function randomCode(length = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
@@ -32,6 +40,19 @@ function randomCode(length = 6) {
     out += alphabet[Math.floor(Math.random() * alphabet.length)];
   }
   return out;
+}
+
+function serializeTicket(ticket) {
+  if (!ticket) {
+    return null;
+  }
+  return {
+    ticketId: ticket.id,
+    status: ticket.status,
+    roomId: ticket.roomId,
+    roomCode: ticket.roomCode,
+    playerId: ticket.playerId,
+  };
 }
 
 export class MatchmakerDurableObject extends DurableObject {
@@ -73,15 +94,32 @@ export class MatchmakerDurableObject extends DurableObject {
   async joinQueue(request) {
     const body = await readJson(request);
     const name = validateName(body.name);
+    const clientId = validateClientId(body.clientId);
+    const existingTicket = this.findActiveTicketForClient(clientId);
+    if (existingTicket) {
+      return json(serializeTicket(existingTicket), 200);
+    }
     const ticketId = crypto.randomUUID();
 
     let waitingTicketId = null;
+    const skippedSameClient = [];
     while (this.queue.length) {
       const candidateId = this.queue.shift();
-      if (this.tickets[candidateId]?.status === "queued") {
+      const candidate = this.tickets[candidateId];
+      if (candidate?.status !== "queued") {
+        continue;
+      }
+      if (candidate.clientId === clientId) {
+        skippedSameClient.push(candidateId);
+        continue;
+      }
+      if (candidate.status === "queued") {
         waitingTicketId = candidateId;
         break;
       }
+    }
+    if (skippedSameClient.length) {
+      this.queue = skippedSameClient.concat(this.queue);
     }
 
     if (!waitingTicketId) {
@@ -89,12 +127,13 @@ export class MatchmakerDurableObject extends DurableObject {
         id: ticketId,
         status: "queued",
         name,
+        clientId,
         createdAt: Date.now(),
       };
       await this.persist();
       this.queue.push(ticketId);
       await this.persist();
-      return json({ ticketId, status: "queued" }, 200);
+      return json(serializeTicket(this.tickets[ticketId]), 200);
     }
 
     const waitingTicket = this.tickets[waitingTicketId];
@@ -109,6 +148,7 @@ export class MatchmakerDurableObject extends DurableObject {
       id: ticketId,
       status: "matched",
       name,
+      clientId,
       roomId: created.roomId,
       roomCode: created.roomCode,
       playerId: created.players[1].playerId,
@@ -116,16 +156,7 @@ export class MatchmakerDurableObject extends DurableObject {
 
     await this.persist();
 
-    return json(
-      {
-        ticketId,
-        status: "matched",
-        roomId: created.roomId,
-        roomCode: created.roomCode,
-        playerId: created.players[1].playerId,
-      },
-      200
-    );
+    return json(serializeTicket(this.tickets[ticketId]), 200);
   }
 
   getTicket(ticketId) {
@@ -149,6 +180,18 @@ export class MatchmakerDurableObject extends DurableObject {
     this.queue = this.queue.filter((entry) => entry !== ticketId);
     await this.persist();
     return json(ticket, 200);
+  }
+
+  findActiveTicketForClient(clientId) {
+    for (const ticket of Object.values(this.tickets)) {
+      if (!ticket || ticket.clientId !== clientId) {
+        continue;
+      }
+      if (ticket.status === "queued" || ticket.status === "matched") {
+        return ticket;
+      }
+    }
+    return null;
   }
 
   async createMatchedRoom(nameA, nameB) {
