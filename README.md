@@ -12,9 +12,12 @@
 - Connects that client to an authoritative Cloudflare Worker over HTTP and WebSocket.
 - Supports private room creation with short join codes.
 - Supports random matchmaking into a 1v1 game.
+- Supports 1v1 solo rooms against a server-side RL bot.
+- Restores an active room after page refresh if the same browser reconnects with the stored room code and player id.
 - Runs a hidden-scalar maker/taker game that matches the bluffing interview format much more closely than the earlier single-player prototype.
 - Assigns one player as `market_maker` and one as `market_taker`.
 - Lets the maker quote `bid / ask / size` and the taker answer with `buy / sell / pass`.
+- Supports rematches that automatically swap roles.
 - Settles both sides against a hidden true value at the end of the game.
 
 ## Repo Layout
@@ -30,10 +33,16 @@ workers/
     room-do.js      # One Durable Object per room
     matchmaker-do.js# Global matchmaking Durable Object
     game-engine.js  # Authoritative maker/taker game loop
+    bot-policy.js   # Worker-side RL bot runtime
+    rl-core.js      # Shared RL state/action helpers
+    rl-policy-data.js # Exported RL policy table used by the Worker
     contracts.js    # Hidden scalar contract generator
     protocol.js     # Client/server event names and enums
   wrangler.jsonc
   package.json
+rl/
+  train-self-play.js # Local self-play trainer that exports rl-policy-data.js
+  README.md
 backend/
   src/
     server.js       # HTTP + WebSocket server
@@ -93,7 +102,9 @@ The frontend now defaults to that Worker on GitHub Pages. You can still override
 - `Create Private Room`
 - `Join Room` by code
 - `Find Random Opponent`
+- `Play as Maker` / `Play as Taker` against the RL bot
 - `Mark Ready`
+- `Request Rematch`
 - maker-side quote submission
 - taker-side `Buy Ask / Sell Bid / Pass`
 
@@ -107,7 +118,6 @@ The workflow in [`.github/workflows/deploy-pages.yml`](/Users/adityadutta/Deskto
 ## Next Extensions
 
 - add a custom domain for the Worker if you do not want the `workers.dev` URL
-- auto-reconnect players into active rooms on page refresh
 - add turn timers server-side
-- add rematch / role-swap flow
-- add a bluffing bot so a solo player can face the authoritative server model
+- let the bot policy version be selected from the UI
+- add rated matchmaking or a leaderboard once you want persistence beyond a single room

@@ -75,6 +75,30 @@ async function createPrivateRoom(env, name) {
   throw new Error("Could not allocate a room code.");
 }
 
+async function createBotRoom(env, name, humanRole) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const code = randomCode();
+    const response = await roomStubForCode(env, code).fetch("https://room/internal/create-bot", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ name, code, humanRole }),
+    });
+
+    if (response.status === 409) {
+      continue;
+    }
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not create bot room.");
+    }
+    return payload;
+  }
+
+  throw new Error("Could not allocate a room code.");
+}
+
 export { RoomDurableObject, MatchmakerDurableObject };
 
 export default {
@@ -104,6 +128,22 @@ export default {
       if (request.method === "POST" && url.pathname === "/api/rooms") {
         const body = await readJson(request);
         return json(await createPrivateRoom(env, body.name), 201);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/bot-rooms") {
+        const body = await readJson(request);
+        return json(await createBotRoom(env, body.name, body.humanRole), 201);
+      }
+
+      if (request.method === "GET" && url.pathname.startsWith("/api/rooms/") && url.pathname.endsWith("/state")) {
+        const code = url.pathname.split("/")[3];
+        const playerId = url.searchParams.get("playerId");
+        const target = new URL("https://room/internal/state");
+        if (playerId) {
+          target.searchParams.set("playerId", playerId);
+        }
+        const response = await roomStubForCode(env, code).fetch(target.toString());
+        return withCors(response);
       }
 
       if (request.method === "POST" && url.pathname.startsWith("/api/rooms/") && url.pathname.endsWith("/join")) {

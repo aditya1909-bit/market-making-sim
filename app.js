@@ -4,6 +4,7 @@
   const STORAGE_KEYS = {
     backendUrl: "market-making-sim.backend-url",
     playerName: "market-making-sim.player-name",
+    session: "market-making-sim.session",
   };
 
   const elements = {
@@ -18,14 +19,19 @@
     queueMatch: document.getElementById("queue-match"),
     cancelQueue: document.getElementById("cancel-queue"),
     queueStatus: document.getElementById("queue-status"),
+    playBotMaker: document.getElementById("play-bot-maker"),
+    playBotTaker: document.getElementById("play-bot-taker"),
     roomCodeDisplay: document.getElementById("room-code-display"),
     copyRoomCode: document.getElementById("copy-room-code"),
     readyToggle: document.getElementById("ready-toggle"),
+    requestRematch: document.getElementById("request-rematch"),
     leaveRoom: document.getElementById("leave-room"),
     roleLabel: document.getElementById("role-label"),
     gameStatus: document.getElementById("game-status"),
     turnLabel: document.getElementById("turn-label"),
     activeActor: document.getElementById("active-actor"),
+    matchType: document.getElementById("match-type"),
+    gameNumber: document.getElementById("game-number"),
     playersList: document.getElementById("players-list"),
     contractPrompt: document.getElementById("contract-prompt"),
     contractUnit: document.getElementById("contract-unit"),
@@ -61,6 +67,8 @@
     ws: null,
     queueTicketId: null,
     queuePollHandle: null,
+    restoring: false,
+    manualClose: false,
   };
 
   function defaultBackendUrl() {
@@ -82,7 +90,7 @@
   function safeStorageGet(key) {
     try {
       return window.localStorage.getItem(key);
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -90,13 +98,25 @@
   function safeStorageSet(key, value) {
     try {
       window.localStorage.setItem(key, value);
-    } catch (error) {
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  function safeStorageRemove(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
       // ignore storage failures
     }
   }
 
   function capWords(value) {
-    return String(value || "-")
+    const text = String(value || "").trim();
+    if (!text) {
+      return "-";
+    }
+    return text
       .split(/[_\s-]+/)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(" ");
@@ -131,6 +151,41 @@
     }
     safeStorageSet(STORAGE_KEYS.playerName, state.playerName);
     return state.playerName;
+  }
+
+  function persistSession() {
+    if (!state.roomCode || !state.playerId) {
+      return;
+    }
+    safeStorageSet(
+      STORAGE_KEYS.session,
+      JSON.stringify({
+        backendUrl: normalizeBackendUrl(elements.backendUrl.value),
+        roomCode: state.roomCode,
+        roomId: state.roomId,
+        playerId: state.playerId,
+      })
+    );
+  }
+
+  function clearSession() {
+    safeStorageRemove(STORAGE_KEYS.session);
+  }
+
+  function readStoredSession() {
+    const raw = safeStorageGet(STORAGE_KEYS.session);
+    if (!raw) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed?.roomCode || !parsed?.playerId) {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
   }
 
   async function api(path, options = {}) {
@@ -196,21 +251,21 @@
     }
   }
 
-  async function connectToRoom(joinPayload) {
+  async function connectToRoom(joinPayload, options = {}) {
     clearQueuePolling();
     state.queueTicketId = null;
-    elements.queueMatch.disabled = false;
-    elements.cancelQueue.disabled = true;
+    state.manualClose = false;
     closeSocket();
     state.roomId = joinPayload.roomId;
     state.roomCode = joinPayload.roomCode;
     state.playerId = joinPayload.playerId;
-    state.roomState = joinPayload.view;
-    await openSocket();
+    state.roomState = joinPayload.view || null;
+    persistSession();
+    await openSocket(options);
     render();
   }
 
-  async function openSocket() {
+  async function openSocket(options = {}) {
     if (!state.playerId) {
       return;
     }
@@ -220,6 +275,9 @@
 
     ws.addEventListener("open", () => {
       setText(elements.connectionStatus, "Connected");
+      if (options.restored) {
+        setSetupMessage(`Restored room ${state.roomCode}.`);
+      }
       render();
     });
 
@@ -229,6 +287,7 @@
         state.roomState = message.payload;
         state.roomId = message.payload.roomId;
         state.roomCode = message.payload.roomCode;
+        persistSession();
         render();
         return;
       }
@@ -250,6 +309,7 @@
 
   function closeSocket() {
     if (state.ws) {
+      state.manualClose = true;
       state.ws.close();
     }
     state.ws = null;
@@ -267,6 +327,17 @@
       const name = requirePlayerName();
       const payload = await api("/api/rooms", { method: "POST", body: { name } });
       setActionMessage(`Created room ${payload.roomCode}.`);
+      await connectToRoom(payload);
+    } catch (error) {
+      setActionMessage(error.message, true);
+    }
+  }
+
+  async function createBotRoom(humanRole) {
+    try {
+      const name = requirePlayerName();
+      const payload = await api("/api/bot-rooms", { method: "POST", body: { name, humanRole } });
+      setActionMessage(`Started bot room ${payload.roomCode}.`);
       await connectToRoom(payload);
     } catch (error) {
       setActionMessage(error.message, true);
@@ -293,8 +364,6 @@
       const name = requirePlayerName();
       const payload = await api("/api/matchmaking/join", { method: "POST", body: { name } });
       state.queueTicketId = payload.ticketId;
-      elements.queueMatch.disabled = true;
-      elements.cancelQueue.disabled = false;
 
       if (payload.status === "matched") {
         setQueueStatus(`Matched into room ${payload.roomCode}.`);
@@ -317,25 +386,18 @@
           }
           clearQueuePolling();
           state.queueTicketId = null;
-          elements.queueMatch.disabled = false;
-          elements.cancelQueue.disabled = true;
-          const room = {
+          setQueueStatus(`Matched into room ${ticket.roomCode}.`);
+          await connectToRoom({
             roomId: ticket.roomId,
             roomCode: ticket.roomCode,
             playerId: ticket.playerId,
             view: null,
-          };
-          state.playerId = ticket.playerId;
-          state.roomId = ticket.roomId;
-          state.roomCode = ticket.roomCode;
-          setQueueStatus(`Matched into room ${ticket.roomCode}.`);
-          await openSocket();
+          });
         } catch (error) {
           clearQueuePolling();
           state.queueTicketId = null;
-          elements.queueMatch.disabled = false;
-          elements.cancelQueue.disabled = true;
           setQueueStatus(error.message, true);
+          render();
         }
       }, 1200);
     } catch (error) {
@@ -355,8 +417,7 @@
     } finally {
       clearQueuePolling();
       state.queueTicketId = null;
-      elements.queueMatch.disabled = false;
-      elements.cancelQueue.disabled = true;
+      render();
     }
   }
 
@@ -371,7 +432,9 @@
     state.roomCode = null;
     state.playerId = null;
     state.roomState = null;
+    clearSession();
     setText(elements.connectionStatus, "Not connected");
+    setSetupMessage("Disconnected from the room.");
     render();
   }
 
@@ -381,6 +444,15 @@
     }
     try {
       sendMessage("ready", { ready: !state.roomState.ready });
+    } catch (error) {
+      setActionMessage(error.message, true);
+    }
+  }
+
+  function requestRematch() {
+    try {
+      sendMessage("request_rematch");
+      setActionMessage("Rematch requested.");
     } catch (error) {
       setActionMessage(error.message, true);
     }
@@ -405,6 +477,28 @@
       sendMessage("taker_action", { payload: { action } });
     } catch (error) {
       setActionMessage(error.message, true);
+    }
+  }
+
+  async function resumePreviousSession() {
+    const session = readStoredSession();
+    if (!session) {
+      return;
+    }
+
+    state.restoring = true;
+    try {
+      const preferredBackend = normalizeBackendUrl(session.backendUrl);
+      if (preferredBackend && !safeStorageGet(STORAGE_KEYS.backendUrl)) {
+        elements.backendUrl.value = preferredBackend;
+      }
+      const payload = await api(`/api/rooms/${encodeURIComponent(session.roomCode)}/state?playerId=${encodeURIComponent(session.playerId)}`);
+      await connectToRoom(payload, { restored: true });
+    } catch {
+      clearSession();
+    } finally {
+      state.restoring = false;
+      render();
     }
   }
 
@@ -439,7 +533,7 @@
       const meta = document.createElement("div");
       meta.className = "player-meta";
       const name = document.createElement("strong");
-      name.textContent = `${player.name} · ${capWords(player.role)}`;
+      name.textContent = `${player.name}${player.isBot ? " · RL Bot" : ""} · ${capWords(player.role)}`;
       const ready = document.createElement("span");
       ready.className = `status-chip${player.ready ? " ready" : ""}`;
       ready.textContent = player.ready ? "Ready" : "Not ready";
@@ -447,8 +541,8 @@
       meta.appendChild(ready);
 
       const connected = document.createElement("span");
-      connected.className = `status-chip${player.connected ? " connected" : ""}`;
-      connected.textContent = player.connected ? "Connected" : "Offline";
+      connected.className = `status-chip${player.connected ? " connected" : ""}${player.isBot ? " bot" : ""}`;
+      connected.textContent = player.isBot ? "Server Bot" : player.connected ? "Connected" : "Offline";
 
       row.appendChild(meta);
       row.appendChild(connected);
@@ -475,38 +569,52 @@
   function render() {
     const roomState = state.roomState;
     const game = roomState?.game || null;
-    const role = roomState?.role || "-";
-    const you =
-      role === "market_maker" ? game?.maker : role === "market_taker" ? game?.taker : null;
-    const opponent =
-      role === "market_maker" ? game?.taker : role === "market_taker" ? game?.maker : null;
+    const role = roomState?.role || "";
+    const you = role === "market_maker" ? game?.maker : role === "market_taker" ? game?.taker : null;
+    const opponent = role === "market_maker" ? game?.taker : role === "market_taker" ? game?.maker : null;
     const makerTurn = game?.activeActor === "maker";
     const takerTurn = game?.activeActor === "taker";
     const canQuote = roomState?.status === "live" && role === "market_maker" && makerTurn;
     const canTake = roomState?.status === "live" && role === "market_taker" && takerTurn && game?.currentQuote;
+    const isFinished = roomState?.status === "finished";
+    const needsReady = roomState?.status === "lobby" && roomState?.matchType !== "bot";
+    const pendingRematch = roomState?.rematch?.pendingPlayers || [];
 
     setText(elements.roomCodeDisplay, state.roomCode || "No room");
     setText(elements.roleLabel, capWords(role));
     setText(elements.gameStatus, capWords(roomState?.status || "lobby"));
     setText(elements.turnLabel, `${game?.turn || 0} / ${game?.maxTurns || 0}`);
-    setText(elements.activeActor, capWords(game?.activeActor || "-"));
+    setText(elements.activeActor, capWords(game?.activeActor || ""));
+    setText(elements.matchType, roomState?.matchType === "bot" ? "RL Bot" : "Human");
+    setText(elements.gameNumber, String(roomState?.gameNumber || 0));
 
     setText(elements.contractPrompt, game?.contract?.prompt || "Waiting for room");
     setText(elements.contractUnit, game?.contract?.unitLabel || "-");
     setText(
       elements.contractRange,
-      game?.contract ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}` : "Range: -"
+      game?.contract
+        ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
+        : "Range: -"
     );
 
     if (role === "market_maker") {
       setText(elements.sideInstructions, "You are the market maker. Quote a bid and ask when it is your turn.");
     } else if (role === "market_taker") {
       setText(elements.sideInstructions, "You are the market taker. Decide whether to buy the ask, sell the bid, or pass.");
+    } else if (state.restoring) {
+      setText(elements.sideInstructions, "Restoring previous session.");
     } else {
-      setText(elements.sideInstructions, "Create or join a room to receive a role.");
+      setText(elements.sideInstructions, "Create, join, or resume a room to receive a role.");
     }
 
-    setText(elements.resolutionSummary, game?.lastResolution?.text || "No turns have resolved yet.");
+    if (isFinished && pendingRematch.length && !roomState?.rematch?.requested) {
+      setText(elements.resolutionSummary, `Settlement is in. Waiting on rematch votes from: ${pendingRematch.join(", ")}.`);
+    } else if (isFinished && roomState?.rematch?.requested && pendingRematch.length) {
+      setText(elements.resolutionSummary, `Rematch requested. Waiting on: ${pendingRematch.join(", ")}.`);
+    } else {
+      setText(elements.resolutionSummary, game?.lastResolution?.text || "No turns have resolved yet.");
+    }
+
     setText(elements.currentQuoteBid, game?.currentQuote ? format(game.currentQuote.bid) : "-");
     setText(elements.currentQuoteAsk, game?.currentQuote ? format(game.currentQuote.ask) : "-");
     setText(elements.currentQuoteSize, game?.currentQuote ? String(game.currentQuote.size) : "-");
@@ -522,16 +630,21 @@
     elements.takerBuy.disabled = !canTake;
     elements.takerSell.disabled = !canTake;
     elements.takerPass.disabled = !canTake;
-    elements.queueMatch.disabled = Boolean(state.queueTicketId);
+    elements.queueMatch.disabled = Boolean(state.queueTicketId) || Boolean(state.roomCode);
     elements.cancelQueue.disabled = !state.queueTicketId;
+    elements.createRoom.disabled = Boolean(state.roomCode);
+    elements.joinRoom.disabled = Boolean(state.roomCode);
+    elements.playBotMaker.disabled = Boolean(state.roomCode);
+    elements.playBotTaker.disabled = Boolean(state.roomCode);
 
     elements.bidInput.disabled = !canQuote;
     elements.askInput.disabled = !canQuote;
     elements.sizeInput.disabled = !canQuote;
 
-    elements.readyToggle.disabled = !roomState || roomState.status !== "lobby";
-    elements.copyRoomCode.disabled = !state.roomCode;
+    elements.readyToggle.disabled = !needsReady;
     elements.readyToggle.textContent = roomState?.ready ? "Unready" : "Mark Ready";
+    elements.copyRoomCode.disabled = !state.roomCode;
+    elements.requestRematch.disabled = !isFinished || Boolean(roomState?.rematch?.requested);
 
     renderPlayers(roomState?.players || []);
     renderHistory(game?.log || []);
@@ -541,7 +654,10 @@
   elements.joinRoom.addEventListener("click", joinRoom);
   elements.queueMatch.addEventListener("click", queueRandomMatch);
   elements.cancelQueue.addEventListener("click", cancelQueue);
+  elements.playBotMaker.addEventListener("click", () => createBotRoom("market_maker"));
+  elements.playBotTaker.addEventListener("click", () => createBotRoom("market_taker"));
   elements.readyToggle.addEventListener("click", toggleReady);
+  elements.requestRematch.addEventListener("click", requestRematch);
   elements.leaveRoom.addEventListener("click", leaveRoom);
   elements.submitQuote.addEventListener("click", submitQuote);
   elements.takerBuy.addEventListener("click", () => takerAction("buy"));
@@ -555,7 +671,7 @@
     try {
       await copyText(state.roomCode);
       setActionMessage(`Copied room code ${state.roomCode}.`);
-    } catch (error) {
+    } catch {
       setActionMessage("Failed to copy room code.", true);
     }
   });
@@ -574,4 +690,5 @@
   state.backendUrl = elements.backendUrl.value.trim();
 
   render();
+  resumePreviousSession();
 })();

@@ -1,18 +1,25 @@
 import { DurableObject } from "cloudflare:workers";
+import { botDecision, refreshBotEstimate } from "./bot-policy.js";
 import { sampleContract } from "./contracts.js";
 import {
   addPlayerToRoom,
   assignRoles,
   buildPlayerView,
+  createBotRoomState,
   createMatchedRoomState,
   createRoomState,
+  hasAllRematchVotes,
   maybeStartGame,
+  playerFor,
+  prepareNextGame,
+  requestRematch,
   seedContract,
   setReady,
+  startGame,
   submitQuote,
   takeAction,
 } from "./game-engine.js";
-import { CLIENT_EVENTS, SERVER_EVENTS } from "./protocol.js";
+import { CLIENT_EVENTS, GAME_ACTOR, SERVER_EVENTS } from "./protocol.js";
 
 function json(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -76,8 +83,16 @@ export class RoomDurableObject extends DurableObject {
         return json({ exists: Boolean(this.room) });
       }
 
+      if (request.method === "GET" && url.pathname === "/internal/state") {
+        return this.getPlayerState(url);
+      }
+
       if (request.method === "POST" && url.pathname === "/internal/create") {
         return this.createPrivateRoom(request);
+      }
+
+      if (request.method === "POST" && url.pathname === "/internal/create-bot") {
+        return this.createBotRoom(request);
       }
 
       if (request.method === "POST" && url.pathname === "/internal/join") {
@@ -94,6 +109,17 @@ export class RoomDurableObject extends DurableObject {
     }
   }
 
+  getPlayerState(url) {
+    if (!this.room) {
+      return json({ error: "Room code not found." }, 404);
+    }
+    const playerId = url.searchParams.get("playerId");
+    if (!playerId || !playerFor(this.room, playerId)) {
+      return json({ error: "Unknown player." }, 404);
+    }
+    return json(this.serializeJoin(playerId), 200);
+  }
+
   async createPrivateRoom(request) {
     if (this.room) {
       return json({ error: "Room already exists." }, 409);
@@ -107,10 +133,33 @@ export class RoomDurableObject extends DurableObject {
     }
 
     this.room = createRoomState(code, name);
-    seedContract(this.room, sampleContract());
+    prepareNextGame(this.room, sampleContract());
     await this.persist();
 
     return json(this.serializeJoin(this.room.players[0].id), 201);
+  }
+
+  async createBotRoom(request) {
+    if (this.room) {
+      return json({ error: "Room already exists." }, 409);
+    }
+
+    const body = await readJson(request);
+    const name = validateName(body.name);
+    const code = String(body.code || "").trim().toUpperCase();
+    const humanRole = body.humanRole;
+    if (!code) {
+      throw new Error("Room code is required.");
+    }
+
+    this.room = createBotRoomState(code, name, humanRole, "rl");
+    prepareNextGame(this.room, sampleContract(), { autoStart: true });
+    refreshBotEstimate(this.room);
+    await this.advanceBotUntilHumanTurn();
+    await this.persist();
+
+    const human = this.room.players.find((player) => !player.isBot);
+    return json(this.serializeJoin(human.id), 201);
   }
 
   async joinPrivateRoom(request) {
@@ -144,7 +193,7 @@ export class RoomDurableObject extends DurableObject {
     }
 
     this.room = createMatchedRoomState(code, validateName(names[0]), validateName(names[1]));
-    seedContract(this.room, sampleContract());
+    prepareNextGame(this.room, sampleContract());
     await this.persist();
 
     return json(
@@ -173,7 +222,7 @@ export class RoomDurableObject extends DurableObject {
     if (roomCode !== this.room.code) {
       return new Response("Room code mismatch.", { status: 400 });
     }
-    if (!this.room.players.some((player) => player.id === playerId)) {
+    if (!playerFor(this.room, playerId)) {
       return new Response("Unknown player.", { status: 404 });
     }
 
@@ -219,24 +268,51 @@ export class RoomDurableObject extends DurableObject {
             assignRoles(this.room);
           }
           maybeStartGame(this.room);
+          if (this.room.bot?.enabled && this.room.status === "live" && this.room.bot.privateEstimate === null) {
+            refreshBotEstimate(this.room);
+          }
+          await this.advanceBotUntilHumanTurn();
           await this.persist();
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.START_GAME:
-          maybeStartGame(this.room);
+          startGame(this.room);
+          if (this.room.bot?.enabled) {
+            refreshBotEstimate(this.room);
+          }
+          await this.advanceBotUntilHumanTurn();
           await this.persist();
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.SUBMIT_QUOTE:
           submitQuote(this.room, playerId, parsed.payload || {});
+          await this.advanceBotUntilHumanTurn();
           await this.persist();
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.TAKER_ACTION:
           takeAction(this.room, playerId, parsed.payload || {});
+          await this.advanceBotUntilHumanTurn();
           await this.persist();
           this.broadcastRoom();
           return;
+        case CLIENT_EVENTS.REQUEST_REMATCH: {
+          requestRematch(this.room, playerId);
+          if (this.room.bot?.enabled) {
+            this.room.rematchVotes[this.room.bot.playerId] = true;
+          }
+          const readyToRestart = hasAllRematchVotes(this.room);
+          if (readyToRestart) {
+            prepareNextGame(this.room, sampleContract(), { swap: true, autoStart: true });
+            if (this.room.bot?.enabled) {
+              refreshBotEstimate(this.room);
+              await this.advanceBotUntilHumanTurn();
+            }
+          }
+          await this.persist();
+          this.broadcastRoom();
+          return;
+        }
         case CLIENT_EVENTS.LEAVE_ROOM:
           setReady(this.room, playerId, false);
           await this.persist();
@@ -265,6 +341,37 @@ export class RoomDurableObject extends DurableObject {
       return;
     }
     this.broadcastRoom();
+  }
+
+  async advanceBotUntilHumanTurn() {
+    if (!this.room?.bot?.enabled) {
+      return;
+    }
+
+    for (let step = 0; step < 12; step += 1) {
+      if (this.room.status !== "live") {
+        return;
+      }
+
+      const botPlayerId = this.room.bot.playerId;
+      const botIsMakerTurn = this.room.game.activeActor === GAME_ACTOR.MAKER && this.room.makerId === botPlayerId;
+      const botIsTakerTurn = this.room.game.activeActor === GAME_ACTOR.TAKER && this.room.takerId === botPlayerId;
+
+      if (!botIsMakerTurn && !botIsTakerTurn) {
+        return;
+      }
+
+      if (this.room.bot.privateEstimate === null) {
+        refreshBotEstimate(this.room);
+      }
+
+      const decision = botDecision(this.room, botPlayerId);
+      if (decision.type === "submit_quote") {
+        submitQuote(this.room, botPlayerId, decision.payload);
+      } else {
+        takeAction(this.room, botPlayerId, decision.payload);
+      }
+    }
   }
 
   connectedIds() {

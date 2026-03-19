@@ -162,7 +162,7 @@ h1 {
 }
 
 .setup-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 28px;
 }
 
@@ -375,6 +375,11 @@ h2 {
   color: var(--blue);
 }
 
+.status-chip.bot {
+  background: rgba(0, 113, 227, 0.12);
+  color: var(--blue);
+}
+
 .tape-list {
   list-style: none;
   padding: 0;
@@ -431,11 +436,14 @@ button:disabled {
 }
 
 @media (max-width: 1120px) {
-  .setup-grid,
   .game-grid,
   .session-grid,
   .lower-grid {
     grid-template-columns: 1fr;
+  }
+
+  .setup-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .nav-controls,
@@ -478,7 +486,8 @@ button:disabled {
   .mini-grid,
   .info-grid,
   .quote-inputs,
-  .form-grid {
+  .form-grid,
+  .setup-grid {
     grid-template-columns: 1fr;
   }
 

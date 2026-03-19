@@ -7,16 +7,21 @@ This folder is the Cloudflare Workers + Durable Objects backend for the 1v1 make
 - private room creation with short room codes
 - joining a private room by code
 - random matchmaking
+- bot rooms against the exported RL policy
 - authoritative role assignment
 - one hidden scalar contract per room
 - persistent room state in Durable Objects
 - WebSocket-based turn play
+- rematches with automatic role swap
+- reconnecting into an existing room after refresh
 
 ## Routes
 
 - `GET /health`
 - `POST /api/rooms`
+- `POST /api/bot-rooms`
 - `POST /api/rooms/:code/join`
+- `GET /api/rooms/:code/state?playerId=...`
 - `POST /api/matchmaking/join`
 - `GET /api/matchmaking/:ticketId`
 - `DELETE /api/matchmaking/:ticketId`

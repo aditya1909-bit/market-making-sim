@@ -86,6 +86,22 @@
           </div>
           <p id="queue-status" class="body-copy subtle-copy">Not in matchmaking queue.</p>
         </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">RL bot</p>
+              <h2>Play the trained model</h2>
+            </div>
+          </div>
+          <div class="action-stack">
+            <button id="play-bot-maker" class="primary-button">Play as Maker</button>
+            <button id="play-bot-taker" class="secondary-button">Play as Taker</button>
+          </div>
+          <p class="body-copy subtle-copy">
+            Starts a private room against your server-side RL bot. Rematches automatically swap roles.
+          </p>
+        </article>
       </section>
 
       <section class="session-grid">
@@ -114,10 +130,19 @@
               <span class="mini-label">Active actor</span>
               <strong id="active-actor">-</strong>
             </div>
+            <div class="mini-metric">
+              <span class="mini-label">Match</span>
+              <strong id="match-type">Human</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Game #</span>
+              <strong id="game-number">0</strong>
+            </div>
           </div>
           <div class="action-row top-gap">
             <button id="copy-room-code" class="secondary-button" disabled>Copy Room Code</button>
             <button id="ready-toggle" class="primary-button" disabled>Mark Ready</button>
+            <button id="request-rematch" class="secondary-button" disabled>Request Rematch</button>
             <button id="leave-room" class="secondary-button danger">Leave Room</button>
           </div>
         </article>
