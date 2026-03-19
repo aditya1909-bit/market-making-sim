@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Market Making Sim</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">market-making-sim</p>
+          <h1>One trader versus one market maker.</h1>
+          <p class="lede">
+            Play a fully client-side market microstructure game from GitHub Pages. Cross the spread, quote passively,
+            and finish the round with better marked-to-market PnL than the bot.
+          </p>
+        </div>
+        <div class="hero-card panel">
+          <span class="label">Challenge Seed</span>
+          <div class="seed-row">
+            <input id="seed-input" type="text" spellcheck="false" />
+            <button id="copy-seed-link">Copy Link</button>
+          </div>
+          <p class="microcopy">The seed fully determines the scenario path, so shared links replay the same market.</p>
+        </div>
+      </section>
+
+      <section class="status-grid">
+        <article class="panel">
+          <h2>Scoreboard</h2>
+          <div class="stats-grid">
+            <div>
+              <span class="label">Player MTM</span>
+              <strong id="player-mtm">0.00</strong>
+            </div>
+            <div>
+              <span class="label">Bot MTM</span>
+              <strong id="bot-mtm">0.00</strong>
+            </div>
+            <div>
+              <span class="label">Local Best</span>
+              <strong id="best-score">0.00</strong>
+            </div>
+            <div>
+              <span class="label">Round</span>
+              <strong id="round-status">0 / 0</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Market</h2>
+          <div class="quote-strip">
+            <div class="quote bid">
+              <span class="label">Best Bid</span>
+              <strong id="best-bid">-</strong>
+            </div>
+            <div class="quote mid">
+              <span class="label">Mid</span>
+              <strong id="mid">-</strong>
+            </div>
+            <div class="quote ask">
+              <span class="label">Best Ask</span>
+              <strong id="best-ask">-</strong>
+            </div>
+          </div>
+          <div class="stats-grid compact">
+            <div>
+              <span class="label">Spread</span>
+              <strong id="spread">-</strong>
+            </div>
+            <div>
+              <span class="label">Volatility</span>
+              <strong id="volatility">-</strong>
+            </div>
+            <div>
+              <span class="label">Regime</span>
+              <strong id="regime">-</strong>
+            </div>
+            <div>
+              <span class="label">State</span>
+              <strong id="state-label">running</strong>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="main-grid">
+        <article class="panel controls">
+          <div class="section-head">
+            <h2>Trade</h2>
+            <div class="qty-row">
+              <label for="qty-input">Qty</label>
+              <input id="qty-input" type="number" min="1" max="10" value="2" />
+            </div>
+          </div>
+
+          <div class="control-group">
+            <span class="group-label">Aggressive</span>
+            <div class="button-grid">
+              <button data-action="market-buy" class="buy">Buy MKT</button>
+              <button data-action="market-sell" class="sell">Sell MKT</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <span class="group-label">Passive</span>
+            <div class="button-grid">
+              <button data-action="join-bid">Join Bid</button>
+              <button data-action="join-ask">Join Ask</button>
+              <button data-action="improve-bid">Improve Bid</button>
+              <button data-action="improve-ask">Improve Ask</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <span class="group-label">Round</span>
+            <div class="button-grid">
+              <button data-action="cancel-all">Cancel Quotes</button>
+              <button data-action="pause">Pause</button>
+              <button data-action="resume">Resume</button>
+              <button data-action="randomize">Randomize</button>
+            </div>
+          </div>
+
+          <div class="stats-grid compact">
+            <div>
+              <span class="label">Player Inv</span>
+              <strong id="player-inventory">0</strong>
+            </div>
+            <div>
+              <span class="label">Bot Inv</span>
+              <strong id="bot-inventory">0</strong>
+            </div>
+            <div>
+              <span class="label">Player Cash</span>
+              <strong id="player-cash">0.00</strong>
+            </div>
+            <div>
+              <span class="label">Bot Cash</span>
+              <strong id="bot-cash">0.00</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel ladder-panel">
+          <div class="section-head">
+            <h2>Order Book</h2>
+            <span class="legend">
+              <span class="pill ambient">Ambient</span>
+              <span class="pill player">Player</span>
+              <span class="pill bot">Bot</span>
+            </span>
+          </div>
+          <div class="ladder">
+            <div>
+              <h3>Bids</h3>
+              <ul id="bid-book" class="book-list"></ul>
+            </div>
+            <div>
+              <h3>Asks</h3>
+              <ul id="ask-book" class="book-list"></ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Live Tape</h2>
+          <ul id="tape" class="tape-list"></ul>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js" defer></script>
+  </body>
+  </html>
