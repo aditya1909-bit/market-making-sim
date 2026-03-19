@@ -1,122 +1,120 @@
-window.ASSET_SCENARIOS = [
-  {
-    ticker: "NVDA",
-    name: "NVIDIA",
-    sector: "Semiconductors",
-    exchange: "NASDAQ",
-    scenario: "Post-earnings momentum",
-    sessionDate: "2024-02-22",
-    description: "Gap-up semiconductor session with persistent buy-side urgency after earnings.",
-    strategyNote: "Lean wider on the offer than on the bid. Buyer urgency raises adverse-selection risk if you sell too cheaply.",
-    averageSpread: 0.2,
-    realizedVol: 0.62,
-    flowTone: "buyer-led",
-    recentPath: [68.9, 69.7, 71.1, 72.4, 74.3, 76.8],
-    turnMarks: [77.4, 78.1, 78.9, 79.2, 80.1, 80.6, 81.0, 80.8, 81.5, 82.2, 82.0],
-  },
-  {
-    ticker: "AMD",
-    name: "Advanced Micro Devices",
-    sector: "Semiconductors",
-    exchange: "NASDAQ",
-    scenario: "High-beta two-way tape",
-    sessionDate: "2024-03-08",
-    description: "Fast semiconductor tape with alternating bursts of buying and profit-taking.",
-    strategyNote: "Avoid quoting too wide too early. This tape trades often, but momentum can flip quickly.",
-    averageSpread: 0.15,
-    realizedVol: 0.54,
-    flowTone: "two-way",
-    recentPath: [174.8, 176.1, 177.0, 175.5, 176.8, 178.4],
-    turnMarks: [178.9, 179.5, 179.1, 180.0, 179.4, 180.6, 181.0, 180.2, 181.4, 180.9, 181.7],
-  },
-  {
-    ticker: "AAPL",
-    name: "Apple",
-    sector: "Large Cap Technology",
-    exchange: "NASDAQ",
-    scenario: "Quiet institutional grind",
-    sessionDate: "2024-01-12",
-    description: "Lower-vol large-cap session with steady institutional participation and limited panic flow.",
-    strategyNote: "You can quote tighter here. Lower realized volatility usually rewards consistent two-way pricing.",
-    averageSpread: 0.08,
-    realizedVol: 0.21,
-    flowTone: "balanced",
-    recentPath: [183.0, 183.4, 183.2, 183.7, 184.0, 184.4],
-    turnMarks: [184.5, 184.7, 184.6, 184.9, 185.0, 185.1, 185.0, 185.2, 185.4, 185.3, 185.5],
-  },
-  {
-    ticker: "TSLA",
-    name: "Tesla",
-    sector: "Autos",
-    exchange: "NASDAQ",
-    scenario: "News-driven sell pressure",
-    sessionDate: "2024-04-19",
-    description: "High-volatility tape with repeated seller-led pushes and fragile rebounds.",
-    strategyNote: "Be careful leaning too hard bid-side. If you buy inventory too aggressively, it becomes expensive to unwind.",
-    averageSpread: 0.22,
-    realizedVol: 0.67,
-    flowTone: "seller-led",
-    recentPath: [156.2, 154.8, 153.9, 152.1, 151.7, 150.6],
-    turnMarks: [150.2, 149.8, 149.0, 148.5, 148.9, 147.8, 147.2, 147.6, 146.8, 146.1, 145.9],
-  },
-  {
-    ticker: "MSFT",
-    name: "Microsoft",
-    sector: "Large Cap Technology",
-    exchange: "NASDAQ",
-    scenario: "Calm megacap uptrend",
-    sessionDate: "2024-03-14",
-    description: "Orderly upward trend with modest buy skew and relatively tight spreads.",
-    strategyNote: "A disciplined narrow market is usually fine, but watch for getting run over if you keep selling into strength.",
-    averageSpread: 0.1,
-    realizedVol: 0.24,
-    flowTone: "buyer-led",
-    recentPath: [418.8, 419.6, 420.4, 421.1, 422.0, 423.3],
-    turnMarks: [423.7, 424.0, 424.4, 424.8, 425.1, 425.5, 425.7, 425.9, 426.3, 426.1, 426.8],
-  },
-  {
-    ticker: "JPM",
-    name: "JPMorgan Chase",
-    sector: "Banks",
-    exchange: "NYSE",
-    scenario: "Bank earnings digestion",
-    sessionDate: "2024-04-12",
-    description: "Initially sharp reaction to earnings, then a slower mean-reverting tape.",
-    strategyNote: "Do not overreact to the opening move. This kind of session often punishes quotes that chase too much.",
-    averageSpread: 0.09,
-    realizedVol: 0.33,
-    flowTone: "two-way",
-    recentPath: [194.1, 194.8, 195.5, 196.9, 196.2, 195.8],
-    turnMarks: [195.7, 195.3, 195.1, 195.4, 195.0, 194.8, 195.2, 195.4, 195.1, 194.9, 195.0],
-  },
-  {
-    ticker: "SPY",
-    name: "SPDR S&P 500 ETF",
-    sector: "Index ETF",
-    exchange: "NYSE Arca",
-    scenario: "Macro headline whipsaw",
-    sessionDate: "2024-08-05",
-    description: "Broad-market ETF session with fast macro repricing and reversal risk.",
-    strategyNote: "Respect the volatility. Better to miss one fill than warehouse too much inventory in a whipsaw tape.",
-    averageSpread: 0.04,
-    realizedVol: 0.58,
-    flowTone: "two-way",
-    recentPath: [531.2, 528.8, 526.1, 523.0, 525.8, 527.4],
-    turnMarks: [527.1, 526.2, 524.8, 525.5, 526.7, 525.9, 527.0, 528.1, 527.5, 528.8, 529.1],
-  },
-  {
-    ticker: "XOM",
-    name: "Exxon Mobil",
-    sector: "Energy",
-    exchange: "NYSE",
-    scenario: "Commodity-linked drift",
-    sessionDate: "2024-06-18",
-    description: "Slower, trend-following session linked to a firm crude tape.",
-    strategyNote: "This market often rewards patience. Tighten when flow is quiet, but widen quickly if momentum accelerates.",
-    averageSpread: 0.07,
-    realizedVol: 0.28,
-    flowTone: "buyer-led",
-    recentPath: [112.1, 112.4, 112.8, 113.1, 113.4, 113.8],
-    turnMarks: [113.9, 114.0, 114.2, 114.4, 114.6, 114.5, 114.8, 115.0, 115.1, 115.0, 115.2],
-  },
-];
+(function () {
+  const BASE_ASSETS = [
+    { ticker: "AAPL", name: "Apple", sector: "Large Cap Technology", exchange: "NASDAQ", basePrice: 184, spread: 0.08, vol: 0.22 },
+    { ticker: "MSFT", name: "Microsoft", sector: "Large Cap Technology", exchange: "NASDAQ", basePrice: 425, spread: 0.1, vol: 0.24 },
+    { ticker: "NVDA", name: "NVIDIA", sector: "Semiconductors", exchange: "NASDAQ", basePrice: 78, spread: 0.2, vol: 0.62 },
+    { ticker: "AMD", name: "Advanced Micro Devices", sector: "Semiconductors", exchange: "NASDAQ", basePrice: 179, spread: 0.15, vol: 0.54 },
+    { ticker: "TSLA", name: "Tesla", sector: "Autos", exchange: "NASDAQ", basePrice: 151, spread: 0.22, vol: 0.67 },
+    { ticker: "META", name: "Meta Platforms", sector: "Internet", exchange: "NASDAQ", basePrice: 495, spread: 0.11, vol: 0.31 },
+    { ticker: "AMZN", name: "Amazon", sector: "Internet", exchange: "NASDAQ", basePrice: 181, spread: 0.09, vol: 0.29 },
+    { ticker: "GOOGL", name: "Alphabet", sector: "Internet", exchange: "NASDAQ", basePrice: 168, spread: 0.09, vol: 0.26 },
+    { ticker: "NFLX", name: "Netflix", sector: "Media", exchange: "NASDAQ", basePrice: 635, spread: 0.18, vol: 0.36 },
+    { ticker: "JPM", name: "JPMorgan Chase", sector: "Banks", exchange: "NYSE", basePrice: 195, spread: 0.09, vol: 0.33 },
+    { ticker: "GS", name: "Goldman Sachs", sector: "Banks", exchange: "NYSE", basePrice: 452, spread: 0.12, vol: 0.3 },
+    { ticker: "XOM", name: "Exxon Mobil", sector: "Energy", exchange: "NYSE", basePrice: 114, spread: 0.07, vol: 0.28 },
+    { ticker: "CVX", name: "Chevron", sector: "Energy", exchange: "NYSE", basePrice: 158, spread: 0.07, vol: 0.27 },
+    { ticker: "UNH", name: "UnitedHealth", sector: "Healthcare", exchange: "NYSE", basePrice: 486, spread: 0.12, vol: 0.25 },
+    { ticker: "LLY", name: "Eli Lilly", sector: "Healthcare", exchange: "NYSE", basePrice: 812, spread: 0.2, vol: 0.34 },
+    { ticker: "SPY", name: "SPDR S&P 500 ETF", sector: "Index ETF", exchange: "NYSE Arca", basePrice: 528, spread: 0.04, vol: 0.3 },
+    { ticker: "QQQ", name: "Invesco QQQ Trust", sector: "Index ETF", exchange: "NASDAQ", basePrice: 452, spread: 0.05, vol: 0.34 },
+    { ticker: "IWM", name: "iShares Russell 2000 ETF", sector: "Index ETF", exchange: "NYSE Arca", basePrice: 205, spread: 0.05, vol: 0.38 },
+    { ticker: "SMH", name: "VanEck Semiconductor ETF", sector: "Sector ETF", exchange: "NASDAQ", basePrice: 255, spread: 0.09, vol: 0.41 },
+    { ticker: "XLF", name: "Financial Select Sector SPDR", sector: "Sector ETF", exchange: "NYSE Arca", basePrice: 42, spread: 0.03, vol: 0.21 },
+  ];
+
+  const ARCHETYPES = [
+    { name: "Post-earnings drift", flowTone: "buyer-led", volBias: 0.18, spreadBias: 1.3, drift: 0.24, desc: "Earnings reaction continues to reprice the name upward.", note: "Selling too cheap is the main risk." },
+    { name: "Gap-and-fade", flowTone: "seller-led", volBias: 0.16, spreadBias: 1.2, drift: -0.2, desc: "The open gap is being sold into as fast money unwinds.", note: "Do not warehouse inventory too quickly on the bid." },
+    { name: "Calm institutional grind", flowTone: "balanced", volBias: -0.06, spreadBias: 0.9, drift: 0.08, desc: "Steady institutional participation with limited panic flow.", note: "Tighter, disciplined quoting is usually fine." },
+    { name: "Macro headline whipsaw", flowTone: "two-way", volBias: 0.2, spreadBias: 1.45, drift: 0.0, desc: "Macro headlines are forcing quick repricings in both directions.", note: "Protect against adverse selection before chasing fills." },
+    { name: "Index rebalance day", flowTone: "buyer-led", volBias: 0.08, spreadBias: 1.05, drift: 0.1, desc: "Program flow keeps returning at predictable times.", note: "The tape trades, but it can suddenly lean one-sided." },
+    { name: "Mean-reversion session", flowTone: "two-way", volBias: 0.02, spreadBias: 1.0, drift: -0.02, desc: "Every push gets faded as the market snaps back toward fair.", note: "Quotes that chase too much get punished." },
+    { name: "Commodity-linked trend", flowTone: "buyer-led", volBias: 0.04, spreadBias: 1.0, drift: 0.12, desc: "The stock is following a persistent move in the underlying commodity complex.", note: "Patience matters more than speed." },
+    { name: "Risk-off liquidation", flowTone: "seller-led", volBias: 0.22, spreadBias: 1.5, drift: -0.24, desc: "Participants are reducing exposure aggressively into weakness.", note: "Bid-side fills can be dangerous if you do not widen fast enough." },
+    { name: "Crowded momentum chase", flowTone: "buyer-led", volBias: 0.12, spreadBias: 1.25, drift: 0.2, desc: "Momentum accounts keep lifting offers as the name accelerates.", note: "A narrow ask looks attractive but can be expensive." },
+    { name: "Quiet range day", flowTone: "balanced", volBias: -0.1, spreadBias: 0.85, drift: 0.0, desc: "The name is pinned in a narrow range with modest two-way flow.", note: "This is the spot to earn spread if you stay disciplined." },
+  ];
+
+  const DATE_VARIANTS = [
+    "2024-01-12",
+    "2024-02-22",
+    "2024-03-08",
+    "2024-03-14",
+    "2024-04-12",
+  ];
+
+  function hashString(input) {
+    let h = 2166136261;
+    for (let i = 0; i < input.length; i += 1) {
+      h ^= input.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function mulberry32(seed) {
+    let t = seed >>> 0;
+    return function () {
+      t += 0x6d2b79f5;
+      let x = Math.imul(t ^ (t >>> 15), 1 | t);
+      x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function round2(value) {
+    return Math.round(value * 100) / 100;
+  }
+
+  function makePath(start, drift, noise, length, rng) {
+    const out = [];
+    let value = start;
+    for (let i = 0; i < length; i += 1) {
+      value += drift + (rng() - 0.5) * noise;
+      out.push(round2(value));
+    }
+    return out;
+  }
+
+  const scenarios = [];
+
+  BASE_ASSETS.forEach((asset) => {
+    ARCHETYPES.forEach((archetype, archetypeIndex) => {
+      DATE_VARIANTS.forEach((sessionDate, variantIndex) => {
+        const seed = hashString(`${asset.ticker}-${archetype.name}-${sessionDate}`);
+        const rng = mulberry32(seed);
+        const realizedVol = round2(Math.max(0.16, asset.vol + archetype.volBias + (rng() - 0.5) * 0.08));
+        const averageSpread = round2(Math.max(0.03, asset.spread * archetype.spreadBias * (0.92 + rng() * 0.2)));
+        const start = asset.basePrice * (0.97 + rng() * 0.06);
+        const drift = archetype.drift * Math.max(0.2, asset.basePrice * 0.0016);
+        const recentPath = makePath(start, drift * 0.45, realizedVol * asset.basePrice * 0.007, 6, rng);
+        const turnMarks = makePath(
+          recentPath[recentPath.length - 1] + drift * 0.25,
+          drift * 0.55,
+          realizedVol * asset.basePrice * 0.008,
+          11,
+          rng
+        );
+
+        scenarios.push({
+          id: `${asset.ticker}-${archetypeIndex}-${variantIndex}`,
+          ticker: asset.ticker,
+          name: asset.name,
+          sector: asset.sector,
+          exchange: asset.exchange,
+          scenario: archetype.name,
+          sessionDate,
+          description: archetype.desc,
+          strategyNote: archetype.note,
+          averageSpread,
+          realizedVol,
+          flowTone: archetype.flowTone,
+          recentPath,
+          turnMarks,
+        });
+      });
+    });
+  });
+
+  window.ASSET_SCENARIOS = scenarios;
+})();

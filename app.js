@@ -23,6 +23,26 @@
     return Number(value).toFixed(digits);
   }
 
+  function volBand(value) {
+    if (value >= 0.5) {
+      return "high";
+    }
+    if (value >= 0.3) {
+      return "medium";
+    }
+    return "low";
+  }
+
+  function spreadBand(value) {
+    if (value >= 0.16) {
+      return "wide";
+    }
+    if (value >= 0.08) {
+      return "medium";
+    }
+    return "tight";
+  }
+
   function parseSeedFromUrl() {
     const url = new URL(window.location.href);
     return url.searchParams.get("seed") || "";
@@ -541,12 +561,11 @@
     inventory: document.getElementById("inventory"),
     cash: document.getElementById("cash"),
     refPrice: document.getElementById("ref-price"),
-    prevClose: document.getElementById("prev-close"),
+    flowToneCard: document.getElementById("flow-tone-card"),
     lastMark: document.getElementById("last-mark"),
-    volatility: document.getElementById("volatility"),
-    momentum: document.getElementById("momentum"),
-    flowHint: document.getElementById("flow-hint"),
-    pressureHint: document.getElementById("pressure-hint"),
+    volBand: document.getElementById("vol-band"),
+    spreadBand: document.getElementById("spread-band"),
+    scriptStyleBrief: document.getElementById("script-style-brief"),
     bidInput: document.getElementById("bid-input"),
     askInput: document.getElementById("ask-input"),
     sizeInput: document.getElementById("size-input"),
@@ -631,7 +650,7 @@
     renderedTurn = snapshot.turn;
 
     elements.seedInput.value = snapshot.seed;
-    elements.assetTag.textContent = `${snapshot.asset.scenario} · ${snapshot.asset.sessionDate}`;
+    elements.assetTag.textContent = `${snapshot.asset.scenario} · ${snapshot.asset.sessionDate} · pool of ${ASSET_SCENARIOS.length}`;
     elements.assetTicker.textContent = snapshot.asset.ticker;
     elements.assetName.textContent = snapshot.asset.name;
     elements.assetSector.textContent = snapshot.asset.sector;
@@ -654,12 +673,11 @@
     elements.inventory.textContent = String(snapshot.player.inventory);
     elements.cash.textContent = format(snapshot.player.cash);
     elements.refPrice.textContent = format(snapshot.referencePrice);
-    elements.prevClose.textContent = format(snapshot.previousClose);
+    elements.flowToneCard.textContent = snapshot.asset.flowTone;
     elements.lastMark.textContent = format(snapshot.lastMark);
-    elements.volatility.textContent = format(snapshot.volatility);
-    elements.momentum.textContent = format(snapshot.momentum);
-    elements.flowHint.textContent = snapshot.flowHint;
-    elements.pressureHint.textContent = snapshot.pressureHint;
+    elements.volBand.textContent = volBand(snapshot.asset.realizedVol);
+    elements.spreadBand.textContent = spreadBand(snapshot.asset.averageSpread);
+    elements.scriptStyleBrief.textContent = snapshot.profile;
     elements.suggestedBid.textContent = format(snapshot.suggestedBid);
     elements.suggestedAsk.textContent = format(snapshot.suggestedAsk);
     elements.lastQuoteBid.textContent = snapshot.lastQuote ? format(snapshot.lastQuote.bid) : "-";
