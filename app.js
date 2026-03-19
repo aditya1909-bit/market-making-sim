@@ -655,7 +655,7 @@
     renderedTurn = snapshot.turn;
 
     elements.seedInput.value = snapshot.seed;
-    elements.assetTag.textContent = `${snapshot.asset.scenario} · ${snapshot.asset.sessionDate} · pool of ${ASSET_SCENARIOS.length}`;
+    elements.assetTag.textContent = `${snapshot.asset.scenario} · ${snapshot.asset.sessionDate}`;
     elements.assetTicker.textContent = snapshot.asset.ticker;
     elements.assetName.textContent = snapshot.asset.name;
     elements.assetSector.textContent = snapshot.asset.sector;
@@ -674,7 +674,7 @@
     elements.bestScore.textContent = format(snapshot.bestScore);
     elements.roundStatus.textContent = `${snapshot.turn} / ${snapshot.maxTurns}`;
     elements.shotClock.textContent = `${snapshot.shotClock}s`;
-    elements.stateLabel.textContent = snapshot.mode;
+    elements.stateLabel.textContent = capWords(snapshot.mode);
     elements.inventory.textContent = String(snapshot.player.inventory);
     elements.cash.textContent = format(snapshot.player.cash);
     elements.refPrice.textContent = format(snapshot.referencePrice);
@@ -690,7 +690,7 @@
     elements.lastQuoteAsk.textContent = snapshot.lastQuote ? format(snapshot.lastQuote.ask) : "-";
     elements.scriptAction.textContent = snapshot.lastResponse.action;
     elements.scriptReason.textContent = snapshot.lastResponse.reason;
-    elements.botProfile.textContent = snapshot.profile;
+    elements.botProfile.textContent = capWords(snapshot.profile);
     elements.markAfter.textContent = format(snapshot.lastResponse.markAfter);
     elements.missedTurns.textContent = String(snapshot.missedTurns);
     elements.inventoryPenalty.textContent = format(snapshot.inventoryPenalty);
