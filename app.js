@@ -701,8 +701,12 @@
     elements.spreadBand.textContent = capWords(spreadBand(snapshot.asset.averageSpread));
     elements.rangeBrief.textContent = `${format(snapshot.asset.valueRange.low)} / ${format(snapshot.asset.valueRange.high)}`;
     elements.scriptStyleBrief.textContent = capWords(snapshot.profile);
-    elements.suggestedBid.textContent = format(snapshot.suggestedBid);
-    elements.suggestedAsk.textContent = format(snapshot.suggestedAsk);
+    if (elements.suggestedBid) {
+      elements.suggestedBid.textContent = format(snapshot.suggestedBid);
+    }
+    if (elements.suggestedAsk) {
+      elements.suggestedAsk.textContent = format(snapshot.suggestedAsk);
+    }
     elements.lastQuoteBid.textContent = snapshot.lastQuote ? format(snapshot.lastQuote.bid) : "-";
     elements.lastQuoteAsk.textContent = snapshot.lastQuote ? format(snapshot.lastQuote.ask) : "-";
     elements.scriptAction.textContent = snapshot.lastResponse.action;

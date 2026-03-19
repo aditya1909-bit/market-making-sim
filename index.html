@@ -174,10 +174,16 @@
 
         <div class="quote-stage-grid">
           <div class="quote-main">
-            <div class="preset-row">
-              <button data-preset="tight" class="secondary-button">Tight</button>
-              <button data-preset="normal" class="secondary-button">Normal</button>
-              <button data-preset="wide" class="secondary-button">Wide</button>
+            <div class="quote-toolbar">
+              <div class="quote-toolbar-copy">
+                <span class="mini-label">Current clue</span>
+                <strong id="current-clue">-</strong>
+              </div>
+              <div class="preset-row">
+                <button data-preset="tight" class="secondary-button">Tight</button>
+                <button data-preset="normal" class="secondary-button">Normal</button>
+                <button data-preset="wide" class="secondary-button">Wide</button>
+              </div>
             </div>
 
             <div class="quote-inputs">
@@ -209,33 +215,23 @@
                 The round starts idle. Read the contract, form a view, and begin when ready.
               </p>
             </div>
-            <div class="quote-suggestion">
-              <span class="mini-label">Current Clue</span>
-              <strong id="current-clue">-</strong>
-            </div>
-            <div class="quote-suggestion">
-              <span class="mini-label">Suggested Bid</span>
-              <strong id="suggested-bid">-</strong>
-            </div>
-            <div class="quote-suggestion">
-              <span class="mini-label">Suggested Ask</span>
-              <strong id="suggested-ask">-</strong>
-            </div>
-            <div class="quote-suggestion">
-              <span class="mini-label">Last Submitted Bid</span>
-              <strong id="last-quote-bid">-</strong>
-            </div>
-            <div class="quote-suggestion">
-              <span class="mini-label">Last Submitted Ask</span>
-              <strong id="last-quote-ask">-</strong>
-            </div>
-            <div class="quote-suggestion">
-              <span class="mini-label">Mark After Turn</span>
-              <strong id="mark-after">-</strong>
-            </div>
-            <div class="quote-suggestion">
-              <span class="mini-label">Last Mark</span>
-              <strong id="last-mark">-</strong>
+            <div class="quote-sidebar-grid">
+              <div class="quote-suggestion">
+                <span class="mini-label">Last Submitted Bid</span>
+                <strong id="last-quote-bid">-</strong>
+              </div>
+              <div class="quote-suggestion">
+                <span class="mini-label">Last Submitted Ask</span>
+                <strong id="last-quote-ask">-</strong>
+              </div>
+              <div class="quote-suggestion">
+                <span class="mini-label">Mark After Turn</span>
+                <strong id="mark-after">-</strong>
+              </div>
+              <div class="quote-suggestion">
+                <span class="mini-label">Last Mark</span>
+                <strong id="last-mark">-</strong>
+              </div>
             </div>
           </div>
         </div>
