@@ -6,6 +6,7 @@
   const DEFAULT_SIZE = 4;
   const SCRIPT_NAME = "Counterparty Script";
   const SCRIPT_PROFILES = ["patient", "inventory-sensitive", "aggressive"];
+  const ASSET_SCENARIOS = Array.isArray(window.ASSET_SCENARIOS) ? window.ASSET_SCENARIOS : [];
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -102,9 +103,33 @@
       this.reset(seedText || randomSeed());
     }
 
+    chooseScenario(seedText) {
+      if (!ASSET_SCENARIOS.length) {
+        return {
+          ticker: "SIM",
+          name: "Synthetic Asset",
+          sector: "Simulation",
+          exchange: "Local",
+          scenario: "Fallback tape",
+          sessionDate: "Seeded",
+          description: "Fallback scenario used when no asset pack is available.",
+          strategyNote: "Quote a balanced two-way market and manage inventory conservatively.",
+          averageSpread: 0.1,
+          realizedVol: 0.3,
+          flowTone: "balanced",
+          recentPath: [99.4, 99.8, 100.0, 100.1, 100.2, 100.3],
+          turnMarks: [100.4, 100.5, 100.6, 100.4, 100.7, 100.8, 100.9, 101.0, 100.8, 100.9, 101.1],
+        };
+      }
+      const pick = hashString(seedText || "market-making");
+      const index = pick() % ASSET_SCENARIOS.length;
+      return ASSET_SCENARIOS[index];
+    }
+
     reset(seedText) {
       this.seed = (seedText || randomSeed()).toUpperCase();
       this.rng = makeRng(this.seed);
+      this.asset = this.chooseScenario(this.seed);
       this.profile = SCRIPT_PROFILES[Math.floor(this.rng() * SCRIPT_PROFILES.length)];
       this.mode = "ready";
       this.turn = 0;
@@ -112,19 +137,19 @@
       this.bestScore = Number(safeStorageGet(STORAGE_KEY) || 0);
       this.player = { cash: 0, inventory: 0 };
       this.script = { inventory: 0, lastDecisionAt: null };
-      this.referencePrice = roundTick(100 + this.rng() * 8 - 4);
-      this.previousClose = this.referencePrice;
+      this.referencePrice = roundTick(this.asset.turnMarks[0]);
+      this.previousClose = roundTick(this.asset.recentPath[this.asset.recentPath.length - 1]);
       this.lastMark = this.referencePrice;
       this.lastQuote = null;
       this.lastResponse = {
         action: "Press start to begin.",
-        reason: "The round stays idle until the player explicitly starts it.",
+        reason: "Review the underlying brief, then press start when you have an opening market in mind.",
         markAfter: this.lastMark,
       };
       this.shotClock = TURN_SECONDS;
       this.turnStartedAt = null;
       this.missedTurns = 0;
-      this.recentMarks = [this.referencePrice];
+      this.recentMarks = this.asset.recentPath.slice(-4).map((value) => roundTick(value)).concat([this.referencePrice]);
       this.history = [];
       this.currentTurn = null;
       setSeedOnUrl(this.seed);
@@ -139,17 +164,18 @@
       this.turn = 0;
       this.player = { cash: 0, inventory: 0 };
       this.script = { inventory: 0, lastDecisionAt: null };
-      this.previousClose = this.referencePrice;
+      this.referencePrice = roundTick(this.asset.turnMarks[0]);
+      this.previousClose = roundTick(this.asset.recentPath[this.asset.recentPath.length - 1]);
       this.lastMark = this.referencePrice;
       this.lastQuote = null;
       this.lastResponse = {
         action: "Round started.",
-        reason: "Quote a two-way market. The script can trade only once per turn.",
+        reason: `Quote ${this.asset.ticker} two-way. The script can trade only once per turn, and you have 30 seconds to think.`,
         markAfter: this.lastMark,
       };
       this.missedTurns = 0;
       this.history = [];
-      this.recentMarks = [this.referencePrice];
+      this.recentMarks = this.asset.recentPath.slice(-4).map((value) => roundTick(value)).concat([this.referencePrice]);
       this.prepareTurn();
       return this.snapshot();
     }
@@ -173,28 +199,28 @@
       }
 
       this.turn += 1;
-      const rawShock = signedNormalish(this.rng);
-      const momentum = this.recentMarks.length >= 2
-        ? this.recentMarks[this.recentMarks.length - 1] - this.recentMarks[this.recentMarks.length - 2]
-        : 0;
-      const volatility = clamp(0.12 + Math.abs(rawShock) * 0.22 + Math.abs(momentum) * 0.25, 0.12, 0.55);
-      const flowBias = signedNormalish(this.rng) * 0.35;
-      const pressure = signedNormalish(this.rng) * 0.25;
+      const pathIndex = Math.min(this.turn - 1, this.asset.turnMarks.length - 2);
+      const pathNow = roundTick(this.asset.turnMarks[pathIndex]);
+      const pathNext = roundTick(this.asset.turnMarks[pathIndex + 1]);
+      const momentum = roundTick(pathNow - this.previousClose);
+      const realizedVol = clamp(this.asset.realizedVol, 0.12, 0.8);
+      const volatility = clamp(
+        realizedVol * 0.65 + Math.abs(momentum) * 0.18 + Math.abs(signedNormalish(this.rng)) * 0.08,
+        0.12,
+        0.75
+      );
+      const flowBiasBase =
+        this.asset.flowTone === "buyer-led" ? 0.22 : this.asset.flowTone === "seller-led" ? -0.22 : 0.0;
+      const flowBias = flowBiasBase + signedNormalish(this.rng) * 0.12;
+      const pressure = signedNormalish(this.rng) * 0.12 + (pathNext - pathNow) * 0.08;
 
       this.previousClose = this.lastMark;
-      this.referencePrice = roundTick(
-        Math.max(
-          25,
-          this.lastMark + momentum * 0.25 + pressure * 0.18 + rawShock * volatility * 0.4
-        )
-      );
+      this.referencePrice = pathNow;
 
-      const hiddenFair = roundTick(
-        this.referencePrice + flowBias * 0.45 + momentum * 0.35 + pressure * 0.15
-      );
+      const hiddenFair = roundTick(pathNext + flowBias * 0.15);
 
       const baseHalfWidth = roundTick(
-        Math.max(TICK * 2, 0.12 + volatility * 0.3 + Math.abs(this.player.inventory) * 0.01)
+        Math.max(this.asset.averageSpread / 2, 0.12 + volatility * 0.3 + Math.abs(this.player.inventory) * 0.01)
       );
 
       this.currentTurn = {
@@ -287,7 +313,7 @@
 
       this.lastResponse = {
         action: decision.headline,
-        reason: decision.reason,
+        reason: `${decision.reason} ${this.asset.ticker} is trading in a ${this.asset.flowTone} setup.`,
         markAfter: this.lastMark,
       };
 
@@ -373,7 +399,7 @@
 
       this.lastResponse = {
         action: "Turn forfeited.",
-        reason: "No quote was submitted before the 30-second shot clock expired.",
+        reason: `No ${this.asset.ticker} quote was submitted before the 30-second shot clock expired.`,
         markAfter: this.lastMark,
       };
 
@@ -447,6 +473,7 @@
     snapshot() {
       return {
         seed: this.seed,
+        asset: this.asset,
         mode: this.mode,
         turn: this.turn,
         maxTurns: this.maxTurns,
@@ -510,6 +537,17 @@
     missedTurns: document.getElementById("missed-turns"),
     inventoryPenalty: document.getElementById("inventory-penalty"),
     historyList: document.getElementById("history-list"),
+    assetTag: document.getElementById("asset-tag"),
+    assetTicker: document.getElementById("asset-ticker"),
+    assetName: document.getElementById("asset-name"),
+    assetSector: document.getElementById("asset-sector"),
+    assetExchange: document.getElementById("asset-exchange"),
+    assetSession: document.getElementById("asset-session"),
+    assetSpread: document.getElementById("asset-spread"),
+    assetDescription: document.getElementById("asset-description"),
+    strategyNote: document.getElementById("strategy-note"),
+    pathSummary: document.getElementById("path-summary"),
+    pathBars: document.getElementById("path-bars"),
   };
 
   let game = new InterviewGame(parseSeedFromUrl() || randomSeed());
@@ -522,6 +560,20 @@
       li.className = item.kind;
       li.textContent = item.text;
       elements.historyList.appendChild(li);
+    });
+  }
+
+  function renderPath(values) {
+    elements.pathBars.innerHTML = "";
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = Math.max(0.01, max - min);
+    values.forEach((value) => {
+      const bar = document.createElement("div");
+      bar.className = "path-bar";
+      bar.style.height = `${24 + ((value - min) / span) * 60}px`;
+      bar.title = format(value);
+      elements.pathBars.appendChild(bar);
     });
   }
 
@@ -539,6 +591,16 @@
     renderedTurn = snapshot.turn;
 
     elements.seedInput.value = snapshot.seed;
+    elements.assetTag.textContent = `${snapshot.asset.scenario} · ${snapshot.asset.sessionDate}`;
+    elements.assetTicker.textContent = snapshot.asset.ticker;
+    elements.assetName.textContent = snapshot.asset.name;
+    elements.assetSector.textContent = snapshot.asset.sector;
+    elements.assetExchange.textContent = snapshot.asset.exchange;
+    elements.assetSession.textContent = snapshot.asset.scenario;
+    elements.assetSpread.textContent = format(snapshot.asset.averageSpread);
+    elements.assetDescription.textContent = snapshot.asset.description;
+    elements.strategyNote.textContent = snapshot.asset.strategyNote;
+    elements.pathSummary.textContent = snapshot.asset.recentPath.map((value) => format(value)).join("  ");
     elements.adjustedScore.textContent = format(snapshot.adjustedScore);
     elements.rawMtm.textContent = format(snapshot.rawMtm);
     elements.bestScore.textContent = format(snapshot.bestScore);
@@ -569,6 +631,7 @@
     elements.skipTurn.disabled = snapshot.mode !== "quote";
 
     renderHistory(snapshot.history);
+    renderPath(snapshot.asset.recentPath);
   }
 
   function submitQuote() {

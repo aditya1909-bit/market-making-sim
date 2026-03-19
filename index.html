@@ -110,6 +110,54 @@
         </article>
       </section>
 
+      <section class="asset-grid">
+        <article class="panel">
+          <div class="section-head">
+            <h2>Underlying Brief</h2>
+            <span class="subtle" id="asset-tag">-</span>
+          </div>
+          <div class="stats-grid compact">
+            <div>
+              <span class="label">Ticker</span>
+              <strong id="asset-ticker">-</strong>
+            </div>
+            <div>
+              <span class="label">Company</span>
+              <strong id="asset-name">-</strong>
+            </div>
+            <div>
+              <span class="label">Sector</span>
+              <strong id="asset-sector">-</strong>
+            </div>
+            <div>
+              <span class="label">Venue</span>
+              <strong id="asset-exchange">-</strong>
+            </div>
+            <div>
+              <span class="label">Session</span>
+              <strong id="asset-session">-</strong>
+            </div>
+            <div>
+              <span class="label">Typical Spread</span>
+              <strong id="asset-spread">-</strong>
+            </div>
+          </div>
+          <p id="asset-description" class="response-copy"></p>
+        </article>
+
+        <article class="panel">
+          <h2>Pre-Round Strategy</h2>
+          <p id="strategy-note" class="response-copy"></p>
+          <div class="mini-path">
+            <div class="path-labels">
+              <span class="label">Recent Price Path</span>
+              <span class="subtle" id="path-summary">-</span>
+            </div>
+            <div id="path-bars" class="path-bars"></div>
+          </div>
+        </article>
+      </section>
+
       <section class="main-grid">
         <article class="panel quote-panel">
           <div class="section-head">
@@ -199,6 +247,7 @@
       </section>
     </main>
 
+    <script src="./asset-data.js"></script>
     <script src="./app.js" defer></script>
   </body>
   </html>

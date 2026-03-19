@@ -34,6 +34,7 @@ body {
 
 .hero,
 .status-grid,
+.asset-grid,
 .main-grid,
 .quote-strip,
 .stats-grid,
@@ -50,6 +51,11 @@ body {
 }
 
 .status-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.asset-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-bottom: 18px;
 }
@@ -224,6 +230,32 @@ button:disabled {
   line-height: 1.5;
 }
 
+.mini-path {
+  margin-top: 12px;
+}
+
+.path-labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.path-bars {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  min-height: 88px;
+}
+
+.path-bar {
+  flex: 1;
+  border-radius: 10px 10px 6px 6px;
+  background: linear-gradient(180deg, #53636d, #2f4049);
+  min-height: 16px;
+}
+
 .tape-list {
   list-style: none;
   margin: 0;
@@ -256,6 +288,7 @@ button:disabled {
 @media (max-width: 1080px) {
   .hero,
   .status-grid,
+  .asset-grid,
   .main-grid,
   .stats-grid,
   .quote-form {
