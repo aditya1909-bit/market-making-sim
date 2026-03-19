@@ -45,7 +45,7 @@ input {
 .page-shell {
   width: min(1240px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 24px 0 64px;
+  padding: 18px 0 56px;
 }
 
 .hero,
@@ -69,13 +69,13 @@ input {
 }
 
 .hero {
-  padding: 8px 0 14px;
+  padding: 4px 0 8px;
 }
 
 .hero-nav {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  margin-bottom: 54px;
+  margin-bottom: 28px;
 }
 
 .glass-panel,
@@ -94,7 +94,7 @@ input {
 
 .card {
   border-radius: var(--radius);
-  padding: 28px;
+  padding: 24px;
 }
 
 .brand-lockup,
@@ -141,15 +141,15 @@ input {
 }
 
 .hero-copy {
-  max-width: 860px;
+  max-width: 780px;
   margin: 0 auto;
   text-align: center;
 }
 
 h1 {
-  margin-top: 14px;
-  font-size: clamp(3rem, 8vw, 5.7rem);
-  line-height: 0.95;
+  margin-top: 12px;
+  font-size: clamp(2.6rem, 6.4vw, 4.8rem);
+  line-height: 0.98;
   letter-spacing: -0.05em;
 }
 
@@ -160,42 +160,44 @@ h1 {
 }
 
 .hero-text {
-  margin: 20px auto 0;
-  max-width: 760px;
-  font-size: clamp(1.05rem, 1.8vw, 1.26rem);
+  margin: 14px auto 0;
+  max-width: 700px;
+  font-size: clamp(1rem, 1.5vw, 1.14rem);
 }
 
 .setup-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 28px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 22px;
 }
 
 .session-grid,
 .game-grid,
 .lower-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 .session-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
   align-items: start;
 }
 
 .game-grid {
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
   align-items: start;
 }
 
 .contract-card {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .role-brief-card {
-  align-self: start;
+  align-self: stretch;
 }
 
 .workspace-card {
   min-height: 100%;
+  grid-column: 1 / -1;
 }
 
 .market-card {
@@ -213,7 +215,7 @@ h1 {
 
 h2 {
   margin-top: 8px;
-  font-size: clamp(1.45rem, 2vw, 1.95rem);
+  font-size: clamp(1.32rem, 1.8vw, 1.8rem);
   line-height: 1.1;
   letter-spacing: -0.03em;
 }
@@ -241,7 +243,7 @@ h2 {
 .field-card,
 .quote-field {
   display: block;
-  padding: 16px 18px;
+  padding: 14px 16px;
 }
 
 .field-card input,
@@ -287,7 +289,7 @@ h2 {
 }
 
 .subtle-copy {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .badge {
@@ -311,6 +313,10 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.quote-inputs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .market-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -322,7 +328,7 @@ h2 {
 .mini-metric,
 .info-cell,
 .soft-panel {
-  padding: 18px;
+  padding: 16px;
 }
 
 .mini-metric strong,
@@ -339,17 +345,18 @@ h2 {
 
 .quote-card,
 .taker-card {
-  padding: 28px;
+  padding: 24px;
   border-radius: var(--radius);
 }
 
 .role-brief-stack {
   display: grid;
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .top-gap {
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .players-list {
@@ -416,11 +423,11 @@ h2 {
 }
 
 .tape-list li {
-  padding: 16px 18px;
+  padding: 14px 16px;
   border-radius: 20px;
   border: 1px solid var(--line);
   background: var(--surface-strong);
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
 .tape-list li + li {
@@ -472,22 +479,18 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .contract-card {
-    grid-column: auto;
-  }
-
   .market-card {
     grid-column: auto;
-  }
-
-  .setup-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .nav-controls,
   .join-row,
   .action-row {
     flex-wrap: wrap;
+  }
+
+  .role-brief-stack {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -12,7 +12,7 @@
         <div class="hero-nav glass-panel">
           <div class="brand-lockup">
             <p class="eyebrow">market-making-sim</p>
-            <span class="nav-title">1v1 bluff game</span>
+            <span class="nav-title">Live room play</span>
           </div>
           <div class="status-inline">
             <span class="mini-label">Connection</span>
@@ -21,11 +21,11 @@
         </div>
 
         <div class="hero-copy">
-          <p class="eyebrow">Authoritative room-based game</p>
-          <h1>One hidden value. One maker. One taker.</h1>
+          <p class="eyebrow">Room-based market making</p>
+          <h1>One hidden value. One market.</h1>
           <p class="hero-text">
-            Create a private room, join by code, or queue into a random 1v1. The maker quotes a market. The taker
-            chooses buy, sell, or pass. Settlement happens on a hidden scalar value known only to the server.
+            Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker
+            chooses buy, sell, or pass, and settlement stays hidden until the round ends.
           </p>
         </div>
       </section>
@@ -179,21 +179,21 @@
         <article class="card role-brief-card">
           <div class="card-head">
             <div>
-              <p class="eyebrow">Desk read</p>
-              <h2 id="role-summary-title">Game flow</h2>
+              <p class="eyebrow">Round view</p>
+              <h2 id="role-summary-title">Current read</h2>
             </div>
           </div>
           <div class="role-brief-stack">
             <div class="soft-panel">
-              <span class="mini-label">Your job</span>
+              <span class="mini-label">Your role</span>
               <p id="side-instructions" class="body-copy">Create, join, or resume a room to receive a role.</p>
             </div>
             <div class="soft-panel">
-              <span class="mini-label">Read on the other side</span>
+              <span class="mini-label">Quote read</span>
               <p id="bluff-summary" class="body-copy">No quote pressure yet.</p>
             </div>
             <div class="soft-panel">
-              <span class="mini-label">Latest resolution</span>
+              <span class="mini-label">Latest turn</span>
               <p id="resolution-summary" class="body-copy">No turns have resolved yet.</p>
             </div>
           </div>
@@ -235,15 +235,15 @@
           <div class="mini-grid">
             <div class="mini-metric">
               <span class="mini-label">Bid</span>
-              <strong id="current-quote-bid">-</strong>
+              <strong id="taker-quote-bid">-</strong>
             </div>
             <div class="mini-metric">
               <span class="mini-label">Ask</span>
-              <strong id="current-quote-ask">-</strong>
+              <strong id="taker-quote-ask">-</strong>
             </div>
             <div class="mini-metric">
               <span class="mini-label">Size</span>
-              <strong id="current-quote-size">-</strong>
+              <strong id="taker-quote-size">-</strong>
             </div>
           </div>
           <div class="action-row top-gap">

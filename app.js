@@ -48,6 +48,9 @@
     askInput: document.getElementById("ask-input"),
     sizeInput: document.getElementById("size-input"),
     submitQuote: document.getElementById("submit-quote"),
+    takerQuoteBid: document.getElementById("taker-quote-bid"),
+    takerQuoteAsk: document.getElementById("taker-quote-ask"),
+    takerQuoteSize: document.getElementById("taker-quote-size"),
     currentQuoteBid: document.getElementById("current-quote-bid"),
     currentQuoteAsk: document.getElementById("current-quote-ask"),
     currentQuoteSize: document.getElementById("current-quote-size"),
@@ -170,10 +173,10 @@
 
   function buildRoleHeadline(role) {
     if (role === "market_maker") {
-      return "You set the market and manage the information you reveal.";
+      return "You set the market and decide how much edge to show.";
     }
     if (role === "market_taker") {
-      return "You decide whether the quote is good, weak, or a bluff.";
+      return "You decide whether to buy, sell, or wait.";
     }
     return "Join a room to get a seat.";
   }
@@ -192,13 +195,13 @@
     }
     if (role === "market_maker") {
       return game.activeActor === "maker"
-        ? "Post a two-sided market. Tight quotes invite action; wide quotes hide your view."
-        : "Hold. The taker is deciding whether to lift, hit, or pass.";
+        ? "Post your next two-sided market."
+        : "Waiting for the taker to respond.";
     }
     if (role === "market_taker") {
       return game.activeActor === "taker"
-        ? "Read the quote and choose buy, sell, or pass."
-        : "Wait for the maker to show the next market.";
+        ? "Read the quote and respond."
+        : "Waiting for the next quote.";
     }
     return "Watching the room.";
   }
@@ -208,10 +211,10 @@
       return "Create, join, or resume a room to receive a role.";
     }
     if (role === "market_maker") {
-      return "Your edge comes from quoting a market that earns spread without showing your full estimate too early.";
+      return "Quote both sides and manage your inventory.";
     }
     if (role === "market_taker") {
-      return "Your edge comes from reading the maker's quote path and only trading when the market is off.";
+      return "Trade only when the market looks off.";
     }
     return "This game only becomes active once you are assigned maker or taker.";
   }
@@ -776,9 +779,15 @@
       setText(elements.resolutionSummary, game?.lastResolution?.text || "No turns have resolved yet.");
     }
 
-    setText(elements.currentQuoteBid, game?.currentQuote ? format(game.currentQuote.bid) : "-");
-    setText(elements.currentQuoteAsk, game?.currentQuote ? format(game.currentQuote.ask) : "-");
-    setText(elements.currentQuoteSize, game?.currentQuote ? String(game.currentQuote.size) : "-");
+    const currentBid = game?.currentQuote ? format(game.currentQuote.bid) : "-";
+    const currentAsk = game?.currentQuote ? format(game.currentQuote.ask) : "-";
+    const currentSize = game?.currentQuote ? String(game.currentQuote.size) : "-";
+    setText(elements.currentQuoteBid, currentBid);
+    setText(elements.currentQuoteAsk, currentAsk);
+    setText(elements.currentQuoteSize, currentSize);
+    setText(elements.takerQuoteBid, currentBid);
+    setText(elements.takerQuoteAsk, currentAsk);
+    setText(elements.takerQuoteSize, currentSize);
     setText(elements.previousQuote, formatQuote(game?.previousQuote));
     setText(elements.quoteContext, buildQuoteContext(game));
 
