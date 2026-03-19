@@ -182,8 +182,25 @@ h1 {
 }
 
 .game-grid {
-  grid-template-columns: 1.2fr 0.9fr 0.9fr;
+  grid-template-columns: 1.05fr 0.95fr;
   align-items: start;
+}
+
+.contract-card {
+  grid-column: 1 / -1;
+}
+
+.role-brief-card {
+  align-self: start;
+}
+
+.workspace-card {
+  min-height: 100%;
+}
+
+.market-card {
+  grid-column: 1 / -1;
+  align-self: start;
 }
 
 .card-head {
@@ -294,6 +311,10 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.market-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .info-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -320,6 +341,11 @@ h2 {
 .taker-card {
   padding: 28px;
   border-radius: var(--radius);
+}
+
+.role-brief-stack {
+  display: grid;
+  gap: 14px;
 }
 
 .top-gap {
@@ -444,6 +470,14 @@ button:disabled {
   .session-grid,
   .lower-grid {
     grid-template-columns: 1fr;
+  }
+
+  .contract-card {
+    grid-column: auto;
+  }
+
+  .market-card {
+    grid-column: auto;
   }
 
   .setup-grid {

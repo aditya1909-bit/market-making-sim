@@ -393,6 +393,7 @@ export function buildPlayerView(room, playerId, connectedIds = new Set()) {
       maxTurns: room.game.maxTurns,
       activeActor: room.game.activeActor,
       currentQuote: room.game.currentQuote,
+      previousQuote: room.game.previousQuote,
       lastResolution: room.game.lastResolution,
       maker: room.game.maker,
       taker: room.game.taker,

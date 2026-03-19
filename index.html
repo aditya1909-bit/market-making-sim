@@ -166,17 +166,40 @@
           <p id="contract-range" class="body-copy">Range: -</p>
           <div class="split-callouts top-gap">
             <div class="soft-panel">
-              <span class="mini-label">Your side</span>
-              <p id="side-instructions" class="body-copy">Join a room to get a role.</p>
+              <span class="mini-label">Role</span>
+              <p id="role-headline" class="body-copy">Join a room to get a seat.</p>
             </div>
             <div class="soft-panel emphasis">
+              <span class="mini-label">Right now</span>
+              <p id="turn-prompt" class="body-copy">No active turn.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="card role-brief-card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Desk read</p>
+              <h2 id="role-summary-title">Game flow</h2>
+            </div>
+          </div>
+          <div class="role-brief-stack">
+            <div class="soft-panel">
+              <span class="mini-label">Your job</span>
+              <p id="side-instructions" class="body-copy">Create, join, or resume a room to receive a role.</p>
+            </div>
+            <div class="soft-panel">
+              <span class="mini-label">Read on the other side</span>
+              <p id="bluff-summary" class="body-copy">No quote pressure yet.</p>
+            </div>
+            <div class="soft-panel">
               <span class="mini-label">Latest resolution</span>
               <p id="resolution-summary" class="body-copy">No turns have resolved yet.</p>
             </div>
           </div>
         </article>
 
-        <article id="quote-card" class="card quote-card">
+        <article id="quote-card" class="card quote-card workspace-card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Maker controls</p>
@@ -202,7 +225,7 @@
           </div>
         </article>
 
-        <article id="taker-card" class="card taker-card">
+        <article id="taker-card" class="card taker-card workspace-card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Taker controls</p>
@@ -227,6 +250,37 @@
             <button id="taker-buy" class="primary-button" disabled>Buy Ask</button>
             <button id="taker-sell" class="secondary-button" disabled>Sell Bid</button>
             <button id="taker-pass" class="secondary-button" disabled>Pass</button>
+          </div>
+        </article>
+
+        <article class="card market-card">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Market context</p>
+              <h2>Quote path</h2>
+            </div>
+          </div>
+          <div class="mini-grid market-grid">
+            <div class="mini-metric">
+              <span class="mini-label">Live bid</span>
+              <strong id="current-quote-bid">-</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Live ask</span>
+              <strong id="current-quote-ask">-</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Live size</span>
+              <strong id="current-quote-size">-</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Previous quote</span>
+              <strong id="previous-quote">-</strong>
+            </div>
+          </div>
+          <div class="soft-panel top-gap">
+            <span class="mini-label">What changed</span>
+            <p id="quote-context" class="body-copy">No quote sequence yet.</p>
           </div>
         </article>
       </section>

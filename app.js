@@ -35,7 +35,11 @@
     contractPrompt: document.getElementById("contract-prompt"),
     contractUnit: document.getElementById("contract-unit"),
     contractRange: document.getElementById("contract-range"),
+    roleHeadline: document.getElementById("role-headline"),
+    turnPrompt: document.getElementById("turn-prompt"),
+    roleSummaryTitle: document.getElementById("role-summary-title"),
     sideInstructions: document.getElementById("side-instructions"),
+    bluffSummary: document.getElementById("bluff-summary"),
     resolutionSummary: document.getElementById("resolution-summary"),
     quoteCard: document.getElementById("quote-card"),
     takerCard: document.getElementById("taker-card"),
@@ -46,6 +50,8 @@
     currentQuoteBid: document.getElementById("current-quote-bid"),
     currentQuoteAsk: document.getElementById("current-quote-ask"),
     currentQuoteSize: document.getElementById("current-quote-size"),
+    previousQuote: document.getElementById("previous-quote"),
+    quoteContext: document.getElementById("quote-context"),
     takerBuy: document.getElementById("taker-buy"),
     takerSell: document.getElementById("taker-sell"),
     takerPass: document.getElementById("taker-pass"),
@@ -134,6 +140,138 @@
     return String(input || "")
       .trim()
       .replace(/\/+$/, "");
+  }
+
+  function formatQuote(quote) {
+    if (!quote) {
+      return "-";
+    }
+    return `${format(quote.bid)} / ${format(quote.ask)} x ${quote.size}`;
+  }
+
+  function quoteMid(quote) {
+    if (!quote) {
+      return null;
+    }
+    return (Number(quote.bid) + Number(quote.ask)) / 2;
+  }
+
+  function buildRoleHeadline(role) {
+    if (role === "market_maker") {
+      return "You set the market and manage the information you reveal.";
+    }
+    if (role === "market_taker") {
+      return "You decide whether the quote is good, weak, or a bluff.";
+    }
+    return "Join a room to get a seat.";
+  }
+
+  function buildTurnPrompt(role, roomState, game) {
+    if (!roomState || !game) {
+      return "No active turn.";
+    }
+    if (roomState.status === "finished") {
+      return "The round is settled. Review the tape and request a rematch if you want the other side.";
+    }
+    if (roomState.status === "lobby") {
+      return roomState.matchType === "bot"
+        ? "The bot room is preparing the next round."
+        : "Waiting for both sides to mark ready.";
+    }
+    if (role === "market_maker") {
+      return game.activeActor === "maker"
+        ? "Post a two-sided market. Tight quotes invite action; wide quotes hide your view."
+        : "Hold. The taker is deciding whether to lift, hit, or pass.";
+    }
+    if (role === "market_taker") {
+      return game.activeActor === "taker"
+        ? "Read the quote and choose buy, sell, or pass."
+        : "Wait for the maker to show the next market.";
+    }
+    return "Watching the room.";
+  }
+
+  function buildSideInstructions(role, roomState, game) {
+    if (!roomState || !game) {
+      return "Create, join, or resume a room to receive a role.";
+    }
+    if (role === "market_maker") {
+      return "Your edge comes from quoting a market that earns spread without showing your full estimate too early.";
+    }
+    if (role === "market_taker") {
+      return "Your edge comes from reading the maker's quote path and only trading when the market is off.";
+    }
+    return "This game only becomes active once you are assigned maker or taker.";
+  }
+
+  function buildBluffSummary(role, game) {
+    if (!game?.previousQuote && !game?.currentQuote) {
+      return "No quote pressure yet.";
+    }
+    const current = game?.currentQuote || null;
+    const previous = game?.previousQuote || null;
+    const lastAction = game?.lastResolution?.action || null;
+
+    if (!previous && current) {
+      return role === "market_taker"
+        ? "This is the first market of the round. Start by reading width and skew."
+        : "Opening markets set the tone. Keep your first quote intentional.";
+    }
+    if (!previous) {
+      return "No quote sequence yet.";
+    }
+
+    const currentMid = quoteMid(current);
+    const previousMid = quoteMid(previous);
+    const currentSpread = current ? Number(current.ask) - Number(current.bid) : null;
+    const previousSpread = Number(previous.ask) - Number(previous.bid);
+    const movedUp = currentMid !== null && previousMid !== null && currentMid > previousMid + 0.001;
+    const movedDown = currentMid !== null && previousMid !== null && currentMid < previousMid - 0.001;
+    const widened = currentSpread !== null && currentSpread > previousSpread * 1.08;
+    const tightened = currentSpread !== null && currentSpread < previousSpread * 0.92;
+
+    if (lastAction === "buy" && widened) {
+      return "The maker was lifted and widened out. That usually means they felt pressure on the offer.";
+    }
+    if (lastAction === "sell" && widened) {
+      return "The maker got sold to and widened out. That usually means they did not love their bid.";
+    }
+    if (tightened && movedUp) {
+      return "The market tightened and shifted up. That reads like growing confidence on the high side.";
+    }
+    if (tightened && movedDown) {
+      return "The market tightened and shifted down. That reads like growing confidence on the low side.";
+    }
+    if (widened) {
+      return "The quote widened. The other side is trying to show less information.";
+    }
+    if (movedUp) {
+      return "The quote moved up without much extra width. That can be a real view or a nudge.";
+    }
+    if (movedDown) {
+      return "The quote moved down without much extra width. That can be a real view or a nudge.";
+    }
+    return "The market barely changed. The other side may be defending the same estimate.";
+  }
+
+  function buildQuoteContext(game) {
+    if (!game?.previousQuote && !game?.currentQuote) {
+      return "No quote sequence yet.";
+    }
+    if (!game?.previousQuote || !game?.currentQuote) {
+      return "Only one public quote is available so far.";
+    }
+
+    const currentMid = quoteMid(game.currentQuote);
+    const previousMid = quoteMid(game.previousQuote);
+    const currentSpread = Number(game.currentQuote.ask) - Number(game.currentQuote.bid);
+    const previousSpread = Number(game.previousQuote.ask) - Number(game.previousQuote.bid);
+    const drift = currentMid - previousMid;
+    const spreadDelta = currentSpread - previousSpread;
+    const driftText = Math.abs(drift) < 0.005 ? "The midpoint is roughly unchanged." : drift > 0 ? "The midpoint moved up." : "The midpoint moved down.";
+    const spreadText =
+      Math.abs(spreadDelta) < 0.005 ? "The spread is roughly unchanged." : spreadDelta > 0 ? "The spread widened." : "The spread tightened.";
+    return `${driftText} ${spreadText}`;
   }
 
   function requireBackendUrl() {
@@ -597,16 +735,18 @@
         ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
         : "Range: -"
     );
-
-    if (role === "market_maker") {
-      setText(elements.sideInstructions, "You are the market maker. Quote a bid and ask when it is your turn.");
-    } else if (role === "market_taker") {
-      setText(elements.sideInstructions, "You are the market taker. Decide whether to buy the ask, sell the bid, or pass.");
-    } else if (state.restoring) {
+    setText(elements.roleHeadline, buildRoleHeadline(role));
+    setText(elements.turnPrompt, buildTurnPrompt(role, roomState, game));
+    setText(
+      elements.roleSummaryTitle,
+      role === "market_maker" ? "Maker seat" : role === "market_taker" ? "Taker seat" : "Game flow"
+    );
+    if (state.restoring && !role) {
       setText(elements.sideInstructions, "Restoring previous session.");
     } else {
-      setText(elements.sideInstructions, "Create, join, or resume a room to receive a role.");
+      setText(elements.sideInstructions, buildSideInstructions(role, roomState, game));
     }
+    setText(elements.bluffSummary, buildBluffSummary(role, game));
 
     if (isFinished && pendingRematch.length && !roomState?.rematch?.requested) {
       setText(elements.resolutionSummary, `Settlement is in. Waiting on rematch votes from: ${pendingRematch.join(", ")}.`);
@@ -619,6 +759,8 @@
     setText(elements.currentQuoteBid, game?.currentQuote ? format(game.currentQuote.bid) : "-");
     setText(elements.currentQuoteAsk, game?.currentQuote ? format(game.currentQuote.ask) : "-");
     setText(elements.currentQuoteSize, game?.currentQuote ? String(game.currentQuote.size) : "-");
+    setText(elements.previousQuote, formatQuote(game?.previousQuote));
+    setText(elements.quoteContext, buildQuoteContext(game));
 
     setText(elements.youCash, format(you?.cash || 0));
     setText(elements.youInventory, String(you?.inventory || 0));
@@ -627,8 +769,8 @@
     setText(elements.oppInventory, String(opponent?.inventory || 0));
     setText(elements.settlementValue, game?.settlement === null || game?.settlement === undefined ? "hidden" : format(game.settlement));
 
-    elements.quoteCard.classList.toggle("hidden", Boolean(role) && role !== "market_maker");
-    elements.takerCard.classList.toggle("hidden", Boolean(role) && role !== "market_taker");
+    elements.quoteCard.classList.toggle("hidden", role !== "market_maker");
+    elements.takerCard.classList.toggle("hidden", role !== "market_taker");
 
     elements.submitQuote.disabled = !canQuote;
     elements.takerBuy.disabled = !canTake;
