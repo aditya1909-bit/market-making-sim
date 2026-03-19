@@ -37,6 +37,7 @@ body {
 .status-grid,
 .asset-grid,
 .main-grid,
+.tape-section,
 .quote-strip,
 .stats-grid,
 .button-grid,
@@ -63,6 +64,7 @@ body {
 
 .main-grid {
   grid-template-columns: 1.1fr 0.95fr 0.95fr;
+  margin-bottom: 18px;
 }
 
 .panel {
@@ -76,6 +78,15 @@ body {
 
 .hero-card {
   background: linear-gradient(180deg, rgba(255, 248, 237, 0.98), rgba(248, 241, 228, 0.94));
+}
+
+.how-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 
 .eyebrow {
@@ -158,6 +169,11 @@ h2 {
   color: white;
 }
 
+.quote .label,
+.response-callout .label {
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .quote.bid {
   background: var(--buy);
 }
@@ -180,6 +196,10 @@ h2 {
 
 .stats-grid.compact {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.desk-sheet .stats-grid.compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .button-grid {
@@ -235,8 +255,8 @@ button:disabled {
   line-height: 1.5;
 }
 
-.mini-path {
-  margin-top: 12px;
+.quote-help {
+  margin: 0 0 14px;
 }
 
 .clue-list {
@@ -254,28 +274,6 @@ button:disabled {
   line-height: 1.45;
 }
 
-.path-labels {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.path-bars {
-  display: flex;
-  align-items: end;
-  gap: 6px;
-  min-height: 88px;
-}
-
-.path-bar {
-  flex: 1;
-  border-radius: 10px 10px 6px 6px;
-  background: linear-gradient(180deg, var(--highlight), #3a4b56);
-  min-height: 16px;
-}
-
 .tape-list {
   list-style: none;
   margin: 0;
@@ -286,9 +284,14 @@ button:disabled {
   margin-bottom: 8px;
   padding: 12px 14px;
   border-radius: 14px;
-  background: rgba(39, 52, 61, 0.06);
+  background: rgba(39, 52, 61, 0.05);
   border: 1px solid var(--line);
   line-height: 1.45;
+}
+
+.tape-list li.empty {
+  color: var(--muted);
+  border-left: 4px solid var(--neutral);
 }
 
 .tape-list li.buy {
@@ -310,6 +313,7 @@ button:disabled {
   .status-grid,
   .asset-grid,
   .main-grid,
+  .how-grid,
   .stats-grid,
   .quote-form {
     grid-template-columns: 1fr;

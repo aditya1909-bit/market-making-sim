@@ -1,12 +1,12 @@
 # market-making-sim
 
-`market-making-sim` is now a GitHub Pages-native, single-player browser interview sim: the human makes a two-sided market in a contract and a scripted counterparty chooses whether to buy, sell, or pass.
+`market-making-sim` is now a GitHub Pages-native, single-player browser interview sim: the human makes a two-sided market in an estimation contract and a scripted counterparty chooses whether to buy, sell, or pass.
 
 ## What It Does
 
 - Runs entirely in the browser with static HTML, CSS, and JavaScript.
 - Starts idle instead of auto-running; the round begins only when the player presses `Start Interview`.
-- Maps each seed to one of 1000 built-in real-asset scenarios so the player sees an actual ticker, sector, session label, and recent price path before quoting.
+- Maps each seed to one of 1000 built-in estimation contracts so the player sees a random interview-style prompt instead of a stock ticker.
 - Frames each round as a contract that settles to a hidden end-of-session print, which is closer to public descriptions of interview market-making games.
 - Uses turn-based quoting with a 30-second shot clock, so the player can think between decisions.
 - Puts the human in the market-maker role and the script in the taker role, which is closer to quant interview games.
@@ -19,7 +19,7 @@
 ```text
 index.html          # App shell
 styles.css          # Visual design
-asset-data.js       # Built-in asset-backed scenario pack
+asset-data.js       # 1000 procedurally generated interview-style contracts
 app.js              # Browser-only game engine and UI bindings
 .github/workflows/
   deploy-pages.yml  # GitHub Pages deployment workflow
@@ -43,7 +43,7 @@ Then visit [http://127.0.0.1:8000](http://127.0.0.1:8000).
 This is intentionally lighter than `microexec`. It does not try to port the Python/C++ stack into the browser. Instead it borrows the same ideas and repackages them into an interview loop:
 
 - a latent fair price with stochastic movement
-- a seeded underlying asset brief with recent path and session context
+- a seeded contract brief with units, range, and benchmark clues
 - a compact desk sheet with only the reference, flow tone, spread regime, and script style
 - a hidden settlement value and script fair value that react to your quotes
 - two-sided quoting, fills, inventory, and mark-to-market PnL
@@ -53,7 +53,7 @@ That tradeoff is what makes it compatible with GitHub Pages.
 ## Controls
 
 - `Start Interview`: begins the round; the site does nothing before this.
-- `Underlying Brief`: tells you what asset you are making a market in, what kind of session it is, and how the recent tape behaved.
+- `Contract Brief`: tells you what random thing you are making a market in, the contract units, and a plausible working range.
 - `Bid / Ask / Size`: your quoted market for the current turn.
 - `Tight / Normal / Wide`: quick quote presets around the reference mark.
 - `Submit Quote`: sends one two-sided market to the script.
@@ -62,7 +62,7 @@ That tradeoff is what makes it compatible with GitHub Pages.
 
 ## Seeded Challenges
 
-The `seed` field defines the scenario. The `Copy Link` button generates a URL containing that seed, so anyone opening the link gets the same asset, same interview setup, and same hidden script path.
+The `seed` field defines the scenario. The `Copy Link` button generates a URL containing that seed, so anyone opening the link gets the same contract, same clue sequence, and same hidden settlement path.
 
 That is the GitHub Pages substitute for server-side game/session codes.
 

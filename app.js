@@ -43,6 +43,13 @@
     return "tight";
   }
 
+  function capWords(value) {
+    return String(value)
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
   function parseSeedFromUrl() {
     const url = new URL(window.location.href);
     return url.searchParams.get("seed") || "";
@@ -127,18 +134,21 @@
       if (!ASSET_SCENARIOS.length) {
         return {
           ticker: "SIM",
-          name: "Synthetic Asset",
-          sector: "Simulation",
-          exchange: "Local",
-          scenario: "Fallback tape",
-          sessionDate: "Seeded",
-          description: "Fallback scenario used when no asset pack is available.",
+          name: "Estimated number of pianos in a medium-sized city",
+          sector: "Fallback Contract",
+          exchange: "count",
+          scenario: "Fallback estimate",
+          sessionDate: "anchor 32000",
+          description: "Fallback contract used when no scenario pack is available. Plausible range: 22000 to 41000 count.",
           strategyNote: "Quote a balanced two-way market and manage inventory conservatively.",
           averageSpread: 0.1,
           realizedVol: 0.3,
           flowTone: "balanced",
           recentPath: [99.4, 99.8, 100.0, 100.1, 100.2, 100.3],
           turnMarks: [100.4, 100.5, 100.6, 100.4, 100.7, 100.8, 100.9, 101.0, 100.8, 100.9, 101.1],
+          initialClue: "This is a pure estimation contract with no live order book behind it.",
+          benchmarkText: "A quick households-times-ownership heuristic gives a rough center estimate.",
+          valueRange: { low: 22000, high: 41000 },
         };
       }
       const pick = hashString(seedText || "market-making");
@@ -163,7 +173,7 @@
       this.lastQuote = null;
       this.lastResponse = {
         action: "Press start to begin.",
-        reason: "Review the underlying brief, then press start when you have an opening market in mind.",
+        reason: "Read the contract brief, think about the likely range, then press start when you are ready to make a two-sided market.",
         markAfter: this.lastMark,
       };
       this.shotClock = TURN_SECONDS;
@@ -184,10 +194,11 @@
       const spreadStyle =
         asset.averageSpread <= 0.08 ? "tight-spread" : asset.averageSpread <= 0.15 ? "medium-spread" : "wide-spread";
       return [
-        `Contract settles to ${asset.ticker}'s simulated end-of-session print. Initial setup: ${asset.scenario}.`,
-        `Recent path moved ${format(recentMove)} over the last ${asset.recentPath.length} observations.`,
-        `This is a ${spreadStyle}, realized-vol ${asset.realizedVol > 0.5 ? "high" : asset.realizedVol > 0.28 ? "medium" : "low"} name.`,
-        `Observed flow tone has been ${asset.flowTone}.`,
+        `Contract settles to the hidden final estimate for: ${asset.name}.`,
+        asset.initialClue,
+        asset.benchmarkText,
+        `This is a ${spreadStyle}, ${asset.flowTone} contract with a plausible range of ${asset.valueRange.low} to ${asset.valueRange.high}.`,
+        `The public reference path moved ${format(recentMove)} across the last ${asset.recentPath.length} observations.`,
         asset.strategyNote,
       ];
     }
@@ -210,7 +221,7 @@
       this.lastQuote = null;
       this.lastResponse = {
         action: "Round started.",
-        reason: `Quote ${this.asset.ticker} two-way. The script can trade only once per turn, and you have 30 seconds to think.`,
+        reason: `Make a bid and ask in ${this.asset.exchange}. The interviewer will buy your ask, sell your bid, or pass once this turn.`,
         markAfter: this.lastMark,
       };
       this.missedTurns = 0;
@@ -355,14 +366,14 @@
 
       this.lastResponse = {
         action: decision.headline,
-        reason: `${decision.reason} ${this.asset.ticker} is trading in a ${this.asset.flowTone} setup, and the contract settles at the end-of-session print.`,
+        reason: `${decision.reason} The contract remains in a ${this.asset.flowTone} setup and settles to the hidden final estimate.`,
         markAfter: this.lastMark,
       };
 
       this.history.unshift({
         turn: this.turn,
         kind: decision.kind,
-        text: `Turn ${this.turn}: ${decision.headline} | You quoted ${format(bid)} / ${format(ask)} x ${size}.`,
+        text: `Turn ${this.turn}. Clue: ${this.currentTurn.clue} You quoted ${format(bid)} / ${format(ask)} for size ${size}. ${decision.headline}`,
       });
       if (this.history.length > 18) {
         this.history.length = 18;
@@ -441,14 +452,14 @@
 
       this.lastResponse = {
         action: "Turn forfeited.",
-        reason: `No ${this.asset.ticker} quote was submitted before the 30-second shot clock expired.`,
+        reason: "No market was submitted before the 30-second shot clock expired, so the turn was forfeited.",
         markAfter: this.lastMark,
       };
 
       this.history.unshift({
         turn: this.turn,
         kind: "timeout",
-        text: `Turn ${this.turn}: no quote submitted before the shot clock expired.`,
+        text: `Turn ${this.turn}. No market was submitted before the shot clock expired.`,
       });
       if (this.history.length > 18) {
         this.history.length = 18;
@@ -473,7 +484,7 @@
       safeStorageSet(STORAGE_KEY, this.bestScore);
       this.lastResponse = {
         action: "Round complete.",
-        reason: `Settlement revealed: ${this.asset.ticker} closes at ${format(this.settlementValue())}. Final score includes inventory and missed-turn penalties.`,
+        reason: `Settlement revealed at ${format(this.settlementValue())} ${this.asset.exchange}. Final score equals cash plus inventory times settlement, minus penalties.`,
         markAfter: this.settlementValue(),
       };
     }
@@ -588,16 +599,16 @@
     assetSector: document.getElementById("asset-sector"),
     assetExchange: document.getElementById("asset-exchange"),
     assetSession: document.getElementById("asset-session"),
-    assetSpread: document.getElementById("asset-spread"),
+    assetRange: document.getElementById("asset-range"),
     assetDescription: document.getElementById("asset-description"),
+    benchmarkText: document.getElementById("benchmark-text"),
     strategyNote: document.getElementById("strategy-note"),
-    pathSummary: document.getElementById("path-summary"),
-    pathBars: document.getElementById("path-bars"),
     settlementRule: document.getElementById("settlement-rule"),
     currentClue: document.getElementById("current-clue"),
     settlementValue: document.getElementById("settlement-value"),
     clueCount: document.getElementById("clue-count"),
     revealedClues: document.getElementById("revealed-clues"),
+    rangeBrief: document.getElementById("range-brief"),
   };
 
   let game = new InterviewGame(parseSeedFromUrl() || randomSeed());
@@ -605,25 +616,18 @@
 
   function renderHistory(items) {
     elements.historyList.innerHTML = "";
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "No turns yet. Start the round, quote a market, and the tape will explain what happened.";
+      elements.historyList.appendChild(li);
+      return;
+    }
     items.forEach((item) => {
       const li = document.createElement("li");
       li.className = item.kind;
       li.textContent = item.text;
       elements.historyList.appendChild(li);
-    });
-  }
-
-  function renderPath(values) {
-    elements.pathBars.innerHTML = "";
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const span = Math.max(0.01, max - min);
-    values.forEach((value) => {
-      const bar = document.createElement("div");
-      bar.className = "path-bar";
-      bar.style.height = `${24 + ((value - min) / span) * 60}px`;
-      bar.title = format(value);
-      elements.pathBars.appendChild(bar);
     });
   }
 
@@ -655,12 +659,12 @@
     elements.assetName.textContent = snapshot.asset.name;
     elements.assetSector.textContent = snapshot.asset.sector;
     elements.assetExchange.textContent = snapshot.asset.exchange;
-    elements.assetSession.textContent = snapshot.asset.scenario;
-    elements.assetSpread.textContent = format(snapshot.asset.averageSpread);
+    elements.assetRange.textContent = `${format(snapshot.asset.valueRange.low)} to ${format(snapshot.asset.valueRange.high)}`;
+    elements.assetSession.textContent = snapshot.asset.sessionDate;
     elements.assetDescription.textContent = snapshot.asset.description;
+    elements.benchmarkText.textContent = snapshot.asset.benchmarkText;
     elements.strategyNote.textContent = snapshot.asset.strategyNote;
-    elements.pathSummary.textContent = snapshot.asset.recentPath.map((value) => format(value)).join("  ");
-    elements.settlementRule.textContent = `${snapshot.asset.ticker} end-of-session print`;
+    elements.settlementRule.textContent = snapshot.asset.exchange;
     elements.currentClue.textContent = snapshot.currentClue;
     elements.settlementValue.textContent = snapshot.settlementValue === null ? "hidden" : format(snapshot.settlementValue);
     elements.clueCount.textContent = String(snapshot.revealedClues.length);
@@ -673,11 +677,12 @@
     elements.inventory.textContent = String(snapshot.player.inventory);
     elements.cash.textContent = format(snapshot.player.cash);
     elements.refPrice.textContent = format(snapshot.referencePrice);
-    elements.flowToneCard.textContent = snapshot.asset.flowTone;
+    elements.flowToneCard.textContent = capWords(snapshot.asset.flowTone);
     elements.lastMark.textContent = format(snapshot.lastMark);
-    elements.volBand.textContent = volBand(snapshot.asset.realizedVol);
-    elements.spreadBand.textContent = spreadBand(snapshot.asset.averageSpread);
-    elements.scriptStyleBrief.textContent = snapshot.profile;
+    elements.volBand.textContent = capWords(volBand(snapshot.asset.realizedVol));
+    elements.spreadBand.textContent = capWords(spreadBand(snapshot.asset.averageSpread));
+    elements.rangeBrief.textContent = `${format(snapshot.asset.valueRange.low)} / ${format(snapshot.asset.valueRange.high)}`;
+    elements.scriptStyleBrief.textContent = capWords(snapshot.profile);
     elements.suggestedBid.textContent = format(snapshot.suggestedBid);
     elements.suggestedAsk.textContent = format(snapshot.suggestedAsk);
     elements.lastQuoteBid.textContent = snapshot.lastQuote ? format(snapshot.lastQuote.bid) : "-";
@@ -693,7 +698,6 @@
     elements.skipTurn.disabled = snapshot.mode !== "quote";
 
     renderHistory(snapshot.history);
-    renderPath(snapshot.asset.recentPath);
     renderClues(snapshot.revealedClues);
   }
 

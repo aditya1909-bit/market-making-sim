@@ -28,6 +28,20 @@
           <p class="microcopy">
             Same seed, same scenario. Share the link to give someone the same interview tape and hidden script path.
           </p>
+          <div class="how-grid">
+            <div>
+              <span class="label">1. Quote</span>
+              <p class="microcopy">Make a two-sided market in the contract.</p>
+            </div>
+            <div>
+              <span class="label">2. React</span>
+              <p class="microcopy">The interviewer buys, sells, or passes once.</p>
+            </div>
+            <div>
+              <span class="label">3. Settle</span>
+              <p class="microcopy">Final score uses the hidden settlement value.</p>
+            </div>
+          </div>
         </article>
       </section>
 
@@ -73,7 +87,7 @@
           </div>
         </article>
 
-        <article class="panel">
+        <article class="panel desk-sheet">
           <h2>Desk Sheet</h2>
           <div class="quote-strip">
             <div class="quote bid">
@@ -102,6 +116,10 @@
               <span class="label">Script Style</span>
               <strong id="script-style-brief">-</strong>
             </div>
+            <div>
+              <span class="label">Range</span>
+              <strong id="range-brief">-</strong>
+            </div>
           </div>
         </article>
       </section>
@@ -109,36 +127,37 @@
       <section class="asset-grid">
         <article class="panel">
           <div class="section-head">
-            <h2>Underlying Brief</h2>
+            <h2>Contract Brief</h2>
             <span class="subtle" id="asset-tag">-</span>
           </div>
           <div class="stats-grid compact">
             <div>
-              <span class="label">Ticker</span>
+              <span class="label">Code</span>
               <strong id="asset-ticker">-</strong>
             </div>
             <div>
-              <span class="label">Company</span>
+              <span class="label">Contract</span>
               <strong id="asset-name">-</strong>
             </div>
             <div>
-              <span class="label">Sector</span>
+              <span class="label">Category</span>
               <strong id="asset-sector">-</strong>
             </div>
             <div>
-              <span class="label">Venue</span>
+              <span class="label">Unit</span>
               <strong id="asset-exchange">-</strong>
             </div>
             <div>
-              <span class="label">Session</span>
-              <strong id="asset-session">-</strong>
+              <span class="label">Opening Range</span>
+              <strong id="asset-range">-</strong>
             </div>
             <div>
-              <span class="label">Typical Spread</span>
-              <strong id="asset-spread">-</strong>
+              <span class="label">Opening Anchor</span>
+              <strong id="asset-session">-</strong>
             </div>
           </div>
           <p id="asset-description" class="response-copy"></p>
+          <p id="benchmark-text" class="response-copy"></p>
         </article>
 
         <article class="panel">
@@ -162,13 +181,6 @@
             </div>
           </div>
           <ul id="revealed-clues" class="clue-list"></ul>
-          <div class="mini-path">
-            <div class="path-labels">
-              <span class="label">Recent Price Path</span>
-              <span class="subtle" id="path-summary">-</span>
-            </div>
-            <div id="path-bars" class="path-bars"></div>
-          </div>
         </article>
       </section>
 
@@ -199,6 +211,9 @@
               <input id="size-input" type="number" min="1" max="10" value="4" />
             </label>
           </div>
+          <p class="microcopy quote-help">
+            Quote in the displayed contract units. If your market is too generous, the interviewer will trade against you.
+          </p>
 
           <div class="button-grid">
             <button id="submit-quote" class="start-button">Submit Quote</button>
@@ -253,9 +268,14 @@
             </div>
           </div>
         </article>
+      </section>
 
+      <section class="tape-section">
         <article class="panel">
-          <h2>Interview Tape</h2>
+          <div class="section-head">
+            <h2>Interview Tape</h2>
+            <span class="subtle">Every turn is logged here.</span>
+          </div>
           <ul id="history-list" class="tape-list"></ul>
         </article>
       </section>
