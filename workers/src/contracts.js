@@ -1,4 +1,4 @@
-const CONTRACT_TEMPLATES = [
+export const CONTRACT_TEMPLATES = [
   {
     id: "doc_chars",
     prompt: "Number of characters in a homework document",
