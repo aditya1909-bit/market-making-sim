@@ -1,4 +1,6 @@
 (function () {
+  const DEPLOYED_BACKEND_URL = "https://market-making-sim-backend.adityasdutta.workers.dev";
+
   const STORAGE_KEYS = {
     backendUrl: "market-making-sim.backend-url",
     playerName: "market-making-sim.player-name",
@@ -74,7 +76,7 @@
     if (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") {
       return "http://127.0.0.1:8787";
     }
-    return "";
+    return DEPLOYED_BACKEND_URL;
   }
 
   function safeStorageGet(key) {

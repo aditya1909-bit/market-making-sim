@@ -66,6 +66,17 @@ python3 -m http.server 8000
 
 Then visit [http://127.0.0.1:8000](http://127.0.0.1:8000) and use backend URL `http://127.0.0.1:8787`.
 
+## Live Backend
+
+The deployed Cloudflare Worker is:
+
+- [https://market-making-sim-backend.adityasdutta.workers.dev](https://market-making-sim-backend.adityasdutta.workers.dev)
+
+The frontend now defaults to that Worker on GitHub Pages. You can still override it with:
+
+- the `Backend URL` field in the UI
+- a query parameter like `?backend=https://market-making-sim-backend.adityasdutta.workers.dev`
+
 ## Multiplayer Game Model
 
 - one hidden scalar contract value per room
@@ -95,8 +106,8 @@ The workflow in [`.github/workflows/deploy-pages.yml`](/Users/adityadutta/Deskto
 
 ## Next Extensions
 
-- deploy the Worker to your Cloudflare account
-- point the browser client at that deployed Worker URL
+- add a custom domain for the Worker if you do not want the `workers.dev` URL
+- auto-reconnect players into active rooms on page refresh
 - add turn timers server-side
 - add rematch / role-swap flow
 - add a bluffing bot so a solo player can face the authoritative server model
