@@ -192,87 +192,39 @@
     }
 
     buildClues(asset) {
-      const clueRng = makeRng(`${this.seed}-clues`);
       const settlement = this.settlementValue();
       const rangeLow = roundTick(asset.valueRange.low);
       const rangeHigh = roundTick(asset.valueRange.high);
-      const rangeWidth = Math.max(TICK * 4, rangeHigh - rangeLow);
       const recentStart = asset.recentPath[0];
       const recentEnd = asset.recentPath[asset.recentPath.length - 1];
       const recentMove = roundTick(recentEnd - recentStart);
       const midpoint = roundTick((rangeLow + rangeHigh) / 2);
-      const spreadStyle =
-        asset.averageSpread <= 0.08 ? "tight-spread" : asset.averageSpread <= 0.15 ? "medium-spread" : "wide-spread";
-      const interval = (radius, noise = 0) => {
-        const center = clamp(settlement + noise, rangeLow, rangeHigh);
-        return {
-          low: roundTick(clamp(center - radius, rangeLow, rangeHigh)),
-          high: roundTick(clamp(center + radius, rangeLow, rangeHigh)),
-        };
-      };
-      const benchmarkRadius = rangeWidth * 0.16;
-      const benchmarkNoise = signedNormalish(clueRng) * rangeWidth * 0.06;
-      const firstBand = interval(rangeWidth * 0.22, signedNormalish(clueRng) * rangeWidth * 0.04);
-      const secondBand = interval(rangeWidth * 0.16, signedNormalish(clueRng) * rangeWidth * 0.03);
-      const thirdBand = interval(rangeWidth * 0.11, signedNormalish(clueRng) * rangeWidth * 0.02);
-      const finalBand = interval(rangeWidth * 0.07, signedNormalish(clueRng) * rangeWidth * 0.015);
+      const lowerThird = rangeLow + (rangeHigh - rangeLow) / 3;
+      const upperThird = rangeHigh - (rangeHigh - rangeLow) / 3;
+      const settleBucket =
+        settlement <= lowerThird ? "lower part" : settlement >= upperThird ? "upper part" : "middle part";
+      const anchor = roundTick((rangeLow + rangeHigh) / 2);
+      const latestPrintRelation =
+        settlement > recentEnd ? "above" : settlement < recentEnd ? "below" : "near";
 
       return [
         {
-          text: `Contract settles to the hidden final estimate for ${asset.name}.`,
-          low: rangeLow,
-          high: rangeHigh,
-        },
-        {
+          revealTurn: 1,
           text: asset.initialClue,
-          low: rangeLow,
-          high: rangeHigh,
         },
         {
-          text: `${asset.benchmarkText} A workable desk band is ${format(
-            clamp(settlement + benchmarkNoise - benchmarkRadius, rangeLow, rangeHigh)
-          )} to ${format(clamp(settlement + benchmarkNoise + benchmarkRadius, rangeLow, rangeHigh))}.`,
-          low: roundTick(clamp(settlement + benchmarkNoise - benchmarkRadius, rangeLow, rangeHigh)),
-          high: roundTick(clamp(settlement + benchmarkNoise + benchmarkRadius, rangeLow, rangeHigh)),
+          revealTurn: 3,
+          text: "Comparable benchmarks exist for this contract family, but they are noisy and should only shift your fair modestly.",
         },
         {
-          text: `This is a ${spreadStyle}, ${asset.flowTone} contract. The hidden settle should land in the ${
-            settlement >= midpoint ? "upper" : "lower"
-          } half of the working range.`,
-          low: settlement >= midpoint ? midpoint : rangeLow,
-          high: settlement >= midpoint ? rangeHigh : midpoint,
+          revealTurn: 6,
+          text: `If you divide the working range into thirds, the hidden settle should be in the ${settleBucket}, not at an extreme edge.`,
         },
         {
-          text: `A first-pass fair band is ${format(firstBand.low)} to ${format(firstBand.high)} ${asset.exchange}.`,
-          low: firstBand.low,
-          high: firstBand.high,
-        },
-        {
-          text: `The public reference path moved ${format(recentMove)} across the last ${
-            asset.recentPath.length
-          } observations. The hidden settle is likely ${settlement >= recentEnd ? "above" : "below"} the latest public print.`,
-          low: settlement >= recentEnd ? roundTick(recentEnd) : rangeLow,
-          high: settlement >= recentEnd ? rangeHigh : roundTick(recentEnd),
-        },
-        {
-          text: `A narrower desk band is ${format(secondBand.low)} to ${format(secondBand.high)} ${asset.exchange}.`,
-          low: secondBand.low,
-          high: secondBand.high,
-        },
-        {
-          text: `If you force a midpoint estimate, ${format(roundTick((thirdBand.low + thirdBand.high) / 2))} is defendable.`,
-          low: thirdBand.low,
-          high: thirdBand.high,
-        },
-        {
-          text: `Late-round conversation narrows fair to ${format(thirdBand.low)} to ${format(thirdBand.high)} ${asset.exchange}.`,
-          low: thirdBand.low,
-          high: thirdBand.high,
-        },
-        {
-          text: `Best remaining fair band: ${format(finalBand.low)} to ${format(finalBand.high)} ${asset.exchange}.`,
-          low: finalBand.low,
-          high: finalBand.high,
+          revealTurn: 8,
+          text: `The hidden settle should finish ${latestPrintRelation} the latest public print of ${format(
+            recentEnd
+          )}, but not wildly far from the working anchor ${format(anchor)}.`,
         },
       ];
     }
@@ -333,14 +285,18 @@
       const pathNow = roundTick(this.asset.turnMarks[pathIndex]);
       const pathNext = roundTick(this.asset.turnMarks[pathIndex + 1]);
       const momentum = roundTick(pathNow - this.previousClose);
-      const clue = this.clues[Math.min(this.turn - 1, this.clues.length - 1)];
-      const clueWidth = Math.max(TICK * 2, clue.high - clue.low);
-      const volatility = clamp(this.asset.realizedVol * 0.55 + clueWidth * 0.08 + Math.abs(momentum) * 0.12, 0.08, 0.7);
+      const newlyRevealedClue = this.clues.find((entry) => entry.revealTurn === this.turn) || null;
+      const volatility = clamp(
+        this.asset.realizedVol * 0.7 + Math.abs(momentum) * 0.12 + Math.abs(pathNext - pathNow) * 0.08,
+        0.08,
+        0.7
+      );
       const settlement = this.settlementValue();
+      const rangeWidth = Math.max(TICK * 6, this.asset.valueRange.high - this.asset.valueRange.low);
       const profileRadiusFactor =
-        this.profile === "aggressive" ? 0.42 : this.profile === "inventory-sensitive" ? 0.34 : 0.38;
-      const privateRadius = Math.max(TICK * 2, clueWidth * profileRadiusFactor);
-      const blendedMid = lerp((clue.low + clue.high) / 2, settlement, 0.62);
+        this.profile === "aggressive" ? 0.11 : this.profile === "inventory-sensitive" ? 0.09 : 0.1;
+      const privateRadius = Math.max(this.asset.averageSpread * 2.5, rangeWidth * profileRadiusFactor);
+      const blendedMid = lerp(pathNext, settlement, 0.58);
       const privateNoise = signedNormalish(this.rng) * privateRadius * 0.22;
       const beliefMid = roundTick(clamp(blendedMid + privateNoise, this.asset.valueRange.low, this.asset.valueRange.high));
       const beliefLow = roundTick(clamp(beliefMid - privateRadius, this.asset.valueRange.low, this.asset.valueRange.high));
@@ -367,15 +323,13 @@
         nextReference: pathNext,
         volatility,
         momentum,
-        clue: clue.text,
-        clueLow: clue.low,
-        clueHigh: clue.high,
+        clue: newlyRevealedClue ? newlyRevealedClue.text : "No new clue this round.",
         beliefMid,
         beliefLow,
         beliefHigh,
         reservationMid,
-        suggestedBid: roundTick(reservationMid - baseHalfWidth),
-        suggestedAsk: roundTick(reservationMid + baseHalfWidth),
+        suggestedBid: roundTick(this.referencePrice - baseHalfWidth),
+        suggestedAsk: roundTick(this.referencePrice + baseHalfWidth),
       };
 
       this.turnStartedAt = Date.now();
@@ -388,9 +342,9 @@
       }
 
       const widths = {
-        tight: roundTick(Math.max(TICK * 2, this.currentTurn.volatility * 0.22)),
-        normal: roundTick(Math.max(TICK * 3, this.currentTurn.volatility * 0.34)),
-        wide: roundTick(Math.max(TICK * 4, this.currentTurn.volatility * 0.48)),
+        tight: roundTick(Math.max(this.asset.averageSpread / 2, TICK * 2)),
+        normal: roundTick(Math.max(this.asset.averageSpread * 0.8, TICK * 3)),
+        wide: roundTick(Math.max(this.asset.averageSpread * 1.25, TICK * 4)),
       };
       const halfWidth = widths[widthName] || widths.normal;
       return {
@@ -666,8 +620,8 @@
         momentum: this.currentTurn ? this.currentTurn.momentum : 0,
         flowHint: this.flowHint(),
         pressureHint: this.pressureHint(),
-        currentClue: this.currentTurn ? this.currentTurn.clue : this.clues[0].text,
-        revealedClues: this.clues.slice(0, Math.max(1, this.turn)).map((clue) => clue.text),
+        currentClue: this.currentTurn ? this.currentTurn.clue : "No clue yet.",
+        revealedClues: this.clues.filter((clue) => clue.revealTurn <= this.turn).map((clue) => clue.text),
         settlementValue: this.mode === "finished" ? this.settlementValue() : null,
         suggestedBid: this.currentTurn ? this.currentTurn.suggestedBid : null,
         suggestedAsk: this.currentTurn ? this.currentTurn.suggestedAsk : null,
