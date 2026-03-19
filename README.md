@@ -3,12 +3,13 @@
 `market-making-sim` now contains:
 
 - a browser client in the repo root for room creation, room-code joins, and random matchmaking
-- a multiplayer backend prototype in [`backend/`](/Users/adityadutta/Desktop/GitHub/market-making-sim/backend/README.md) for the 1v1 bluffing game
+- a Cloudflare Workers + Durable Objects backend in [`workers/`](/Users/adityadutta/Desktop/GitHub/market-making-sim/workers/README.md) for the 1v1 bluffing game
+- the older Node prototype in [`backend/`](/Users/adityadutta/Desktop/GitHub/market-making-sim/backend/README.md), retained only as a reference path
 
 ## What It Does
 
 - Serves a static browser client from GitHub Pages or any simple file host.
-- Connects that client to a small authoritative realtime backend over HTTP and WebSocket.
+- Connects that client to an authoritative Cloudflare Worker over HTTP and WebSocket.
 - Supports private room creation with short join codes.
 - Supports random matchmaking into a 1v1 game.
 - Runs a hidden-scalar maker/taker game that matches the bluffing interview format much more closely than the earlier single-player prototype.
@@ -23,6 +24,16 @@ index.html          # Browser client shell
 styles.css          # Browser client styles
 app.js              # Browser client logic for create/join/matchmaking/ws
 asset-data.js       # Older browser-only scenario pack retained from prototype stage
+workers/
+  src/
+    index.js        # Worker entrypoint and HTTP/WebSocket routing
+    room-do.js      # One Durable Object per room
+    matchmaker-do.js# Global matchmaking Durable Object
+    game-engine.js  # Authoritative maker/taker game loop
+    contracts.js    # Hidden scalar contract generator
+    protocol.js     # Client/server event names and enums
+  wrangler.jsonc
+  package.json
 backend/
   src/
     server.js       # HTTP + WebSocket server
@@ -38,10 +49,10 @@ backend/
 
 ## Local Run
 
-Run the backend first:
+Run the Cloudflare Worker backend first:
 
 ```bash
-cd /Users/adityadutta/Desktop/GitHub/market-making-sim/backend
+cd /Users/adityadutta/Desktop/GitHub/market-making-sim/workers
 npm install
 npm run dev
 ```
@@ -78,14 +89,14 @@ Then visit [http://127.0.0.1:8000](http://127.0.0.1:8000) and use backend URL `h
 ## Deploy Split
 
 - frontend: GitHub Pages is fine
-- backend: deploy elsewhere as a small realtime service with WebSocket support
+- backend: deploy the Worker separately on Cloudflare
 
 The workflow in [`.github/workflows/deploy-pages.yml`](/Users/adityadutta/Desktop/GitHub/market-making-sim/.github/workflows/deploy-pages.yml) still deploys the static frontend to Pages.
 
 ## Next Extensions
 
-- deploy the backend to a public host
-- point the browser client at that deployed backend
+- deploy the Worker to your Cloudflare account
+- point the browser client at that deployed Worker URL
 - add turn timers server-side
 - add rematch / role-swap flow
 - add a bluffing bot so a solo player can face the authoritative server model

@@ -62,6 +62,11 @@
   };
 
   function defaultBackendUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const urlParam = normalizeBackendUrl(params.get("backend"));
+    if (urlParam) {
+      return urlParam;
+    }
     const stored = safeStorageGet(STORAGE_KEYS.backendUrl);
     if (stored) {
       return stored;
@@ -144,10 +149,13 @@
   }
 
   function toWebSocketUrl(httpUrl) {
+    if (!state.playerId || !state.roomCode) {
+      throw new Error("Missing room connection state.");
+    }
     const url = new URL(httpUrl);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.pathname = "/ws";
-    url.search = `?playerId=${encodeURIComponent(state.playerId)}`;
+    url.search = `?roomCode=${encodeURIComponent(state.roomCode)}&playerId=${encodeURIComponent(state.playerId)}`;
     return url.toString();
   }
 

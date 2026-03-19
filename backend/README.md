@@ -1,6 +1,8 @@
 # Backend Prototype
 
-This folder contains the multiplayer backend prototype for the 1v1 bluffing market game.
+This is the older Node/WebSocket prototype. The active deployment target is now [`workers/`](/Users/adityadutta/Desktop/GitHub/market-making-sim/workers/README.md).
+
+This folder still contains the original multiplayer backend prototype for the 1v1 bluffing market game.
 
 ## What It Supports
 
