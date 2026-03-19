@@ -1,14 +1,15 @@
 :root {
-  --bg: #efe5d3;
-  --panel: rgba(255, 250, 242, 0.9);
+  --bg: #ece2cd;
+  --panel: rgba(255, 249, 239, 0.92);
   --ink: #172126;
   --muted: #5e6a72;
   --line: rgba(23, 33, 38, 0.12);
-  --shadow: 0 24px 56px rgba(60, 45, 25, 0.14);
+  --shadow: 0 24px 56px rgba(60, 45, 25, 0.16);
   --buy: #0f7a63;
   --sell: #9e4633;
   --neutral: #344550;
   --accent: #8b5f24;
+  --highlight: #d6c29b;
 }
 
 * {
@@ -21,9 +22,9 @@ body {
   color: var(--ink);
   font-family: Georgia, "Times New Roman", serif;
   background:
-    radial-gradient(circle at top left, rgba(139, 95, 36, 0.18), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(15, 122, 99, 0.14), transparent 28%),
-    linear-gradient(180deg, #f0e8d9 0%, #f7f2ea 100%);
+    radial-gradient(circle at top left, rgba(139, 95, 36, 0.22), transparent 30%),
+    radial-gradient(circle at center right, rgba(15, 122, 99, 0.12), transparent 24%),
+    linear-gradient(180deg, #eee3cf 0%, #f7f2ea 100%);
 }
 
 .shell {
@@ -115,6 +116,10 @@ h2 {
   max-width: 62ch;
   line-height: 1.55;
   font-size: 1.05rem;
+}
+
+.subtle {
+  font-size: 0.82rem;
 }
 
 .label {
@@ -219,7 +224,7 @@ button:disabled {
 .response-callout {
   padding: 16px;
   border-radius: 18px;
-  background: linear-gradient(135deg, #2f4049, #465861);
+  background: linear-gradient(135deg, #2f4049, #51626d);
   color: white;
   margin-bottom: 14px;
 }
@@ -232,6 +237,21 @@ button:disabled {
 
 .mini-path {
   margin-top: 12px;
+}
+
+.clue-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+}
+
+.clue-list li {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(139, 95, 36, 0.08);
+  border: 1px solid rgba(139, 95, 36, 0.14);
+  line-height: 1.45;
 }
 
 .path-labels {
@@ -252,7 +272,7 @@ button:disabled {
 .path-bar {
   flex: 1;
   border-radius: 10px 10px 6px 6px;
-  background: linear-gradient(180deg, #53636d, #2f4049);
+  background: linear-gradient(180deg, var(--highlight), #3a4b56);
   min-height: 16px;
 }
 

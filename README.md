@@ -1,12 +1,13 @@
 # market-making-sim
 
-`market-making-sim` is now a GitHub Pages-native, single-player browser interview sim: the human makes a two-sided market and a scripted counterparty chooses whether to buy, sell, or pass.
+`market-making-sim` is now a GitHub Pages-native, single-player browser interview sim: the human makes a two-sided market in a contract and a scripted counterparty chooses whether to buy, sell, or pass.
 
 ## What It Does
 
 - Runs entirely in the browser with static HTML, CSS, and JavaScript.
 - Starts idle instead of auto-running; the round begins only when the player presses `Start Interview`.
 - Maps each seed to a built-in real-asset scenario pack so the player sees an actual ticker, sector, session label, and recent price path before quoting.
+- Frames each round as a contract that settles to a hidden end-of-session print, which is closer to public descriptions of interview market-making games.
 - Uses turn-based quoting with a 30-second shot clock, so the player can think between decisions.
 - Puts the human in the market-maker role and the script in the taker role, which is closer to quant interview games.
 - Scores the player on marked-to-market PnL with explicit inventory and missed-turn penalties.
@@ -44,7 +45,7 @@ This is intentionally lighter than `microexec`. It does not try to port the Pyth
 - a latent fair price with stochastic movement
 - a seeded underlying asset brief with recent path and session context
 - public signals like momentum, volatility, and flow hints
-- a hidden script fair value that reacts to your quotes
+- a hidden settlement value and script fair value that react to your quotes
 - two-sided quoting, fills, inventory, and mark-to-market PnL
 
 That tradeoff is what makes it compatible with GitHub Pages.

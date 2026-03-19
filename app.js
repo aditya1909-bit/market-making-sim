@@ -152,8 +152,28 @@
       this.recentMarks = this.asset.recentPath.slice(-4).map((value) => roundTick(value)).concat([this.referencePrice]);
       this.history = [];
       this.currentTurn = null;
+      this.clues = this.buildClues(this.asset);
       setSeedOnUrl(this.seed);
       return this.snapshot();
+    }
+
+    buildClues(asset) {
+      const recentStart = asset.recentPath[0];
+      const recentEnd = asset.recentPath[asset.recentPath.length - 1];
+      const recentMove = roundTick(recentEnd - recentStart);
+      const spreadStyle =
+        asset.averageSpread <= 0.08 ? "tight-spread" : asset.averageSpread <= 0.15 ? "medium-spread" : "wide-spread";
+      return [
+        `Contract settles to ${asset.ticker}'s simulated end-of-session print. Initial setup: ${asset.scenario}.`,
+        `Recent path moved ${format(recentMove)} over the last ${asset.recentPath.length} observations.`,
+        `This is a ${spreadStyle}, realized-vol ${asset.realizedVol > 0.5 ? "high" : asset.realizedVol > 0.28 ? "medium" : "low"} name.`,
+        `Observed flow tone has been ${asset.flowTone}.`,
+        asset.strategyNote,
+      ];
+    }
+
+    settlementValue() {
+      return roundTick(this.asset.turnMarks[this.asset.turnMarks.length - 1]);
     }
 
     start() {
@@ -176,6 +196,7 @@
       this.missedTurns = 0;
       this.history = [];
       this.recentMarks = this.asset.recentPath.slice(-4).map((value) => roundTick(value)).concat([this.referencePrice]);
+      this.clues = this.buildClues(this.asset);
       this.prepareTurn();
       return this.snapshot();
     }
@@ -230,6 +251,7 @@
         flowBias,
         pressure,
         hiddenFair,
+        clue: this.clues[Math.min(this.turn - 1, this.clues.length - 1)],
         suggestedBid: roundTick(this.referencePrice - baseHalfWidth),
         suggestedAsk: roundTick(this.referencePrice + baseHalfWidth),
       };
@@ -313,7 +335,7 @@
 
       this.lastResponse = {
         action: decision.headline,
-        reason: `${decision.reason} ${this.asset.ticker} is trading in a ${this.asset.flowTone} setup.`,
+        reason: `${decision.reason} ${this.asset.ticker} is trading in a ${this.asset.flowTone} setup, and the contract settles at the end-of-session print.`,
         markAfter: this.lastMark,
       };
 
@@ -431,13 +453,14 @@
       safeStorageSet(STORAGE_KEY, this.bestScore);
       this.lastResponse = {
         action: "Round complete.",
-        reason: "Final score includes inventory and missed-turn penalties.",
-        markAfter: this.lastMark,
+        reason: `Settlement revealed: ${this.asset.ticker} closes at ${format(this.settlementValue())}. Final score includes inventory and missed-turn penalties.`,
+        markAfter: this.settlementValue(),
       };
     }
 
     rawMtm() {
-      return this.player.cash + this.player.inventory * this.lastMark;
+      const mark = this.mode === "finished" ? this.settlementValue() : this.lastMark;
+      return this.player.cash + this.player.inventory * mark;
     }
 
     inventoryPenalty() {
@@ -486,6 +509,9 @@
         momentum: this.currentTurn ? this.currentTurn.momentum : 0,
         flowHint: this.flowHint(),
         pressureHint: this.pressureHint(),
+        currentClue: this.currentTurn ? this.currentTurn.clue : this.clues[0],
+        revealedClues: this.clues.slice(0, Math.max(1, this.turn)),
+        settlementValue: this.mode === "finished" ? this.settlementValue() : null,
         suggestedBid: this.currentTurn ? this.currentTurn.suggestedBid : null,
         suggestedAsk: this.currentTurn ? this.currentTurn.suggestedAsk : null,
         rawMtm: this.rawMtm(),
@@ -548,6 +574,11 @@
     strategyNote: document.getElementById("strategy-note"),
     pathSummary: document.getElementById("path-summary"),
     pathBars: document.getElementById("path-bars"),
+    settlementRule: document.getElementById("settlement-rule"),
+    currentClue: document.getElementById("current-clue"),
+    settlementValue: document.getElementById("settlement-value"),
+    clueCount: document.getElementById("clue-count"),
+    revealedClues: document.getElementById("revealed-clues"),
   };
 
   let game = new InterviewGame(parseSeedFromUrl() || randomSeed());
@@ -577,6 +608,15 @@
     });
   }
 
+  function renderClues(items) {
+    elements.revealedClues.innerHTML = "";
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = item;
+      elements.revealedClues.appendChild(li);
+    });
+  }
+
   function applySuggestedQuote(snapshot) {
     if (snapshot.turn !== renderedTurn && snapshot.mode === "quote") {
       elements.bidInput.value = format(snapshot.suggestedBid, 2);
@@ -601,6 +641,10 @@
     elements.assetDescription.textContent = snapshot.asset.description;
     elements.strategyNote.textContent = snapshot.asset.strategyNote;
     elements.pathSummary.textContent = snapshot.asset.recentPath.map((value) => format(value)).join("  ");
+    elements.settlementRule.textContent = `${snapshot.asset.ticker} end-of-session print`;
+    elements.currentClue.textContent = snapshot.currentClue;
+    elements.settlementValue.textContent = snapshot.settlementValue === null ? "hidden" : format(snapshot.settlementValue);
+    elements.clueCount.textContent = String(snapshot.revealedClues.length);
     elements.adjustedScore.textContent = format(snapshot.adjustedScore);
     elements.rawMtm.textContent = format(snapshot.rawMtm);
     elements.bestScore.textContent = format(snapshot.bestScore);
@@ -632,6 +676,7 @@
 
     renderHistory(snapshot.history);
     renderPath(snapshot.asset.recentPath);
+    renderClues(snapshot.revealedClues);
   }
 
   function submitQuote() {

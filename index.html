@@ -146,8 +146,26 @@
         </article>
 
         <article class="panel">
-          <h2>Pre-Round Strategy</h2>
+          <div class="section-head">
+            <h2>Contract & Clues</h2>
+            <span class="subtle" id="settlement-rule">settles to end-of-session print</span>
+          </div>
+          <div class="response-callout">
+            <span class="label">Current Clue</span>
+            <strong id="current-clue">-</strong>
+          </div>
           <p id="strategy-note" class="response-copy"></p>
+          <div class="stats-grid compact">
+            <div>
+              <span class="label">Settlement</span>
+              <strong id="settlement-value">hidden</strong>
+            </div>
+            <div>
+              <span class="label">Revealed Clues</span>
+              <strong id="clue-count">0</strong>
+            </div>
+          </div>
+          <ul id="revealed-clues" class="clue-list"></ul>
           <div class="mini-path">
             <div class="path-labels">
               <span class="label">Recent Price Path</span>
@@ -212,7 +230,7 @@
         </article>
 
         <article class="panel response-panel">
-          <h2>Script Response</h2>
+          <h2>Interviewer Action</h2>
           <div class="response-callout">
             <span class="label">Latest Action</span>
             <strong id="script-action">Press start to begin.</strong>
