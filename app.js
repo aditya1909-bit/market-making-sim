@@ -271,12 +271,7 @@
   }
 
   function describeHandUpdate(update) {
-    if (!update?.added && !update?.removed) {
-      return "No hand changes yet.";
-    }
-    const removed = update.removed ? formatCard(update.removed) : "-";
-    const added = update.added ? formatCard(update.added) : "-";
-    return `Reveal ${update.revealNumber}: out ${removed}, in ${added}.`;
+    return "Your 2-card hand stays fixed for the full round.";
   }
 
   function formatDuration(ms) {
@@ -323,22 +318,22 @@
     setText(
       elements.heroText,
       isCardGame
-        ? "Create a private card-market room, deal hidden hands, reveal board cards one by one, and trade a live market on a card-derived property."
+        ? "Create a private card-market room, deal fixed hidden hands, reveal board cards one by one, and trade a live market on a card-derived property."
         : "Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker chooses buy, sell, or pass, and settlement stays hidden until the round ends."
     );
     setText(
       elements.modeDescription,
       isCardGame
-        ? "Multiplayer card-market play with changing private hands, timed reveals, and live room-wide quoting."
+        ? "Multiplayer card-market play with fixed private hands, timed board reveals, and live room-wide quoting."
         : "Two-player interview-style market making with one hidden settlement value."
     );
-    setText(elements.setupMessage, isCardGame ? "Card market rooms support 2 to 10 players. Random matching pairs you into a fresh public-card market room." : "The site connects to the live game server automatically. Refreshing the page restores your room when possible.");
+    setText(elements.setupMessage, isCardGame ? "Card market rooms support 2 to 10 players. Each player gets 2 private cards from a normal deck, and the table reveals one new public card each minute." : "The site connects to the live game server automatically. Refreshing the page restores your room when possible.");
     setText(elements.roomActionMessage, isCardGame ? "Use a private code room for a larger table, or queue into a random card market." : "Private rooms are best for playing a specific friend.");
     setText(elements.queueTitle, isCardGame ? "Queue into a random card market" : "Queue into the next game");
     setText(elements.queueStatus, "Not in matchmaking queue.");
     setText(elements.botTitle, "Play the trained model");
     setText(elements.cardInfoTitle, "How this game runs");
-    setText(elements.cardInfoPrivate, "Each player starts with 3 private cards. New board reveals rotate information into every hand.");
+    setText(elements.cardInfoPrivate, "Each player starts with 2 private cards from a standard 52-card deck. Your hand stays fixed for the full round.");
     setText(elements.cardInfoTrading, "There is no maker turn. Anyone can post a live market and anyone else can trade against it.");
     setText(elements.cardInfoTiming, "The round runs on a shared clock. Cards reveal automatically, or faster if everyone votes to reveal early.");
     elements.profileCard.classList.remove("hidden");
@@ -1098,7 +1093,7 @@
     setText(
       elements.contractRange,
       isCardGame
-        ? `Board shown: ${game?.boardCards?.length || 0} / ${game?.boardRevealTotal || 0}. Every reveal refreshes one private card for every player.`
+        ? `Board shown: ${game?.boardCards?.length || 0} / ${game?.boardRevealTotal || 0}. Private hands stay fixed while the table reveals one new card at a time.`
         : game?.contract
           ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
           : "Range: -"
@@ -1143,7 +1138,7 @@
     );
     renderCardRack(elements.privateHand, game?.privateHand || [], "No cards dealt yet.");
     renderCardRack(elements.boardCards, game?.boardCards || [], "No board cards revealed yet.");
-    setText(elements.handUpdate, describeHandUpdate(game?.recentHandUpdate));
+    setText(elements.handUpdate, describeHandUpdate());
     setText(
       elements.cardResponseStatus,
       isCardGame

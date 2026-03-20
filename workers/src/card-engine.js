@@ -2,12 +2,12 @@ import { GAME_ROLE, ROOM_STATUS, TAKER_ACTION } from "./protocol.js";
 import { playerFor } from "./game-engine.js";
 
 const BOARD_CARD_COUNT = 5;
-const PRIVATE_CARDS_PER_PLAYER = 3;
+const PRIVATE_CARDS_PER_PLAYER = 2;
 const MAX_QUOTE_SIZE = 5;
 const ROUND_DURATION_MS = 5 * 60 * 1000;
 const REVEAL_INTERVAL_MS = 60 * 1000;
 const QUOTE_TTL_MS = 25 * 1000;
-const SHOE_COUNT = 2;
+const SHOE_COUNT = 1;
 
 const TARGETS = [
   {
@@ -174,25 +174,6 @@ function drawCard(room) {
   return room.game.deck.shift() || null;
 }
 
-function rotatePrivateHands(room) {
-  const updates = {};
-  for (const player of room.players) {
-    const hand = [...(room.game.privateHands[player.id] || [])];
-    const removed = hand.shift() || null;
-    const added = drawCard(room);
-    if (added) {
-      hand.push(added);
-    }
-    room.game.privateHands[player.id] = hand;
-    updates[player.id] = {
-      removed,
-      added,
-      revealNumber: room.game.revealedBoardCount,
-    };
-  }
-  room.game.lastHandUpdates = updates;
-}
-
 function visibleBoard(room) {
   return (room.game.boardCards || []).slice(0, room.game.revealedBoardCount || 0);
 }
@@ -241,13 +222,10 @@ function revealNextBoardCard(room, now, reason) {
   room.game.revealedBoardCount += 1;
   room.game.lastRevealAt = now;
   room.game.revealVotes = {};
-  if (room.game.revealedBoardCount > 1) {
-    rotatePrivateHands(room);
-  }
   room.game.liveQuotes = {};
   room.game.lastResolution = {
     type: "board_revealed",
-    text: `${reason}. Board is now ${visibleBoard(room).map((card) => card.code).join(" ")}. Every player cycled one private card and all live quotes were cleared.`,
+    text: `${reason}. Board is now ${visibleBoard(room).map((card) => card.code).join(" ")}. Private hands stay fixed for the full round and all live quotes were cleared.`,
   };
   room.game.log.unshift({
     type: "reveal",
@@ -286,7 +264,6 @@ export function createCardGamePreview(room) {
     lastMark: 0,
     liveQuotes: {},
     revealVotes: {},
-    lastHandUpdates: {},
     startedAt: null,
     endsAt: null,
     nextRevealAt: null,
@@ -331,6 +308,9 @@ export function startCardGame(room, now = Date.now()) {
   }
 
   const totalCards = room.players.length * PRIVATE_CARDS_PER_PLAYER + BOARD_CARD_COUNT;
+  if (totalCards > 52 * SHOE_COUNT) {
+    throw new Error("Not enough cards in the deck for this room size.");
+  }
   const target = chooseTarget(totalCards);
   const shuffledDeck = shuffle(buildDeck());
   const privateHands = {};
@@ -361,7 +341,6 @@ export function startCardGame(room, now = Date.now()) {
     lastMark: 0,
     liveQuotes: {},
     revealVotes: {},
-    lastHandUpdates: {},
     startedAt: now,
     endsAt: now + ROUND_DURATION_MS,
     nextRevealAt: now + REVEAL_INTERVAL_MS,
@@ -580,7 +559,6 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
   const mark = markForGame(room);
   const revealVotes = room.game.revealVotes || {};
   const liveQuotes = room.game.liveQuotes || {};
-  const recentHandUpdate = room.game.lastHandUpdates?.[playerId] || null;
 
   return {
     roomId: room.id,
@@ -622,7 +600,6 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
       boardCards: visibleBoard(room),
       boardRevealTotal: room.game.boardCards?.length || 0,
       privateHand: room.game.privateHands?.[playerId] || [],
-      recentHandUpdate,
       positions: room.players.map((entry) => ({
         id: entry.id,
         name: entry.name,

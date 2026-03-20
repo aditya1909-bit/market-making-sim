@@ -353,6 +353,7 @@ h2 {
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
+  color: #0f172a;
 }
 
 body.card-theme .playing-card {
@@ -363,6 +364,7 @@ body.card-theme .playing-card {
   box-shadow:
     0 16px 28px rgba(2, 6, 23, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  color: #0f172a;
 }
 
 body.card-theme .mode-toggle {
@@ -456,19 +458,19 @@ body.card-theme .status-chip.bot {
   position: relative;
   z-index: 2;
   font-size: 0.72rem;
-  color: var(--muted);
+  color: #5b667a;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .playing-card.card-red .playing-card-pip,
 .playing-card.card-red .playing-card-corner {
-  color: var(--red);
+  color: #c62626;
 }
 
 .playing-card.card-black .playing-card-pip,
 .playing-card.card-black .playing-card-corner {
-  color: var(--ink);
+  color: #111827;
 }
 
 .subtle-copy {
