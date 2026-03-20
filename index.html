@@ -46,7 +46,7 @@
       </section>
 
       <section id="setup-section" class="setup-grid">
-        <article id="queue-card" class="card">
+        <article id="profile-card" class="card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Profile</p>
@@ -64,7 +64,7 @@
           </p>
         </article>
 
-        <article id="bot-card" class="card">
+        <article id="private-room-card" class="card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Private match</p>
@@ -84,7 +84,7 @@
           <p id="room-action-message" class="body-copy subtle-copy">Private rooms are best for playing a specific friend.</p>
         </article>
 
-        <article class="card">
+        <article id="random-match-card" class="card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Random match</p>
@@ -98,7 +98,7 @@
           <p id="queue-status" class="body-copy subtle-copy">Not in matchmaking queue.</p>
         </article>
 
-        <article class="card">
+        <article id="rl-bot-card" class="card">
           <div class="card-head">
             <div>
               <p class="eyebrow">RL bot</p>
@@ -112,6 +112,29 @@
           <p class="body-copy subtle-copy">
             Starts a private room against your server-side RL bot. Rematches automatically swap roles.
           </p>
+        </article>
+
+        <article id="card-market-info-card" class="card hidden">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Card market</p>
+              <h2 id="card-info-title">How this game runs</h2>
+            </div>
+          </div>
+          <div class="role-brief-stack">
+            <div class="soft-panel">
+              <span class="mini-label">Information</span>
+              <p id="card-info-private" class="body-copy">Each player starts with 3 private cards. The board reveals over time and every reveal refreshes part of your hand.</p>
+            </div>
+            <div class="soft-panel">
+              <span class="mini-label">Trading</span>
+              <p id="card-info-trading" class="body-copy">Anyone can keep a live quote in the room, and anyone else can buy or sell against it while it is live.</p>
+            </div>
+            <div class="soft-panel">
+              <span class="mini-label">Clock</span>
+              <p id="card-info-timing" class="body-copy">Rounds run on a timer. New board cards reveal automatically, or earlier if the whole room votes to speed it up.</p>
+            </div>
+          </div>
         </article>
       </section>
 

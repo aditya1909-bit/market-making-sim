@@ -168,7 +168,11 @@ export default {
           headers: {
             "content-type": "application/json",
           },
-          body: JSON.stringify({ name: body.name, clientId: body.clientId }),
+          body: JSON.stringify({
+            name: body.name,
+            clientId: body.clientId,
+            gameType: body.gameType === "card_market" ? "card_market" : "hidden_value",
+          }),
         });
         return withCors(response);
       }

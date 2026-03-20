@@ -28,15 +28,22 @@
     joinCode: document.getElementById("join-code"),
     joinRoom: document.getElementById("join-room"),
     roomActionMessage: document.getElementById("room-action-message"),
-    queueCard: document.getElementById("queue-card"),
+    profileCard: document.getElementById("profile-card"),
+    privateRoomCard: document.getElementById("private-room-card"),
+    randomMatchCard: document.getElementById("random-match-card"),
     queueMatch: document.getElementById("queue-match"),
     cancelQueue: document.getElementById("cancel-queue"),
     queueStatus: document.getElementById("queue-status"),
     queueTitle: document.getElementById("queue-title"),
     playBotMaker: document.getElementById("play-bot-maker"),
     playBotTaker: document.getElementById("play-bot-taker"),
-    botCard: document.getElementById("bot-card"),
+    rlBotCard: document.getElementById("rl-bot-card"),
     botTitle: document.getElementById("bot-title"),
+    cardMarketInfoCard: document.getElementById("card-market-info-card"),
+    cardInfoTitle: document.getElementById("card-info-title"),
+    cardInfoPrivate: document.getElementById("card-info-private"),
+    cardInfoTrading: document.getElementById("card-info-trading"),
+    cardInfoTiming: document.getElementById("card-info-timing"),
     roomCodeDisplay: document.getElementById("room-code-display"),
     copyRoomCode: document.getElementById("copy-room-code"),
     readyToggle: document.getElementById("ready-toggle"),
@@ -184,17 +191,21 @@
     return "Hidden Value";
   }
 
-  function formatCard(card) {
-    if (!card) {
-      return "-";
-    }
+  function suitSymbol(card) {
     const suitMap = {
       S: "♠",
       H: "♥",
       D: "♦",
       C: "♣",
     };
-    return `${card.rank}${suitMap[card.suit] || card.suit || ""}`;
+    return suitMap[card?.suit] || card?.suit || "";
+  }
+
+  function formatCard(card) {
+    if (!card) {
+      return "-";
+    }
+    return `${card.rank}${suitSymbol(card)}`;
   }
 
   function formatCards(cards) {
@@ -225,6 +236,10 @@
       const face = document.createElement("div");
       face.className = `playing-card ${cardColorClass(card)}`;
 
+      const pip = document.createElement("div");
+      pip.className = "playing-card-pip";
+      pip.textContent = suitSymbol(card);
+
       const corner = document.createElement("div");
       corner.className = "playing-card-corner";
       corner.textContent = formatCard(card);
@@ -233,6 +248,7 @@
       meta.className = "playing-card-meta";
       meta.textContent = card.suitName;
 
+      face.appendChild(pip);
       face.appendChild(corner);
       face.appendChild(meta);
       node.appendChild(face);
@@ -301,10 +317,20 @@
         ? "Multiplayer card-market play with changing private hands, timed reveals, and live room-wide quoting."
         : "Two-player interview-style market making with one hidden settlement value."
     );
-    setText(elements.queueTitle, isCardGame ? "Random queue is only for Hidden Value" : "Queue into the next game");
-    setText(elements.botTitle, isCardGame ? "RL bot is only for Hidden Value" : "Play the trained model");
-    elements.queueCard.classList.toggle("hidden", isCardGame);
-    elements.botCard.classList.toggle("hidden", isCardGame);
+    setText(elements.setupMessage, isCardGame ? "Card market rooms support 2 to 10 players. Random matching pairs you into a fresh public-card market room." : "The site connects to the live game server automatically. Refreshing the page restores your room when possible.");
+    setText(elements.roomActionMessage, isCardGame ? "Use a private code room for a larger table, or queue into a random card market." : "Private rooms are best for playing a specific friend.");
+    setText(elements.queueTitle, isCardGame ? "Queue into a random card market" : "Queue into the next game");
+    setText(elements.queueStatus, "Not in matchmaking queue.");
+    setText(elements.botTitle, "Play the trained model");
+    setText(elements.cardInfoTitle, "How this game runs");
+    setText(elements.cardInfoPrivate, "Each player starts with 3 private cards. New board reveals rotate information into every hand.");
+    setText(elements.cardInfoTrading, "There is no maker turn. Anyone can post a live market and anyone else can trade against it.");
+    setText(elements.cardInfoTiming, "The round runs on a shared clock. Cards reveal automatically, or faster if everyone votes to reveal early.");
+    elements.profileCard.classList.remove("hidden");
+    elements.privateRoomCard.classList.remove("hidden");
+    elements.randomMatchCard.classList.remove("hidden");
+    elements.rlBotCard.classList.toggle("hidden", isCardGame);
+    elements.cardMarketInfoCard.classList.toggle("hidden", !isCardGame);
   }
 
   function normalizeBackendUrl(input) {
@@ -721,10 +747,6 @@
   }
 
   async function queueRandomMatch() {
-    if (selectedGameType() === "card_market") {
-      setQueueStatus("Random matchmaking is only available for Hidden Value right now.", true);
-      return;
-    }
     if (state.queueTicketId || state.queueJoinPending) {
       return;
     }
@@ -732,7 +754,8 @@
       state.queueJoinPending = true;
       render();
       const name = requirePlayerName();
-      const payload = await api("/api/matchmaking/join", { method: "POST", body: { name, clientId: state.clientId } });
+      const gameType = selectedGameType();
+      const payload = await api("/api/matchmaking/join", { method: "POST", body: { name, clientId: state.clientId, gameType } });
       state.queueTicketId = payload.ticketId;
 
       if (payload.status === "matched") {
@@ -746,7 +769,7 @@
         return;
       }
 
-      setQueueStatus("Searching for opponent...");
+      setQueueStatus(gameType === "card_market" ? "Searching for a card-market table..." : "Searching for opponent...");
       clearQueuePolling();
       state.queuePollHandle = window.setInterval(async () => {
         try {
@@ -1134,7 +1157,7 @@
     elements.takerSell.disabled = !canTake;
     elements.takerPass.disabled = !canTake;
     elements.requestNextReveal.disabled = !canVoteReveal;
-    elements.queueMatch.disabled = selectedType === "card_market" || Boolean(state.queueTicketId) || Boolean(state.roomCode);
+    elements.queueMatch.disabled = Boolean(state.queueTicketId) || Boolean(state.roomCode);
     if (state.queueJoinPending) {
       elements.queueMatch.disabled = true;
     }

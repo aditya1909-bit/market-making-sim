@@ -215,13 +215,18 @@ export class RoomDurableObject extends DurableObject {
     if (names.length !== 2) {
       throw new Error("Matched room needs exactly two player names.");
     }
+    const gameType = body.gameType === "card_market" ? "card_market" : "hidden_value";
     const code = String(body.code || "").trim().toUpperCase();
     if (!code) {
       throw new Error("Room code is required.");
     }
 
-    this.room = createMatchedRoomState(code, validateName(names[0]), validateName(names[1]));
-    prepareNextGame(this.room, sampleContract());
+    this.room = createMatchedRoomState(code, validateName(names[0]), validateName(names[1]), gameType);
+    if (gameType === "card_market") {
+      prepareNextCardGame(this.room, { incrementGameNumber: true });
+    } else {
+      prepareNextGame(this.room, sampleContract());
+    }
     await this.persist();
 
     return json(

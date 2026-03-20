@@ -76,13 +76,19 @@ export function createRoomState(code, hostName, options = {}) {
   return room;
 }
 
-export function createMatchedRoomState(code, nameA, nameB) {
-  const room = baseRoom(code, { gameType: "hidden_value", maxPlayers: 2 });
+export function createMatchedRoomState(code, nameA, nameB, gameType = "hidden_value") {
+  const normalizedGameType = gameType === "card_market" ? "card_market" : "hidden_value";
+  const room = baseRoom(code, {
+    gameType: normalizedGameType,
+    maxPlayers: normalizedGameType === "card_market" ? 10 : 2,
+  });
   const a = createPlayer(nameA);
   const b = createPlayer(nameB);
   room.players = [a, b];
   room.hostId = a.id;
-  assignRoles(room);
+  if (normalizedGameType === "hidden_value") {
+    assignRoles(room);
+  }
   return room;
 }
 

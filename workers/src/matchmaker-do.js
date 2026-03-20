@@ -33,6 +33,10 @@ function validateClientId(clientId) {
   return value;
 }
 
+function normalizeGameType(gameType) {
+  return gameType === "card_market" ? "card_market" : "hidden_value";
+}
+
 function randomCode(length = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
@@ -49,6 +53,7 @@ function serializeTicket(ticket) {
   return {
     ticketId: ticket.id,
     status: ticket.status,
+    gameType: ticket.gameType,
     roomId: ticket.roomId,
     roomCode: ticket.roomCode,
     playerId: ticket.playerId,
@@ -95,6 +100,7 @@ export class MatchmakerDurableObject extends DurableObject {
     const body = await readJson(request);
     const name = validateName(body.name);
     const clientId = validateClientId(body.clientId);
+    const gameType = normalizeGameType(body.gameType);
     const existingTicket = this.findActiveTicketForClient(clientId);
     if (existingTicket) {
       return json(serializeTicket(existingTicket), 200);
@@ -102,15 +108,15 @@ export class MatchmakerDurableObject extends DurableObject {
     const ticketId = crypto.randomUUID();
 
     let waitingTicketId = null;
-    const skippedSameClient = [];
+    const skippedIds = [];
     while (this.queue.length) {
       const candidateId = this.queue.shift();
       const candidate = this.tickets[candidateId];
       if (candidate?.status !== "queued") {
         continue;
       }
-      if (candidate.clientId === clientId) {
-        skippedSameClient.push(candidateId);
+      if (candidate.clientId === clientId || normalizeGameType(candidate.gameType) !== gameType) {
+        skippedIds.push(candidateId);
         continue;
       }
       if (candidate.status === "queued") {
@@ -118,8 +124,8 @@ export class MatchmakerDurableObject extends DurableObject {
         break;
       }
     }
-    if (skippedSameClient.length) {
-      this.queue = skippedSameClient.concat(this.queue);
+    if (skippedIds.length) {
+      this.queue = skippedIds.concat(this.queue);
     }
 
     if (!waitingTicketId) {
@@ -128,6 +134,7 @@ export class MatchmakerDurableObject extends DurableObject {
         status: "queued",
         name,
         clientId,
+        gameType,
         createdAt: Date.now(),
       };
       await this.persist();
@@ -137,9 +144,10 @@ export class MatchmakerDurableObject extends DurableObject {
     }
 
     const waitingTicket = this.tickets[waitingTicketId];
-    const created = await this.createMatchedRoom(waitingTicket.name, name);
+    const created = await this.createMatchedRoom(waitingTicket.name, name, gameType);
 
     waitingTicket.status = "matched";
+    waitingTicket.gameType = gameType;
     waitingTicket.roomId = created.roomId;
     waitingTicket.roomCode = created.roomCode;
     waitingTicket.playerId = created.players[0].playerId;
@@ -149,6 +157,7 @@ export class MatchmakerDurableObject extends DurableObject {
       status: "matched",
       name,
       clientId,
+      gameType,
       roomId: created.roomId,
       roomCode: created.roomCode,
       playerId: created.players[1].playerId,
@@ -194,7 +203,7 @@ export class MatchmakerDurableObject extends DurableObject {
     return null;
   }
 
-  async createMatchedRoom(nameA, nameB) {
+  async createMatchedRoom(nameA, nameB, gameType) {
     for (let attempt = 0; attempt < 12; attempt += 1) {
       const code = randomCode();
       const roomId = this.env.ROOM.idFromName(code);
@@ -204,7 +213,7 @@ export class MatchmakerDurableObject extends DurableObject {
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({ code, names: [nameA, nameB] }),
+        body: JSON.stringify({ code, names: [nameA, nameB], gameType: normalizeGameType(gameType) }),
       });
 
       if (response.status === 409) {
