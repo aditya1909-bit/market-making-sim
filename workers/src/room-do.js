@@ -1,10 +1,12 @@
 import { DurableObject } from "cloudflare:workers";
 import { botDecision, observeBotQuote, observeBotResolution, refreshBotEstimate } from "./bot-policy.js";
+import { buildCardPlayerView, maybeStartCardGame, prepareNextCardGame, startCardGame, submitCardQuote, takeCardAction } from "./card-engine.js";
 import { sampleContract } from "./contracts.js";
 import {
   addPlayerToRoom,
   assignRoles,
   buildPlayerView,
+  clearReady,
   createBotRoomState,
   createMatchedRoomState,
   createRoomState,
@@ -13,7 +15,7 @@ import {
   playerFor,
   prepareNextGame,
   requestRematch,
-  seedContract,
+  resetRematchVotes,
   setReady,
   startGame,
   submitQuote,
@@ -57,6 +59,10 @@ function toText(message) {
     return new TextDecoder().decode(message);
   }
   return String(message || "");
+}
+
+function isCardGame(room) {
+  return room?.gameType === "card_market";
 }
 
 export class RoomDurableObject extends DurableObject {
@@ -128,12 +134,20 @@ export class RoomDurableObject extends DurableObject {
     const body = await readJson(request);
     const name = validateName(body.name);
     const code = String(body.code || "").trim().toUpperCase();
+    const gameType = body.gameType === "card_market" ? "card_market" : "hidden_value";
     if (!code) {
       throw new Error("Room code is required.");
     }
 
-    this.room = createRoomState(code, name);
-    prepareNextGame(this.room, sampleContract());
+    this.room = createRoomState(code, name, {
+      gameType,
+      maxPlayers: gameType === "card_market" ? 10 : 2,
+    });
+    if (gameType === "card_market") {
+      prepareNextCardGame(this.room, { incrementGameNumber: true });
+    } else {
+      prepareNextGame(this.room, sampleContract());
+    }
     await this.persist();
 
     return json(this.serializeJoin(this.room.players[0].id), 201);
@@ -169,8 +183,11 @@ export class RoomDurableObject extends DurableObject {
 
     const body = await readJson(request);
     const player = addPlayerToRoom(this.room, validateName(body.name));
-    if (this.room.players.length === 2 && (!this.room.makerId || !this.room.takerId)) {
+    if (!isCardGame(this.room) && this.room.players.length === 2 && (!this.room.makerId || !this.room.takerId)) {
       assignRoles(this.room);
+    }
+    if (isCardGame(this.room) && this.room.status === "lobby") {
+      prepareNextCardGame(this.room);
     }
     await this.persist();
 
@@ -264,11 +281,15 @@ export class RoomDurableObject extends DurableObject {
       switch (parsed.type) {
         case CLIENT_EVENTS.READY:
           setReady(this.room, playerId, parsed.payload?.ready ?? parsed.ready);
-          if (this.room.players.length === 2 && (!this.room.makerId || !this.room.takerId)) {
+          if (!isCardGame(this.room) && this.room.players.length === 2 && (!this.room.makerId || !this.room.takerId)) {
             assignRoles(this.room);
           }
-          maybeStartGame(this.room);
-          if (this.room.bot?.enabled && this.room.status === "live" && this.room.bot.privateEstimate === null) {
+          if (isCardGame(this.room)) {
+            maybeStartCardGame(this.room);
+          } else {
+            maybeStartGame(this.room);
+          }
+          if (!isCardGame(this.room) && this.room.bot?.enabled && this.room.status === "live" && this.room.bot.privateEstimate === null) {
             refreshBotEstimate(this.room);
           }
           await this.advanceBotUntilHumanTurn();
@@ -276,8 +297,12 @@ export class RoomDurableObject extends DurableObject {
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.START_GAME:
-          startGame(this.room);
-          if (this.room.bot?.enabled) {
+          if (isCardGame(this.room)) {
+            startCardGame(this.room);
+          } else {
+            startGame(this.room);
+          }
+          if (!isCardGame(this.room) && this.room.bot?.enabled) {
             refreshBotEstimate(this.room);
           }
           await this.advanceBotUntilHumanTurn();
@@ -285,8 +310,12 @@ export class RoomDurableObject extends DurableObject {
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.SUBMIT_QUOTE:
-          submitQuote(this.room, playerId, parsed.payload || {});
-          if (this.room.bot?.enabled && this.room.takerId === this.room.bot.playerId) {
+          if (isCardGame(this.room)) {
+            submitCardQuote(this.room, playerId, parsed.payload || {});
+          } else {
+            submitQuote(this.room, playerId, parsed.payload || {});
+          }
+          if (!isCardGame(this.room) && this.room.bot?.enabled && this.room.takerId === this.room.bot.playerId) {
             observeBotQuote(this.room, this.room.bot.playerId);
           }
           await this.advanceBotUntilHumanTurn();
@@ -294,8 +323,12 @@ export class RoomDurableObject extends DurableObject {
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.TAKER_ACTION:
-          takeAction(this.room, playerId, parsed.payload || {});
-          if (this.room.bot?.enabled && this.room.makerId === this.room.bot.playerId) {
+          if (isCardGame(this.room)) {
+            takeCardAction(this.room, playerId, parsed.payload || {});
+          } else {
+            takeAction(this.room, playerId, parsed.payload || {});
+          }
+          if (!isCardGame(this.room) && this.room.bot?.enabled && this.room.makerId === this.room.bot.playerId) {
             observeBotResolution(this.room, this.room.bot.playerId);
           }
           await this.advanceBotUntilHumanTurn();
@@ -309,8 +342,14 @@ export class RoomDurableObject extends DurableObject {
           }
           const readyToRestart = hasAllRematchVotes(this.room);
           if (readyToRestart) {
-            prepareNextGame(this.room, sampleContract(), { swap: true, autoStart: true });
-            if (this.room.bot?.enabled) {
+            if (isCardGame(this.room)) {
+              resetRematchVotes(this.room);
+              clearReady(this.room);
+              prepareNextCardGame(this.room, { incrementGameNumber: true });
+            } else {
+              prepareNextGame(this.room, sampleContract(), { swap: true, autoStart: true });
+            }
+            if (!isCardGame(this.room) && this.room.bot?.enabled) {
               refreshBotEstimate(this.room);
               await this.advanceBotUntilHumanTurn();
             }
@@ -350,7 +389,7 @@ export class RoomDurableObject extends DurableObject {
   }
 
   async advanceBotUntilHumanTurn() {
-    if (!this.room?.bot?.enabled) {
+    if (isCardGame(this.room) || !this.room?.bot?.enabled) {
       return;
     }
 
@@ -395,7 +434,9 @@ export class RoomDurableObject extends DurableObject {
       roomCode: this.room.code,
       playerId,
       status: this.room.status,
-      view: buildPlayerView(this.room, playerId, this.connectedIds()),
+      view: isCardGame(this.room)
+        ? buildCardPlayerView(this.room, playerId, this.connectedIds())
+        : buildPlayerView(this.room, playerId, this.connectedIds()),
     };
   }
 
@@ -411,7 +452,9 @@ export class RoomDurableObject extends DurableObject {
       }
       this.send(socket, {
         type: SERVER_EVENTS.ROOM_STATE,
-        payload: buildPlayerView(this.room, playerId, connectedIds),
+        payload: isCardGame(this.room)
+          ? buildCardPlayerView(this.room, playerId, connectedIds)
+          : buildPlayerView(this.room, playerId, connectedIds),
       });
     }
   }

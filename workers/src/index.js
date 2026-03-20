@@ -51,7 +51,7 @@ function roomStubForCode(env, code) {
   return env.ROOM.get(roomId);
 }
 
-async function createPrivateRoom(env, name) {
+async function createPrivateRoom(env, name, gameType = "hidden_value") {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const code = randomCode();
     const response = await roomStubForCode(env, code).fetch("https://room/internal/create", {
@@ -59,7 +59,7 @@ async function createPrivateRoom(env, name) {
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({ name, code }),
+      body: JSON.stringify({ name, code, gameType }),
     });
 
     if (response.status === 409) {
@@ -127,7 +127,7 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/api/rooms") {
         const body = await readJson(request);
-        return json(await createPrivateRoom(env, body.name), 201);
+        return json(await createPrivateRoom(env, body.name, body.gameType), 201);
       }
 
       if (request.method === "POST" && url.pathname === "/api/bot-rooms") {

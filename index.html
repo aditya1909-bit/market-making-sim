@@ -57,6 +57,13 @@
             </div>
           </div>
           <div class="action-stack">
+            <label class="field-card">
+              <span class="mini-label">Game type</span>
+              <select id="game-type">
+                <option value="hidden_value">Hidden Value</option>
+                <option value="card_market">Card Market</option>
+              </select>
+            </label>
             <button id="create-room" class="primary-button">Create Private Room</button>
             <div class="join-row">
               <label class="field-card join-card">
@@ -125,6 +132,10 @@
             <div class="mini-metric">
               <span class="mini-label">Active actor</span>
               <strong id="active-actor">-</strong>
+            </div>
+            <div class="mini-metric">
+              <span class="mini-label">Game type</span>
+              <strong id="game-type-label">Hidden Value</strong>
             </div>
             <div class="mini-metric">
               <span class="mini-label">Match</span>
@@ -253,6 +264,30 @@
           </div>
         </article>
 
+        <article id="card-state-card" class="card workspace-card hidden">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Card state</p>
+              <h2>Private hand and board</h2>
+            </div>
+            <span id="card-maker-badge" class="badge">Maker: -</span>
+          </div>
+          <div class="split-callouts">
+            <div class="soft-panel">
+              <span class="mini-label">Your private hand</span>
+              <p id="private-hand" class="body-copy">No cards dealt yet.</p>
+            </div>
+            <div class="soft-panel">
+              <span class="mini-label">Revealed board</span>
+              <p id="board-cards" class="body-copy">No board cards revealed yet.</p>
+            </div>
+          </div>
+          <div class="soft-panel top-gap">
+            <span class="mini-label">Quote progress</span>
+            <p id="card-response-status" class="body-copy">No live quote.</p>
+          </div>
+        </article>
+
         <article class="card market-card">
           <div class="card-head">
             <div>
@@ -286,7 +321,7 @@
       </section>
 
       <section class="lower-grid">
-        <article class="card">
+        <article id="classic-position-card" class="card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Position</p>
@@ -319,6 +354,16 @@
               <strong id="settlement-value">hidden</strong>
             </div>
           </div>
+        </article>
+
+        <article id="positions-card" class="card hidden">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Positions</p>
+              <h2>All players</h2>
+            </div>
+          </div>
+          <ul id="positions-list" class="tape-list"></ul>
         </article>
 
         <article class="card">

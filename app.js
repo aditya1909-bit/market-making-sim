@@ -11,6 +11,7 @@
   const elements = {
     connectionStatus: document.getElementById("connection-status"),
     playerName: document.getElementById("player-name"),
+    gameType: document.getElementById("game-type"),
     setupMessage: document.getElementById("setup-message"),
     createRoom: document.getElementById("create-room"),
     joinCode: document.getElementById("join-code"),
@@ -30,6 +31,7 @@
     gameStatus: document.getElementById("game-status"),
     turnLabel: document.getElementById("turn-label"),
     activeActor: document.getElementById("active-actor"),
+    gameTypeLabel: document.getElementById("game-type-label"),
     matchType: document.getElementById("match-type"),
     gameNumber: document.getElementById("game-number"),
     playersList: document.getElementById("players-list"),
@@ -59,6 +61,14 @@
     takerBuy: document.getElementById("taker-buy"),
     takerSell: document.getElementById("taker-sell"),
     takerPass: document.getElementById("taker-pass"),
+    cardStateCard: document.getElementById("card-state-card"),
+    cardMakerBadge: document.getElementById("card-maker-badge"),
+    privateHand: document.getElementById("private-hand"),
+    boardCards: document.getElementById("board-cards"),
+    cardResponseStatus: document.getElementById("card-response-status"),
+    classicPositionCard: document.getElementById("classic-position-card"),
+    positionsCard: document.getElementById("positions-card"),
+    positionsList: document.getElementById("positions-list"),
     youCash: document.getElementById("you-cash"),
     youInventory: document.getElementById("you-inventory"),
     youPnl: document.getElementById("you-pnl"),
@@ -141,6 +151,27 @@
     return Number(value).toFixed(digits);
   }
 
+  function formatGameType(value) {
+    if (value === "card_market") {
+      return "Card Market";
+    }
+    return "Hidden Value";
+  }
+
+  function formatCard(card) {
+    if (!card) {
+      return "-";
+    }
+    return card.code || `${card.rank}${card.suit}`;
+  }
+
+  function formatCards(cards) {
+    if (!cards?.length) {
+      return "None shown.";
+    }
+    return cards.map((card) => formatCard(card)).join("  ");
+  }
+
   function normalizeBackendUrl(input) {
     return String(input || "")
       .trim()
@@ -171,7 +202,16 @@
     return (Number(quote.bid) + Number(quote.ask)) / 2;
   }
 
-  function buildRoleHeadline(role) {
+  function buildRoleHeadline(role, roomState, game) {
+    if (roomState?.gameType === "card_market") {
+      if (role === "market_maker") {
+        return "You set the market for this reveal step.";
+      }
+      if (role === "market_taker") {
+        return "You trade against the live maker using your private hand.";
+      }
+      return "Join a room to receive cards and a turn in the maker rotation.";
+    }
     if (role === "market_maker") {
       return "You set the market and decide how much edge to show.";
     }
@@ -184,6 +224,18 @@
   function buildTurnPrompt(role, roomState, game) {
     if (!roomState || !game) {
       return "No active turn.";
+    }
+    if (roomState.gameType === "card_market") {
+      if (roomState.status === "finished") {
+        return "The final board is revealed and positions are settled.";
+      }
+      if (roomState.status === "lobby") {
+        return "Waiting for at least two players to mark ready.";
+      }
+      if (role === "market_maker") {
+        return game.activeActor === "maker" ? "Post a market for the current card property." : "Waiting for responders to trade or pass.";
+      }
+      return game.activeActor === "taker" ? "Trade this quote once, or pass." : "Waiting for the maker to post a quote.";
     }
     if (roomState.status === "finished") {
       return "The round is settled. Review the tape and request a rematch if you want the other side.";
@@ -210,6 +262,15 @@
     if (!roomState || !game) {
       return "Create, join, or resume a room to receive a role.";
     }
+    if (roomState.gameType === "card_market") {
+      if (role === "market_maker") {
+        return "Use your private cards plus the revealed board to set a tradable market.";
+      }
+      if (role === "market_taker") {
+        return "You can trade the quote once each round while the maker rotates around the table.";
+      }
+      return "The card market starts once at least two players are ready.";
+    }
     if (role === "market_maker") {
       return "Quote both sides and manage your inventory.";
     }
@@ -220,6 +281,15 @@
   }
 
   function buildBluffSummary(role, game) {
+    if (game?.mode === "card_market") {
+      if (!game?.currentQuote) {
+        return "No live quote yet. Private information still dominates.";
+      }
+      if ((game?.respondedPlayerIds || []).length === 0) {
+        return "The maker has shown a market. First responses will reveal whether the quote is off.";
+      }
+      return `${game.respondedPlayerIds.length} player${game.respondedPlayerIds.length === 1 ? "" : "s"} already responded to this quote.`;
+    }
     if (!game?.previousQuote && !game?.currentQuote) {
       return "No quote pressure yet.";
     }
@@ -270,6 +340,12 @@
   }
 
   function buildQuoteContext(game) {
+    if (game?.mode === "card_market") {
+      if (!game?.currentQuote) {
+        return "Waiting for the current maker to quote.";
+      }
+      return `${game.currentMakerName || "Maker"} is quoting ${format(game.currentQuote.bid)} / ${format(game.currentQuote.ask)} x ${game.currentQuote.size}.`;
+    }
     if (!game?.previousQuote && !game?.currentQuote) {
       return "No quote sequence yet.";
     }
@@ -479,7 +555,8 @@
   async function createRoom() {
     try {
       const name = requirePlayerName();
-      const payload = await api("/api/rooms", { method: "POST", body: { name } });
+      const gameType = elements.gameType.value || "hidden_value";
+      const payload = await api("/api/rooms", { method: "POST", body: { name, gameType } });
       setActionMessage(`Created room ${payload.roomCode}.`);
       await connectToRoom(payload);
     } catch (error) {
@@ -728,16 +805,35 @@
     });
   }
 
+  function renderPositions(positions) {
+    elements.positionsList.innerHTML = "";
+    if (!positions?.length) {
+      const li = document.createElement("li");
+      li.textContent = "No positions yet.";
+      elements.positionsList.appendChild(li);
+      return;
+    }
+
+    positions.forEach((entry) => {
+      const li = document.createElement("li");
+      li.textContent = `${entry.name}: cash ${format(entry.cash)}, inventory ${entry.inventory}, pnl ${format(entry.pnl)}`;
+      elements.positionsList.appendChild(li);
+    });
+  }
+
   function render() {
     const roomState = state.roomState;
     const game = roomState?.game || null;
+    const gameType = roomState?.gameType || "hidden_value";
+    const isCardGame = gameType === "card_market";
     const role = roomState?.role || "";
-    const you = role === "market_maker" ? game?.maker : role === "market_taker" ? game?.taker : null;
-    const opponent = role === "market_maker" ? game?.taker : role === "market_taker" ? game?.maker : null;
+    const you = !isCardGame ? (role === "market_maker" ? game?.maker : role === "market_taker" ? game?.taker : null) : null;
+    const opponent = !isCardGame ? (role === "market_maker" ? game?.taker : role === "market_taker" ? game?.maker : null) : null;
     const makerTurn = game?.activeActor === "maker";
     const takerTurn = game?.activeActor === "taker";
+    const alreadyResponded = isCardGame ? (game?.respondedPlayerIds || []).includes(state.playerId) : false;
     const canQuote = roomState?.status === "live" && role === "market_maker" && makerTurn;
-    const canTake = roomState?.status === "live" && role === "market_taker" && takerTurn && game?.currentQuote;
+    const canTake = roomState?.status === "live" && role === "market_taker" && takerTurn && game?.currentQuote && !alreadyResponded;
     const isFinished = roomState?.status === "finished";
     const needsReady = roomState?.status === "lobby" && roomState?.matchType !== "bot";
     const pendingRematch = roomState?.rematch?.pendingPlayers || [];
@@ -747,6 +843,7 @@
     setText(elements.gameStatus, capWords(roomState?.status || "lobby"));
     setText(elements.turnLabel, `${game?.turn || 0} / ${game?.maxTurns || 0}`);
     setText(elements.activeActor, capWords(game?.activeActor || ""));
+    setText(elements.gameTypeLabel, formatGameType(gameType));
     setText(elements.matchType, roomState?.matchType === "bot" ? "RL Bot" : "Human");
     setText(elements.gameNumber, String(roomState?.gameNumber || 0));
 
@@ -758,7 +855,7 @@
         ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
         : "Range: -"
     );
-    setText(elements.roleHeadline, buildRoleHeadline(role));
+    setText(elements.roleHeadline, buildRoleHeadline(role, roomState, game));
     setText(elements.turnPrompt, buildTurnPrompt(role, roomState, game));
     setText(
       elements.roleSummaryTitle,
@@ -790,6 +887,17 @@
     setText(elements.takerQuoteSize, currentSize);
     setText(elements.previousQuote, formatQuote(game?.previousQuote));
     setText(elements.quoteContext, buildQuoteContext(game));
+    setText(elements.cardMakerBadge, `Maker: ${game?.currentMakerName || "-"}`);
+    setText(elements.privateHand, formatCards(game?.privateHand || []));
+    setText(elements.boardCards, formatCards(game?.boardCards || []));
+    setText(
+      elements.cardResponseStatus,
+      isCardGame
+        ? game?.currentQuote
+          ? `${(game?.respondedPlayerIds || []).length} of ${Math.max((roomState?.players?.length || 1) - 1, 0)} responders are done.`
+          : "No live quote."
+        : "No live quote."
+    );
 
     setText(elements.youCash, format(you?.cash || 0));
     setText(elements.youInventory, String(you?.inventory || 0));
@@ -800,6 +908,9 @@
 
     elements.quoteCard.classList.toggle("hidden", role !== "market_maker");
     elements.takerCard.classList.toggle("hidden", role !== "market_taker");
+    elements.cardStateCard.classList.toggle("hidden", !isCardGame);
+    elements.classicPositionCard.classList.toggle("hidden", isCardGame);
+    elements.positionsCard.classList.toggle("hidden", !isCardGame);
 
     elements.submitQuote.disabled = !canQuote;
     elements.takerBuy.disabled = !canTake;
@@ -825,6 +936,7 @@
     elements.requestRematch.disabled = !isFinished || Boolean(roomState?.rematch?.requested);
 
     renderPlayers(roomState?.players || []);
+    renderPositions(game?.positions || []);
     renderHistory(game?.log || []);
   }
 

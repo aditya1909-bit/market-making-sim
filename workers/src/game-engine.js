@@ -49,12 +49,14 @@ export function createGameState(contract = null) {
   };
 }
 
-function baseRoom(code) {
+function baseRoom(code, options = {}) {
   return {
     id: crypto.randomUUID(),
     code,
     hostId: null,
     players: [],
+    gameType: options.gameType || "hidden_value",
+    maxPlayers: options.maxPlayers || 2,
     makerId: null,
     takerId: null,
     status: ROOM_STATUS.LOBBY,
@@ -66,8 +68,8 @@ function baseRoom(code) {
   };
 }
 
-export function createRoomState(code, hostName) {
-  const room = baseRoom(code);
+export function createRoomState(code, hostName, options = {}) {
+  const room = baseRoom(code, options);
   const host = createPlayer(hostName);
   room.players = [host];
   room.hostId = host.id;
@@ -75,7 +77,7 @@ export function createRoomState(code, hostName) {
 }
 
 export function createMatchedRoomState(code, nameA, nameB) {
-  const room = baseRoom(code);
+  const room = baseRoom(code, { gameType: "hidden_value", maxPlayers: 2 });
   const a = createPlayer(nameA);
   const b = createPlayer(nameB);
   room.players = [a, b];
@@ -85,7 +87,7 @@ export function createMatchedRoomState(code, nameA, nameB) {
 }
 
 export function createBotRoomState(code, humanName, humanRole = GAME_ROLE.MAKER, strategy = "rl") {
-  const room = baseRoom(code);
+  const room = baseRoom(code, { gameType: "hidden_value", maxPlayers: 2 });
   const human = createPlayer(humanName, { ready: true });
   const bot = createPlayer("RL Bot", { ready: true, isBot: true });
   room.players = [human, bot];
@@ -130,12 +132,12 @@ export function swapRoles(room) {
 }
 
 export function addPlayerToRoom(room, name) {
-  if (room.players.length >= 2) {
+  if (room.players.length >= (room.maxPlayers || 2)) {
     throw new Error("Room is already full.");
   }
   const player = createPlayer(name);
   room.players.push(player);
-  if (room.players.length === 2 && (!room.makerId || !room.takerId)) {
+  if (room.gameType === "hidden_value" && room.players.length === 2 && (!room.makerId || !room.takerId)) {
     assignRoles(room);
   }
   return player;
@@ -359,6 +361,7 @@ export function buildPlayerView(room, playerId, connectedIds = new Set()) {
   return {
     roomId: room.id,
     roomCode: room.code,
+    gameType: room.gameType,
     status: room.status,
     role,
     ready: player?.ready ?? false,
