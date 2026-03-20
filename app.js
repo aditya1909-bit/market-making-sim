@@ -4,6 +4,7 @@
   const STORAGE_KEYS = {
     backendUrl: "market-making-sim.backend-url",
     playerName: "market-making-sim.player-name",
+    selectedGameType: "market-making-sim.selected-game-type",
     session: "market-making-sim.session",
     clientId: "market-making-sim.client-id",
   };
@@ -11,7 +12,11 @@
   const elements = {
     connectionStatus: document.getElementById("connection-status"),
     playerName: document.getElementById("player-name"),
-    gameType: document.getElementById("game-type"),
+    heroTitle: document.getElementById("hero-title"),
+    heroText: document.getElementById("hero-text"),
+    modeDescription: document.getElementById("mode-description"),
+    toggleHiddenValue: document.getElementById("toggle-hidden-value"),
+    toggleCardMarket: document.getElementById("toggle-card-market"),
     setupMessage: document.getElementById("setup-message"),
     createRoom: document.getElementById("create-room"),
     joinCode: document.getElementById("join-code"),
@@ -20,8 +25,10 @@
     queueMatch: document.getElementById("queue-match"),
     cancelQueue: document.getElementById("cancel-queue"),
     queueStatus: document.getElementById("queue-status"),
+    queueTitle: document.getElementById("queue-title"),
     playBotMaker: document.getElementById("play-bot-maker"),
     playBotTaker: document.getElementById("play-bot-taker"),
+    botTitle: document.getElementById("bot-title"),
     roomCodeDisplay: document.getElementById("room-code-display"),
     copyRoomCode: document.getElementById("copy-room-code"),
     readyToggle: document.getElementById("ready-toggle"),
@@ -81,6 +88,7 @@
   const state = {
     backendUrl: "",
     playerName: "",
+    selectedGameType: "hidden_value",
     roomId: null,
     roomCode: null,
     playerId: null,
@@ -170,6 +178,41 @@
       return "None shown.";
     }
     return cards.map((card) => formatCard(card)).join("  ");
+  }
+
+  function selectedGameType() {
+    return state.selectedGameType === "card_market" ? "card_market" : "hidden_value";
+  }
+
+  function setSelectedGameType(gameType) {
+    state.selectedGameType = gameType === "card_market" ? "card_market" : "hidden_value";
+    safeStorageSet(STORAGE_KEYS.selectedGameType, state.selectedGameType);
+    renderModeSelection();
+    render();
+  }
+
+  function renderModeSelection() {
+    const gameType = selectedGameType();
+    const isCardGame = gameType === "card_market";
+
+    elements.toggleHiddenValue.classList.toggle("mode-toggle-active", !isCardGame);
+    elements.toggleCardMarket.classList.toggle("mode-toggle-active", isCardGame);
+
+    setText(elements.heroTitle, isCardGame ? "Private cards. Public reveals. Live markets." : "One hidden value. One market.");
+    setText(
+      elements.heroText,
+      isCardGame
+        ? "Create a private card-market room, deal hidden hands, reveal board cards one by one, and trade a live market on a card-derived property."
+        : "Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker chooses buy, sell, or pass, and settlement stays hidden until the round ends."
+    );
+    setText(
+      elements.modeDescription,
+      isCardGame
+        ? "Multiplayer card-market play with 2 to 10 players, rotating makers, private hands, and sequential board reveals."
+        : "Two-player interview-style market making with one hidden settlement value."
+    );
+    setText(elements.queueTitle, isCardGame ? "Random queue is only for Hidden Value" : "Queue into the next game");
+    setText(elements.botTitle, isCardGame ? "RL bot is only for Hidden Value" : "Play the trained model");
   }
 
   function normalizeBackendUrl(input) {
@@ -555,7 +598,7 @@
   async function createRoom() {
     try {
       const name = requirePlayerName();
-      const gameType = elements.gameType.value || "hidden_value";
+      const gameType = selectedGameType();
       const payload = await api("/api/rooms", { method: "POST", body: { name, gameType } });
       setActionMessage(`Created room ${payload.roomCode}.`);
       await connectToRoom(payload);
@@ -565,6 +608,10 @@
   }
 
   async function createBotRoom(humanRole) {
+    if (selectedGameType() === "card_market") {
+      setActionMessage("The RL bot is only available for Hidden Value right now.", true);
+      return;
+    }
     try {
       const name = requirePlayerName();
       const payload = await api("/api/bot-rooms", { method: "POST", body: { name, humanRole } });
@@ -591,6 +638,10 @@
   }
 
   async function queueRandomMatch() {
+    if (selectedGameType() === "card_market") {
+      setQueueStatus("Random matchmaking is only available for Hidden Value right now.", true);
+      return;
+    }
     if (state.queueTicketId || state.queueJoinPending) {
       return;
     }
@@ -826,6 +877,7 @@
     const game = roomState?.game || null;
     const gameType = roomState?.gameType || "hidden_value";
     const isCardGame = gameType === "card_market";
+    const selectedType = selectedGameType();
     const role = roomState?.role || "";
     const you = !isCardGame ? (role === "market_maker" ? game?.maker : role === "market_taker" ? game?.taker : null) : null;
     const opponent = !isCardGame ? (role === "market_maker" ? game?.taker : role === "market_taker" ? game?.maker : null) : null;
@@ -916,15 +968,15 @@
     elements.takerBuy.disabled = !canTake;
     elements.takerSell.disabled = !canTake;
     elements.takerPass.disabled = !canTake;
-    elements.queueMatch.disabled = Boolean(state.queueTicketId) || Boolean(state.roomCode);
+    elements.queueMatch.disabled = selectedType === "card_market" || Boolean(state.queueTicketId) || Boolean(state.roomCode);
     if (state.queueJoinPending) {
       elements.queueMatch.disabled = true;
     }
     elements.cancelQueue.disabled = !state.queueTicketId;
     elements.createRoom.disabled = Boolean(state.roomCode);
     elements.joinRoom.disabled = Boolean(state.roomCode);
-    elements.playBotMaker.disabled = Boolean(state.roomCode);
-    elements.playBotTaker.disabled = Boolean(state.roomCode);
+    elements.playBotMaker.disabled = selectedType === "card_market" || Boolean(state.roomCode);
+    elements.playBotTaker.disabled = selectedType === "card_market" || Boolean(state.roomCode);
 
     elements.bidInput.disabled = !canQuote;
     elements.askInput.disabled = !canQuote;
@@ -942,6 +994,8 @@
 
   elements.createRoom.addEventListener("click", createRoom);
   elements.joinRoom.addEventListener("click", joinRoom);
+  elements.toggleHiddenValue.addEventListener("click", () => setSelectedGameType("hidden_value"));
+  elements.toggleCardMarket.addEventListener("click", () => setSelectedGameType("card_market"));
   elements.queueMatch.addEventListener("click", queueRandomMatch);
   elements.cancelQueue.addEventListener("click", cancelQueue);
   elements.playBotMaker.addEventListener("click", () => createBotRoom("market_maker"));
@@ -972,9 +1026,11 @@
 
   elements.playerName.value = safeStorageGet(STORAGE_KEYS.playerName) || "";
   state.playerName = elements.playerName.value.trim();
+  state.selectedGameType = safeStorageGet(STORAGE_KEYS.selectedGameType) || "hidden_value";
   state.backendUrl = defaultBackendUrl();
   state.clientId = getOrCreateClientId();
 
+  renderModeSelection();
   render();
   resumePreviousSession();
 })();

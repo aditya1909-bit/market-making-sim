@@ -22,12 +22,27 @@
 
         <div class="hero-copy">
           <p class="eyebrow">Room-based market making</p>
-          <h1>One hidden value. One market.</h1>
-          <p class="hero-text">
-            Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker
-            chooses buy, sell, or pass, and settlement stays hidden until the round ends.
+          <h1 id="hero-title">One hidden value. One market.</h1>
+          <p id="hero-text" class="hero-text">
+            Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker chooses buy, sell, or pass, and settlement stays hidden until the round ends.
           </p>
         </div>
+      </section>
+
+      <section class="mode-switch card">
+        <div class="card-head">
+          <div>
+            <p class="eyebrow">Game Select</p>
+            <h2>Choose a mode</h2>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <button id="toggle-hidden-value" class="mode-toggle mode-toggle-active" type="button">Hidden Value</button>
+          <button id="toggle-card-market" class="mode-toggle" type="button">Card Market</button>
+        </div>
+        <p id="mode-description" class="body-copy subtle-copy">
+          Two-player interview-style market making with one hidden settlement value.
+        </p>
       </section>
 
       <section class="setup-grid">
@@ -57,13 +72,6 @@
             </div>
           </div>
           <div class="action-stack">
-            <label class="field-card">
-              <span class="mini-label">Game type</span>
-              <select id="game-type">
-                <option value="hidden_value">Hidden Value</option>
-                <option value="card_market">Card Market</option>
-              </select>
-            </label>
             <button id="create-room" class="primary-button">Create Private Room</button>
             <div class="join-row">
               <label class="field-card join-card">
@@ -80,7 +88,7 @@
           <div class="card-head">
             <div>
               <p class="eyebrow">Random match</p>
-              <h2>Queue into the next game</h2>
+              <h2 id="queue-title">Queue into the next game</h2>
             </div>
           </div>
           <div class="action-stack">
@@ -94,7 +102,7 @@
           <div class="card-head">
             <div>
               <p class="eyebrow">RL bot</p>
-              <h2>Play the trained model</h2>
+              <h2 id="bot-title">Play the trained model</h2>
             </div>
           </div>
           <div class="action-stack">
