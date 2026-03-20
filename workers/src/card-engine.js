@@ -227,14 +227,8 @@ function provisionalPnl(position, mark) {
 }
 
 function roleForCardPlayer(room, playerId) {
-  if (room.status !== ROOM_STATUS.LIVE) {
-    return GAME_ROLE.SPECTATOR;
-  }
-  if (room.game.liveQuotes?.[playerId]) {
-    return GAME_ROLE.MAKER;
-  }
   if (room.players.some((player) => player.id === playerId)) {
-    return GAME_ROLE.TAKER;
+    return room.game.liveQuotes?.[playerId] ? "quoting" : "trader";
   }
   return GAME_ROLE.SPECTATOR;
 }

@@ -191,6 +191,21 @@
     return "Hidden Value";
   }
 
+  function formatRoleLabel(role, gameType) {
+    if (gameType === "card_market") {
+      if (role === "quoting") {
+        return "Quoting";
+      }
+      if (role === "trader") {
+        return "Trader";
+      }
+      if (role === "spectator") {
+        return "Observer";
+      }
+    }
+    return capWords(role);
+  }
+
   function suitSymbol(card) {
     const suitMap = {
       S: "♠",
@@ -930,6 +945,7 @@
 
   function renderPlayers(players) {
     elements.playersList.innerHTML = "";
+    const gameType = state.roomState?.gameType || selectedGameType();
     if (!players?.length) {
       const li = document.createElement("li");
       li.textContent = "No players in room.";
@@ -945,7 +961,7 @@
       const meta = document.createElement("div");
       meta.className = "player-meta";
       const name = document.createElement("strong");
-      name.textContent = `${player.name}${player.isBot ? " · RL Bot" : ""} · ${capWords(player.role)}`;
+      name.textContent = `${player.name}${player.isBot ? " · RL Bot" : ""} · ${formatRoleLabel(player.role, gameType)}`;
       const ready = document.createElement("span");
       ready.className = `status-chip${player.ready ? " ready" : ""}`;
       ready.textContent = player.ready ? "Ready" : "Not ready";
@@ -1039,9 +1055,9 @@
     applyTheme();
     const roomState = state.roomState;
     const game = roomState?.game || null;
-    const gameType = roomState?.gameType || "hidden_value";
-    const isCardGame = gameType === "card_market";
     const selectedType = selectedGameType();
+    const gameType = roomState?.gameType || selectedType;
+    const isCardGame = gameType === "card_market";
     const hasRoom = Boolean(state.roomCode && roomState);
     const isLive = roomState?.status === "live";
     const role = roomState?.role || "";
@@ -1066,7 +1082,7 @@
     elements.lowerSection.classList.toggle("hidden", !hasRoom || (!isLive && !isFinished));
 
     setText(elements.roomCodeDisplay, state.roomCode || "No room");
-    setText(elements.roleLabel, capWords(role));
+    setText(elements.roleLabel, formatRoleLabel(role, gameType));
     setText(elements.gameStatus, capWords(roomState?.status || "lobby"));
     setText(elements.turnCaption, isCardGame ? "Board" : "Turn");
     setText(elements.activeCaption, isCardGame ? "Market" : "Active actor");
