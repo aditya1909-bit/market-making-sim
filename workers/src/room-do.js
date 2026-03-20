@@ -1,6 +1,16 @@
 import { DurableObject } from "cloudflare:workers";
 import { botDecision, observeBotQuote, observeBotResolution, refreshBotEstimate } from "./bot-policy.js";
-import { buildCardPlayerView, maybeStartCardGame, prepareNextCardGame, startCardGame, submitCardQuote, takeCardAction } from "./card-engine.js";
+import {
+  advanceCardGameClock,
+  buildCardPlayerView,
+  maybeStartCardGame,
+  nextCardAlarmAt,
+  prepareNextCardGame,
+  requestCardRevealVote,
+  startCardGame,
+  submitCardQuote,
+  takeCardAction,
+} from "./card-engine.js";
 import { sampleContract } from "./contracts.js";
 import {
   addPlayerToRoom,
@@ -119,6 +129,7 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return json({ error: "Room code not found." }, 404);
     }
+    this.syncCardGameClock();
     const playerId = url.searchParams.get("playerId");
     if (!playerId || !playerFor(this.room, playerId)) {
       return json({ error: "Unknown player." }, 404);
@@ -231,6 +242,8 @@ export class RoomDurableObject extends DurableObject {
       return new Response("Room not found.", { status: 404 });
     }
 
+    this.syncCardGameClock();
+
     const playerId = url.searchParams.get("playerId");
     const roomCode = String(url.searchParams.get("roomCode") || "").toUpperCase();
     if (!playerId) {
@@ -277,6 +290,7 @@ export class RoomDurableObject extends DurableObject {
     }
 
     try {
+      this.syncCardGameClock();
       const parsed = JSON.parse(toText(message));
       switch (parsed.type) {
         case CLIENT_EVENTS.READY:
@@ -286,6 +300,9 @@ export class RoomDurableObject extends DurableObject {
           }
           if (isCardGame(this.room)) {
             maybeStartCardGame(this.room);
+            if (this.room.status === "live") {
+              await this.scheduleCardAlarm();
+            }
           } else {
             maybeStartGame(this.room);
           }
@@ -299,6 +316,7 @@ export class RoomDurableObject extends DurableObject {
         case CLIENT_EVENTS.START_GAME:
           if (isCardGame(this.room)) {
             startCardGame(this.room);
+            await this.scheduleCardAlarm();
           } else {
             startGame(this.room);
           }
@@ -335,6 +353,15 @@ export class RoomDurableObject extends DurableObject {
           await this.persist();
           this.broadcastRoom();
           return;
+        case CLIENT_EVENTS.REQUEST_NEXT_REVEAL:
+          if (!isCardGame(this.room)) {
+            throw new Error("Early reveal voting is only available in the card market.");
+          }
+          requestCardRevealVote(this.room, playerId);
+          await this.scheduleCardAlarm();
+          await this.persist();
+          this.broadcastRoom();
+          return;
         case CLIENT_EVENTS.REQUEST_REMATCH: {
           requestRematch(this.room, playerId);
           if (this.room.bot?.enabled) {
@@ -346,6 +373,7 @@ export class RoomDurableObject extends DurableObject {
               resetRematchVotes(this.room);
               clearReady(this.room);
               prepareNextCardGame(this.room, { incrementGameNumber: true });
+              await this.scheduleCardAlarm();
             } else {
               prepareNextGame(this.room, sampleContract(), { swap: true, autoStart: true });
             }
@@ -378,6 +406,7 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
+    this.syncCardGameClock();
     this.broadcastRoom();
   }
 
@@ -385,7 +414,21 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
+    this.syncCardGameClock();
     this.broadcastRoom();
+  }
+
+  async alarm() {
+    await this.ready;
+    if (!this.room) {
+      return;
+    }
+    const changed = this.syncCardGameClock();
+    await this.scheduleCardAlarm();
+    if (changed) {
+      await this.persist();
+      this.broadcastRoom();
+    }
   }
 
   async advanceBotUntilHumanTurn() {
@@ -429,6 +472,7 @@ export class RoomDurableObject extends DurableObject {
   }
 
   serializeJoin(playerId) {
+    this.syncCardGameClock();
     return {
       roomId: this.room.id,
       roomCode: this.room.code,
@@ -444,6 +488,7 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
+    this.syncCardGameClock();
     const connectedIds = this.connectedIds();
     for (const socket of this.ctx.getWebSockets()) {
       const playerId = socket.deserializeAttachment()?.playerId;
@@ -461,6 +506,26 @@ export class RoomDurableObject extends DurableObject {
 
   async persist() {
     await this.ctx.storage.put("room", this.room);
+  }
+
+  syncCardGameClock() {
+    if (!isCardGame(this.room)) {
+      return false;
+    }
+    return advanceCardGameClock(this.room, Date.now());
+  }
+
+  async scheduleCardAlarm() {
+    if (!isCardGame(this.room)) {
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+    const nextAt = nextCardAlarmAt(this.room);
+    if (nextAt) {
+      await this.ctx.storage.setAlarm(nextAt);
+      return;
+    }
+    await this.ctx.storage.deleteAlarm();
   }
 
   send(socket, payload) {

@@ -1,9 +1,11 @@
-import { GAME_ACTOR, GAME_ROLE, ROOM_STATUS, TAKER_ACTION } from "./protocol.js";
+import { GAME_ROLE, ROOM_STATUS, TAKER_ACTION } from "./protocol.js";
 import { playerFor } from "./game-engine.js";
 
-const BOARD_CARD_COUNT = 3;
+const BOARD_CARD_COUNT = 5;
 const PRIVATE_CARDS_PER_PLAYER = 2;
 const MAX_QUOTE_SIZE = 5;
+const ROUND_DURATION_MS = 5 * 60 * 1000;
+const REVEAL_INTERVAL_MS = 60 * 1000;
 
 const TARGETS = [
   {
@@ -134,25 +136,86 @@ function chooseTarget(totalCards) {
     prompt: target.prompt,
     unitLabel: target.unitLabel,
     ...target.rangeFor(totalCards),
-    scoreCards: target.score,
   };
+}
+
+function scorerFor(targetId) {
+  return TARGETS.find((entry) => entry.id === targetId) || TARGETS[0];
 }
 
 function emptyPositions(players) {
   return Object.fromEntries(players.map((player) => [player.id, { cash: 0, inventory: 0 }]));
 }
 
-function currentMaker(room) {
-  return playerFor(room, room.game.currentMakerId);
-}
-
-function responderIds(room) {
-  return room.players.filter((player) => player.id !== room.game.currentMakerId).map((player) => player.id);
+function visibleBoard(room) {
+  return (room.game.boardCards || []).slice(0, room.game.revealedBoardCount || 0);
 }
 
 function allCardsInPlay(room) {
   const privateCards = Object.values(room.game.privateHands || {}).flat();
   return privateCards.concat(room.game.boardCards || []);
+}
+
+function midpoint(quote) {
+  if (!quote) {
+    return null;
+  }
+  return (Number(quote.bid) + Number(quote.ask)) / 2;
+}
+
+function markForGame(room) {
+  if (room.game.settlement !== null && room.game.settlement !== undefined) {
+    return room.game.settlement;
+  }
+  const mids = Object.values(room.game.liveQuotes || {})
+    .map((quote) => midpoint(quote))
+    .filter((value) => value !== null && value !== undefined);
+  if (!mids.length) {
+    return room.game.lastMark ?? 0;
+  }
+  return round2(mids.reduce((sum, value) => sum + value, 0) / mids.length);
+}
+
+function provisionalPnl(position, mark) {
+  return round2(position.cash + position.inventory * mark);
+}
+
+function roleForCardPlayer(room, playerId) {
+  if (room.status !== ROOM_STATUS.LIVE) {
+    return GAME_ROLE.SPECTATOR;
+  }
+  if (room.game.liveQuotes?.[playerId]) {
+    return GAME_ROLE.MAKER;
+  }
+  if (room.players.some((player) => player.id === playerId)) {
+    return GAME_ROLE.TAKER;
+  }
+  return GAME_ROLE.SPECTATOR;
+}
+
+function revealNextBoardCard(room, now, reason) {
+  if ((room.game.revealedBoardCount || 0) >= (room.game.boardCards?.length || 0)) {
+    return false;
+  }
+
+  room.game.revealedBoardCount += 1;
+  room.game.lastRevealAt = now;
+  room.game.revealVotes = {};
+  room.game.lastResolution = {
+    type: "board_revealed",
+    text: `${reason}. Board is now ${visibleBoard(room).map((card) => card.code).join(" ")}.`,
+  };
+  room.game.log.unshift({
+    type: "reveal",
+    turn: room.game.revealedBoardCount,
+    text: room.game.lastResolution.text,
+  });
+  if (room.game.revealedBoardCount < room.game.boardCards.length) {
+    room.game.nextRevealAt = now + REVEAL_INTERVAL_MS;
+  } else {
+    room.game.nextRevealAt = room.game.endsAt;
+  }
+  return true;
 }
 
 export function createCardGamePreview(room) {
@@ -168,15 +231,20 @@ export function createCardGamePreview(room) {
     maxTurns: BOARD_CARD_COUNT,
     turn: 0,
     activeActor: null,
-    currentMakerId: null,
-    currentQuote: null,
-    respondedPlayerIds: [],
     lastResolution: null,
     log: [],
     boardCards: [],
+    revealedBoardCount: 0,
     privateHands: {},
     positions: emptyPositions(room.players),
     settlement: null,
+    lastMark: 0,
+    liveQuotes: {},
+    revealVotes: {},
+    startedAt: null,
+    endsAt: null,
+    nextRevealAt: null,
+    lastRevealAt: null,
     target: {
       id: target.id,
       label: target.label,
@@ -211,7 +279,7 @@ export function maybeStartCardGame(room) {
   return true;
 }
 
-export function startCardGame(room) {
+export function startCardGame(room, now = Date.now()) {
   if (room.players.length < 2 || room.players.length > 10) {
     throw new Error("Card market supports between 2 and 10 players.");
   }
@@ -226,7 +294,6 @@ export function startCardGame(room) {
   });
 
   const boardCards = shuffledDeck.splice(0, BOARD_CARD_COUNT);
-  const openingMakerIndex = Math.floor(Math.random() * room.players.length);
 
   room.status = ROOM_STATUS.LIVE;
   room.game = {
@@ -238,16 +305,19 @@ export function startCardGame(room) {
     rangeHigh: target.rangeHigh,
     maxTurns: BOARD_CARD_COUNT,
     turn: 1,
-    activeActor: GAME_ACTOR.MAKER,
-    currentMakerId: room.players[openingMakerIndex].id,
-    makerIndex: openingMakerIndex,
-    currentQuote: null,
-    respondedPlayerIds: [],
+    activeActor: null,
     boardCards,
     revealedBoardCount: 1,
     privateHands,
     positions: emptyPositions(room.players),
     settlement: null,
+    lastMark: 0,
+    liveQuotes: {},
+    revealVotes: {},
+    startedAt: now,
+    endsAt: now + ROUND_DURATION_MS,
+    nextRevealAt: now + REVEAL_INTERVAL_MS,
+    lastRevealAt: now,
     target: {
       id: target.id,
       label: target.label,
@@ -255,13 +325,13 @@ export function startCardGame(room) {
     targetScorerId: target.id,
     lastResolution: {
       type: "game_started",
-      text: `Game ${room.gameNumber} started. ${playerFor(room, room.players[openingMakerIndex].id)?.name || "Maker"} quotes first.`,
+      text: `Game ${room.gameNumber} started. First board card is live and the round clock is running.`,
     },
     log: [
       {
         type: "info",
         turn: 0,
-        text: `Game ${room.gameNumber} started. One board card is live and the opening maker quotes first.`,
+        text: `Game ${room.gameNumber} started. Trade freely for five minutes while the board reveals over time.`,
       },
     ],
   };
@@ -283,119 +353,148 @@ function validateQuote(payload) {
     bid: round2(bid),
     ask: round2(ask),
     size,
+    quotedAt: Date.now(),
   };
 }
 
 export function submitCardQuote(room, playerId, payload) {
-  if (room.status !== ROOM_STATUS.LIVE || room.game.activeActor !== GAME_ACTOR.MAKER) {
-    throw new Error("It is not the current maker's turn.");
+  if (room.status !== ROOM_STATUS.LIVE) {
+    throw new Error("The card market is not live.");
   }
-  if (playerId !== room.game.currentMakerId) {
-    throw new Error("Only the current maker can submit a quote.");
+  if (!playerFor(room, playerId)) {
+    throw new Error("Unknown player.");
   }
 
   const quote = validateQuote(payload);
-  room.game.currentQuote = quote;
-  room.game.respondedPlayerIds = [];
-  room.game.activeActor = GAME_ACTOR.TAKER;
+  room.game.liveQuotes[playerId] = quote;
+  room.game.lastMark = midpoint(quote) ?? room.game.lastMark ?? 0;
   room.game.lastResolution = {
     type: "quote_submitted",
-    text: `${playerFor(room, playerId)?.name || "Maker"} quoted ${quote.bid} / ${quote.ask} for ${quote.size}.`,
+    text: `${playerFor(room, playerId)?.name || "Player"} quoted ${quote.bid} / ${quote.ask} for ${quote.size}.`,
   };
-}
-
-function finishCardRound(room) {
-  room.game.currentQuote = null;
-
-  if (room.game.turn >= room.game.maxTurns) {
-    finishCardGame(room);
-    return;
-  }
-
-  room.game.turn += 1;
-  room.game.makerIndex = (room.game.makerIndex + 1) % room.players.length;
-  room.game.currentMakerId = room.players[room.game.makerIndex].id;
-  room.game.revealedBoardCount = Math.min(room.game.turn, room.game.boardCards.length);
-  room.game.respondedPlayerIds = [];
-  room.game.activeActor = GAME_ACTOR.MAKER;
-  room.game.lastResolution = {
-    type: "round_advanced",
-    text: `Round ${room.game.turn} started. ${currentMaker(room)?.name || "Maker"} is now the maker.`,
-  };
-  room.game.log.unshift({
-    type: "round",
-    turn: room.game.turn,
-    text: room.game.lastResolution.text,
-  });
 }
 
 export function takeCardAction(room, playerId, payload) {
-  if (room.status !== ROOM_STATUS.LIVE || room.game.activeActor !== GAME_ACTOR.TAKER) {
-    throw new Error("It is not the responders' turn.");
+  if (room.status !== ROOM_STATUS.LIVE) {
+    throw new Error("The card market is not live.");
   }
-  if (playerId === room.game.currentMakerId) {
-    throw new Error("The maker cannot trade against their own quote.");
+  const targetPlayerId = String(payload.targetPlayerId || "");
+  if (!targetPlayerId) {
+    throw new Error("Select a quote first.");
   }
-  if (room.game.respondedPlayerIds.includes(playerId)) {
-    throw new Error("You already responded to this quote.");
-  }
-  if (!room.game.currentQuote) {
-    throw new Error("No active quote to trade against.");
+  if (playerId === targetPlayerId) {
+    throw new Error("You cannot trade against your own quote.");
   }
 
-  const responder = playerFor(room, playerId);
-  const makerId = room.game.currentMakerId;
+  const quote = room.game.liveQuotes?.[targetPlayerId];
+  if (!quote) {
+    throw new Error("That quote is no longer live.");
+  }
+
   const action = payload.action;
-  const quote = room.game.currentQuote;
   const qty = quote.size;
-  const makerPosition = room.game.positions[makerId];
-  const responderPosition = room.game.positions[playerId];
+  const quoteOwner = playerFor(room, targetPlayerId);
+  const taker = playerFor(room, playerId);
+  const makerPosition = room.game.positions[targetPlayerId];
+  const takerPosition = room.game.positions[playerId];
 
+  let tradePrice = null;
   let text = "";
+
   if (action === TAKER_ACTION.BUY) {
-    makerPosition.cash += quote.ask * qty;
+    tradePrice = quote.ask;
+    makerPosition.cash += tradePrice * qty;
     makerPosition.inventory -= qty;
-    responderPosition.cash -= quote.ask * qty;
-    responderPosition.inventory += qty;
-    text = `${responder?.name || "Player"} buys ${qty} at ${quote.ask}.`;
+    takerPosition.cash -= tradePrice * qty;
+    takerPosition.inventory += qty;
+    text = `${taker?.name || "Player"} buys ${qty} at ${tradePrice} from ${quoteOwner?.name || "maker"}.`;
   } else if (action === TAKER_ACTION.SELL) {
-    makerPosition.cash -= quote.bid * qty;
+    tradePrice = quote.bid;
+    makerPosition.cash -= tradePrice * qty;
     makerPosition.inventory += qty;
-    responderPosition.cash += quote.bid * qty;
-    responderPosition.inventory -= qty;
-    text = `${responder?.name || "Player"} sells ${qty} at ${quote.bid}.`;
-  } else if (action === TAKER_ACTION.PASS) {
-    text = `${responder?.name || "Player"} passes.`;
+    takerPosition.cash += tradePrice * qty;
+    takerPosition.inventory -= qty;
+    text = `${taker?.name || "Player"} sells ${qty} at ${tradePrice} to ${quoteOwner?.name || "maker"}.`;
   } else {
     throw new Error("Unknown responder action.");
   }
 
-  room.game.respondedPlayerIds.push(playerId);
+  room.game.lastMark = tradePrice;
   room.game.lastResolution = {
-    type: "turn_resolved",
+    type: "trade",
     action,
+    mark: tradePrice,
     text,
   };
   room.game.log.unshift({
     type: action,
-    turn: room.game.turn,
-    text: `Round ${room.game.turn}. ${currentMaker(room)?.name || "Maker"} quoted ${quote.bid} / ${quote.ask} x ${quote.size}. ${text}`,
+    turn: room.game.revealedBoardCount,
+    text,
   });
+}
 
-  if (room.game.respondedPlayerIds.length >= responderIds(room).length) {
-    finishCardRound(room);
+export function requestCardRevealVote(room, playerId, now = Date.now()) {
+  if (room.status !== ROOM_STATUS.LIVE) {
+    throw new Error("The card market is not live.");
   }
+  if ((room.game.revealedBoardCount || 0) >= (room.game.boardCards?.length || 0)) {
+    throw new Error("All board cards are already visible.");
+  }
+
+  room.game.revealVotes[playerId] = true;
+  const allVoted = room.players.every((player) => room.game.revealVotes[player.id]);
+  if (allVoted) {
+    revealNextBoardCard(room, now, "All players voted to reveal the next card early");
+    return { revealed: true };
+  }
+
+  room.game.lastResolution = {
+    type: "reveal_vote",
+    text: `${playerFor(room, playerId)?.name || "Player"} voted to reveal the next card early.`,
+  };
+  return { revealed: false };
+}
+
+export function advanceCardGameClock(room, now = Date.now()) {
+  if (room?.gameType !== "card_market" || room.status !== ROOM_STATUS.LIVE) {
+    return false;
+  }
+
+  let changed = false;
+
+  while ((room.game.revealedBoardCount || 0) < (room.game.boardCards?.length || 0) && room.game.nextRevealAt && now >= room.game.nextRevealAt) {
+    revealNextBoardCard(room, room.game.nextRevealAt, "The round timer revealed the next board card");
+    changed = true;
+  }
+
+  if (room.game.endsAt && now >= room.game.endsAt) {
+    finishCardGame(room);
+    changed = true;
+  }
+
+  return changed;
+}
+
+export function nextCardAlarmAt(room) {
+  if (room?.gameType !== "card_market" || room.status !== ROOM_STATUS.LIVE) {
+    return null;
+  }
+  if (room.game.nextRevealAt && room.game.nextRevealAt < room.game.endsAt) {
+    return room.game.nextRevealAt;
+  }
+  return room.game.endsAt || null;
 }
 
 export function finishCardGame(room) {
-  const target = TARGETS.find((entry) => entry.id === room.game.targetScorerId);
-  const settlement = round2(target ? target.score(allCardsInPlay(room)) : 0);
+  const target = scorerFor(room.game.targetScorerId);
+  const settlement = round2(target.score(allCardsInPlay(room)));
 
   room.status = ROOM_STATUS.FINISHED;
   room.game.status = ROOM_STATUS.FINISHED;
-  room.game.activeActor = null;
-  room.game.currentQuote = null;
   room.game.settlement = settlement;
+  room.game.liveQuotes = {};
+  room.game.revealVotes = {};
+  room.game.nextRevealAt = null;
   room.game.lastResolution = {
     type: "game_finished",
     settlement,
@@ -403,34 +502,16 @@ export function finishCardGame(room) {
   };
   room.game.log.unshift({
     type: "finished",
-    turn: room.game.turn,
+    turn: room.game.revealedBoardCount,
     text: room.game.lastResolution.text,
   });
 }
 
-function roleForCardPlayer(room, playerId) {
-  if (room.status === ROOM_STATUS.LIVE && room.game.currentMakerId === playerId) {
-    return GAME_ROLE.MAKER;
-  }
-  if (room.status === ROOM_STATUS.LIVE && room.players.some((player) => player.id === playerId)) {
-    return GAME_ROLE.TAKER;
-  }
-  return GAME_ROLE.SPECTATOR;
-}
-
-function visibleBoard(room) {
-  return (room.game.boardCards || []).slice(0, room.game.revealedBoardCount || 0);
-}
-
-function provisionalPnl(position, settlement) {
-  return round2(position.cash + position.inventory * settlement);
-}
-
-export function buildCardPlayerView(room, playerId, connectedIds = new Set()) {
+export function buildCardPlayerView(room, playerId, connectedIds = new Set(), now = Date.now()) {
   const positions = room.game.positions || emptyPositions(room.players);
-  const settlementMark =
-    room.game.settlement ??
-    (room.game.currentQuote ? round2((room.game.currentQuote.bid + room.game.currentQuote.ask) / 2) : 0);
+  const mark = markForGame(room);
+  const revealVotes = room.game.revealVotes || {};
+  const liveQuotes = room.game.liveQuotes || {};
 
   return {
     roomId: room.id,
@@ -463,13 +544,10 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set()) {
       },
       mode: room.game.mode,
       target: room.game.target,
-      turn: room.game.turn,
-      maxTurns: room.game.maxTurns,
-      activeActor: room.game.activeActor,
-      currentMakerId: room.game.currentMakerId,
-      currentMakerName: currentMaker(room)?.name || "-",
-      currentQuote: room.game.currentQuote,
-      respondedPlayerIds: [...(room.game.respondedPlayerIds || [])],
+      turn: room.game.revealedBoardCount || 0,
+      maxTurns: room.game.boardCards?.length || 0,
+      activeActor: null,
+      currentQuote: null,
       lastResolution: room.game.lastResolution,
       boardCards: visibleBoard(room),
       boardRevealTotal: room.game.boardCards?.length || 0,
@@ -479,8 +557,29 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set()) {
         name: entry.name,
         cash: round2(positions[entry.id]?.cash || 0),
         inventory: positions[entry.id]?.inventory || 0,
-        pnl: room.status === ROOM_STATUS.FINISHED ? provisionalPnl(positions[entry.id] || { cash: 0, inventory: 0 }, room.game.settlement) : provisionalPnl(positions[entry.id] || { cash: 0, inventory: 0 }, settlementMark),
+        pnl: provisionalPnl(positions[entry.id] || { cash: 0, inventory: 0 }, mark),
       })),
+      liveQuotes: room.players
+        .filter((entry) => liveQuotes[entry.id])
+        .map((entry) => ({
+          playerId: entry.id,
+          playerName: entry.name,
+          bid: liveQuotes[entry.id].bid,
+          ask: liveQuotes[entry.id].ask,
+          size: liveQuotes[entry.id].size,
+          quotedAt: liveQuotes[entry.id].quotedAt,
+          canTrade: entry.id !== playerId,
+        }))
+        .sort((a, b) => (b.quotedAt || 0) - (a.quotedAt || 0)),
+      revealVotes: room.players.filter((entry) => revealVotes[entry.id]).map((entry) => entry.id),
+      revealVotesNeeded: room.players.length,
+      revealRequestedByYou: Boolean(revealVotes[playerId]),
+      startedAt: room.game.startedAt,
+      endsAt: room.game.endsAt,
+      nextRevealAt: room.game.nextRevealAt,
+      msRemaining: room.game.endsAt ? Math.max(room.game.endsAt - now, 0) : null,
+      msUntilNextReveal:
+        room.status === ROOM_STATUS.LIVE && room.game.nextRevealAt ? Math.max(room.game.nextRevealAt - now, 0) : null,
       settlement: room.status === ROOM_STATUS.FINISHED ? room.game.settlement : null,
       log: room.game.log.slice(0, 18),
     },

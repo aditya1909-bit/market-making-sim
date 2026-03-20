@@ -3,6 +3,7 @@ export const CLIENT_EVENTS = {
   START_GAME: "start_game",
   SUBMIT_QUOTE: "submit_quote",
   TAKER_ACTION: "taker_action",
+  REQUEST_NEXT_REVEAL: "request_next_reveal",
   REQUEST_REMATCH: "request_rematch",
   LEAVE_ROOM: "leave_room",
   PING: "ping",

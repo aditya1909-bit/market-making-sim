@@ -8,7 +8,7 @@
   </head>
   <body>
     <main class="page-shell">
-      <section class="hero">
+      <section id="hero-section" class="hero">
         <div class="hero-nav glass-panel">
           <div class="brand-lockup">
             <p class="eyebrow">market-making-sim</p>
@@ -29,7 +29,7 @@
         </div>
       </section>
 
-      <section class="mode-switch card">
+      <section id="mode-section" class="mode-switch card">
         <div class="card-head">
           <div>
             <p class="eyebrow">Game Select</p>
@@ -45,7 +45,7 @@
         </p>
       </section>
 
-      <section class="setup-grid">
+      <section id="setup-section" class="setup-grid">
         <article class="card">
           <div class="card-head">
             <div>
@@ -115,7 +115,7 @@
         </article>
       </section>
 
-      <section class="session-grid">
+      <section id="session-section" class="session-grid">
         <article class="card">
           <div class="card-head">
             <div>
@@ -173,7 +173,7 @@
         </article>
       </section>
 
-      <section class="game-grid">
+      <section id="game-section" class="game-grid">
         <article class="card contract-card">
           <div class="card-head">
             <div>
@@ -276,9 +276,9 @@
           <div class="card-head">
             <div>
               <p class="eyebrow">Card state</p>
-              <h2>Private hand and board</h2>
+              <h2>Round state</h2>
             </div>
-            <span id="card-maker-badge" class="badge">Maker: -</span>
+            <span id="card-maker-badge" class="badge">Next reveal: -</span>
           </div>
           <div class="split-callouts">
             <div class="soft-panel">
@@ -291,12 +291,25 @@
             </div>
           </div>
           <div class="soft-panel top-gap">
-            <span class="mini-label">Quote progress</span>
+            <span class="mini-label">Reveal progress</span>
             <p id="card-response-status" class="body-copy">No live quote.</p>
+          </div>
+          <div class="action-row top-gap">
+            <button id="request-next-reveal" class="secondary-button" disabled>Vote To Reveal Next Card</button>
           </div>
         </article>
 
-        <article class="card market-card">
+        <article id="card-quotes-card" class="card workspace-card hidden">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Live quotes</p>
+              <h2>Trade the room</h2>
+            </div>
+          </div>
+          <ul id="card-quotes-list" class="tape-list"></ul>
+        </article>
+
+        <article id="market-card" class="card market-card">
           <div class="card-head">
             <div>
               <p class="eyebrow">Market context</p>
@@ -328,7 +341,7 @@
         </article>
       </section>
 
-      <section class="lower-grid">
+      <section id="lower-section" class="lower-grid">
         <article id="classic-position-card" class="card">
           <div class="card-head">
             <div>
