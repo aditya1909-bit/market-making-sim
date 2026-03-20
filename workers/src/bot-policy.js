@@ -16,13 +16,7 @@ import {
   updateEstimateFromQuote,
   updateEstimateFromResolution,
 } from "./rl-core.js";
-import { RL_POLICY } from "./rl-policy-data.js";
-
-const MIN_POLICY_SUPPORT = {
-  maker: 20,
-  takerMode: 28,
-  takerAction: 45,
-};
+import { getRuntimeRlPolicy } from "./rl-policy-loader.js";
 
 function botRole(room, botPlayerId) {
   return room.makerId === botPlayerId ? GAME_ROLE.MAKER : GAME_ROLE.TAKER;
@@ -109,14 +103,15 @@ export function observeBotResolution(room, botPlayerId) {
   room.bot.privateEstimate = updateEstimateFromResolution(room, role, room.bot.privateEstimate);
 }
 
-export function botDecision(room, botPlayerId) {
+export async function botDecision(room, botPlayerId, env) {
   const role = botRole(room, botPlayerId);
   const estimate = room.bot?.privateEstimate ?? room.game.contract.hiddenValue;
   const fallbackValue = fallbackAction(room, role, estimate);
+  const policy = await getRuntimeRlPolicy(env);
 
   if (role === GAME_ROLE.MAKER) {
     const stateKey = roleStateKey(room, role, estimate);
-    const picked = pickActionFromPolicy(RL_POLICY.maker, stateKey, fallbackValue, 0, RL_POLICY.counts?.maker, MIN_POLICY_SUPPORT.maker);
+    const picked = pickActionFromPolicy(policy.maker, stateKey, fallbackValue);
     const quote = quoteFromMakerAction(room, estimate, typeof picked === "number" ? picked : fallbackValue);
     return {
       type: "submit_quote",
@@ -131,25 +126,11 @@ export function botDecision(room, botPlayerId) {
 
   const modeStateKey = takerModeStateKey(room, estimate);
   const fallbackMode = fallbackTakerMode(room, estimate);
-  const pickedMode = pickActionFromPolicy(
-    RL_POLICY.takerModes,
-    modeStateKey,
-    fallbackMode,
-    0,
-    RL_POLICY.counts?.takerModes,
-    MIN_POLICY_SUPPORT.takerMode
-  );
+  const pickedMode = pickActionFromPolicy(policy.takerModes, modeStateKey, fallbackMode);
   const mode = typeof pickedMode === "number" ? TAKER_MODES[pickedMode] || fallbackMode : pickedMode;
   const actionStateKey = takerActionStateKey(room, estimate, mode);
   const fallbackActionValue = fallbackTakerAction(room, estimate);
-  const pickedAction = pickActionFromPolicy(
-    RL_POLICY.taker,
-    actionStateKey,
-    fallbackActionValue,
-    0,
-    RL_POLICY.counts?.taker,
-    MIN_POLICY_SUPPORT.takerAction
-  );
+  const pickedAction = pickActionFromPolicy(policy.taker, actionStateKey, fallbackActionValue);
   const preferredAction =
     typeof pickedAction === "number" ? TAKER_DIRECTIONAL_ACTIONS[pickedAction] || fallbackActionValue : pickedAction;
   const modeledAction = takerActionForMode(room, estimate, mode, preferredAction, fallbackActionValue);

@@ -1,30 +1,44 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "market-making-sim-backend",
-  "main": "src/index.js",
-  "compatibility_date": "2026-03-19",
-  "observability": {
-    "enabled": true
-  },
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "ROOM",
-        "class_name": "RoomDurableObject"
-      },
-      {
-        "name": "MATCHMAKER",
-        "class_name": "MatchmakerDurableObject"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": [
-        "RoomDurableObject",
-        "MatchmakerDurableObject"
-      ]
-    }
-  ]
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "market-making-sim-backend",
+	"main": "src/index.js",
+	"compatibility_date": "2026-03-19",
+	"observability": {
+		"enabled": true
+	},
+	// Create and bind with:
+	// npx wrangler kv namespace create RL_POLICY_KV --binding RL_POLICY_KV --update-config
+	// Then upload the split policy blobs with ../rl/upload-policy-to-kv.js.
+	"kv_namespaces": [
+		{
+			"binding": "RL_POLICY_KV",
+			"id": "914df3e545554244bab6e9098fd1cc50"
+		}
+		// {
+		//   "binding": "RL_POLICY_KV",
+		//   "id": "<your-production-namespace-id>",
+		//   "preview_id": "<your-preview-namespace-id>"
+		// }
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "ROOM",
+				"class_name": "RoomDurableObject"
+			},
+			{
+				"name": "MATCHMAKER",
+				"class_name": "MatchmakerDurableObject"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"RoomDurableObject",
+				"MatchmakerDurableObject"
+			]
+		}
+	]
 }

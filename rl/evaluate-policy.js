@@ -19,12 +19,6 @@ import {
 } from "../workers/src/rl-core.js";
 import { GAME_ROLE, TAKER_ACTION } from "../workers/src/protocol.js";
 
-const MIN_POLICY_SUPPORT = {
-  maker: 20,
-  takerMode: 28,
-  takerAction: 45,
-};
-
 function hybridTakerExecution(room, estimate, modeledAction, fallbackAction) {
   const quote = room.game.currentQuote;
   if (!quote) {
@@ -134,14 +128,7 @@ function chooseMaker(strategy, room, estimate) {
   }
   const stateKey = makerStateKey(room, estimate);
   const fallback = fallbackMakerActionIndex(room, estimate);
-  const picked = pickActionFromPolicy(
-    RL_POLICY.maker,
-    stateKey,
-    fallback,
-    0,
-    RL_POLICY.counts?.maker,
-    MIN_POLICY_SUPPORT.maker
-  );
+  const picked = pickActionFromPolicy(RL_POLICY.maker, stateKey, fallback);
   return typeof picked === "number" ? picked : fallback;
 }
 
@@ -151,25 +138,11 @@ function chooseTaker(strategy, room, estimate) {
   }
   const modeStateKey = takerModeStateKey(room, estimate);
   const fallbackMode = fallbackTakerMode(room, estimate);
-  const pickedMode = pickActionFromPolicy(
-    RL_POLICY.takerModes,
-    modeStateKey,
-    fallbackMode,
-    0,
-    RL_POLICY.counts?.takerModes,
-    MIN_POLICY_SUPPORT.takerMode
-  );
+  const pickedMode = pickActionFromPolicy(RL_POLICY.takerModes, modeStateKey, fallbackMode);
   const mode = typeof pickedMode === "number" ? TAKER_MODES[pickedMode] || fallbackMode : pickedMode;
   const fallback = fallbackTakerAction(room, estimate);
   const actionStateKey = takerActionStateKey(room, estimate, mode);
-  const pickedAction = pickActionFromPolicy(
-    RL_POLICY.taker,
-    actionStateKey,
-    fallback,
-    0,
-    RL_POLICY.counts?.taker,
-    MIN_POLICY_SUPPORT.takerAction
-  );
+  const pickedAction = pickActionFromPolicy(RL_POLICY.taker, actionStateKey, fallback);
   const preferred = typeof pickedAction === "number" ? TAKER_DIRECTIONAL_ACTIONS[pickedAction] || fallback : pickedAction;
   const modeledAction = takerActionForMode(room, estimate, mode, preferred, fallback);
   return hybridTakerExecution(room, estimate, modeledAction, fallback);

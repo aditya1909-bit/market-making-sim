@@ -28,12 +28,14 @@
     joinCode: document.getElementById("join-code"),
     joinRoom: document.getElementById("join-room"),
     roomActionMessage: document.getElementById("room-action-message"),
+    queueCard: document.getElementById("queue-card"),
     queueMatch: document.getElementById("queue-match"),
     cancelQueue: document.getElementById("cancel-queue"),
     queueStatus: document.getElementById("queue-status"),
     queueTitle: document.getElementById("queue-title"),
     playBotMaker: document.getElementById("play-bot-maker"),
     playBotTaker: document.getElementById("play-bot-taker"),
+    botCard: document.getElementById("bot-card"),
     botTitle: document.getElementById("bot-title"),
     roomCodeDisplay: document.getElementById("room-code-display"),
     copyRoomCode: document.getElementById("copy-room-code"),
@@ -45,10 +47,13 @@
     turnLabel: document.getElementById("turn-label"),
     activeActor: document.getElementById("active-actor"),
     gameTypeLabel: document.getElementById("game-type-label"),
+    turnCaption: document.getElementById("turn-caption"),
+    activeCaption: document.getElementById("active-caption"),
     matchType: document.getElementById("match-type"),
     gameNumber: document.getElementById("game-number"),
     playersList: document.getElementById("players-list"),
     contractPrompt: document.getElementById("contract-prompt"),
+    contractCaption: document.getElementById("contract-caption"),
     contractUnit: document.getElementById("contract-unit"),
     contractRange: document.getElementById("contract-range"),
     roleHeadline: document.getElementById("role-headline"),
@@ -58,6 +63,8 @@
     bluffSummary: document.getElementById("bluff-summary"),
     resolutionSummary: document.getElementById("resolution-summary"),
     quoteCard: document.getElementById("quote-card"),
+    quoteCardCaption: document.getElementById("quote-card-caption"),
+    quoteCardTitle: document.getElementById("quote-card-title"),
     takerCard: document.getElementById("taker-card"),
     bidInput: document.getElementById("bid-input"),
     askInput: document.getElementById("ask-input"),
@@ -79,6 +86,7 @@
     marketCard: document.getElementById("market-card"),
     cardMakerBadge: document.getElementById("card-maker-badge"),
     privateHand: document.getElementById("private-hand"),
+    handUpdate: document.getElementById("hand-update"),
     boardCards: document.getElementById("board-cards"),
     cardResponseStatus: document.getElementById("card-response-status"),
     requestNextReveal: document.getElementById("request-next-reveal"),
@@ -180,7 +188,13 @@
     if (!card) {
       return "-";
     }
-    return card.code || `${card.rank}${card.suit}`;
+    const suitMap = {
+      S: "♠",
+      H: "♥",
+      D: "♦",
+      C: "♣",
+    };
+    return `${card.rank}${suitMap[card.suit] || card.suit || ""}`;
   }
 
   function formatCards(cards) {
@@ -188,6 +202,50 @@
       return "None shown.";
     }
     return cards.map((card) => formatCard(card)).join("  ");
+  }
+
+  function cardColorClass(card) {
+    return card?.color === "red" ? "card-red" : "card-black";
+  }
+
+  function renderCardRack(node, cards, emptyText) {
+    if (!node) {
+      return;
+    }
+    node.innerHTML = "";
+    if (!cards?.length) {
+      const empty = document.createElement("span");
+      empty.className = "card-rack-empty";
+      empty.textContent = emptyText;
+      node.appendChild(empty);
+      return;
+    }
+
+    cards.forEach((card) => {
+      const face = document.createElement("div");
+      face.className = `playing-card ${cardColorClass(card)}`;
+
+      const corner = document.createElement("div");
+      corner.className = "playing-card-corner";
+      corner.textContent = formatCard(card);
+
+      const meta = document.createElement("div");
+      meta.className = "playing-card-meta";
+      meta.textContent = card.suitName;
+
+      face.appendChild(corner);
+      face.appendChild(meta);
+      node.appendChild(face);
+    });
+  }
+
+  function describeHandUpdate(update) {
+    if (!update?.added && !update?.removed) {
+      return "No hand changes yet.";
+    }
+    const removed = update.removed ? formatCard(update.removed) : "-";
+    const added = update.added ? formatCard(update.added) : "-";
+    return `Reveal ${update.revealNumber}: out ${removed}, in ${added}.`;
   }
 
   function formatDuration(ms) {
@@ -204,9 +262,21 @@
     return state.selectedGameType === "card_market" ? "card_market" : "hidden_value";
   }
 
+  function activeVisualGameType() {
+    if (state.roomState?.gameType) {
+      return state.roomState.gameType;
+    }
+    return selectedGameType();
+  }
+
+  function applyTheme() {
+    document.body.classList.toggle("card-theme", activeVisualGameType() === "card_market");
+  }
+
   function setSelectedGameType(gameType) {
     state.selectedGameType = gameType === "card_market" ? "card_market" : "hidden_value";
     safeStorageSet(STORAGE_KEYS.selectedGameType, state.selectedGameType);
+    applyTheme();
     renderModeSelection();
     render();
   }
@@ -228,11 +298,13 @@
     setText(
       elements.modeDescription,
       isCardGame
-        ? "Multiplayer card-market play with 2 to 10 players, rotating makers, private hands, and sequential board reveals."
+        ? "Multiplayer card-market play with changing private hands, timed reveals, and live room-wide quoting."
         : "Two-player interview-style market making with one hidden settlement value."
     );
     setText(elements.queueTitle, isCardGame ? "Random queue is only for Hidden Value" : "Queue into the next game");
     setText(elements.botTitle, isCardGame ? "RL bot is only for Hidden Value" : "Play the trained model");
+    elements.queueCard.classList.toggle("hidden", isCardGame);
+    elements.botCard.classList.toggle("hidden", isCardGame);
   }
 
   function normalizeBackendUrl(input) {
@@ -912,7 +984,7 @@
     quotes.forEach((quote) => {
       const li = document.createElement("li");
       const summary = document.createElement("div");
-      summary.textContent = `${quote.playerName}: ${format(quote.bid)} / ${format(quote.ask)} x ${quote.size}`;
+      summary.textContent = `${quote.playerName}: ${format(quote.bid)} / ${format(quote.ask)} x ${quote.size} · ${formatDuration(quote.msUntilExpiry)} left`;
       li.appendChild(summary);
 
       if (quote.canTrade && state.roomState?.status === "live") {
@@ -941,6 +1013,7 @@
   }
 
   function render() {
+    applyTheme();
     const roomState = state.roomState;
     const game = roomState?.game || null;
     const gameType = roomState?.gameType || "hidden_value";
@@ -966,25 +1039,30 @@
     elements.modeSection.classList.toggle("hidden", hasRoom);
     elements.setupSection.classList.toggle("hidden", hasRoom);
     elements.sessionSection.classList.toggle("hidden", !hasRoom);
-    elements.gameSection.classList.toggle("hidden", !hasRoom);
+    elements.gameSection.classList.toggle("hidden", !hasRoom || (!isLive && !isFinished));
     elements.lowerSection.classList.toggle("hidden", !hasRoom || (!isLive && !isFinished));
 
     setText(elements.roomCodeDisplay, state.roomCode || "No room");
     setText(elements.roleLabel, capWords(role));
     setText(elements.gameStatus, capWords(roomState?.status || "lobby"));
+    setText(elements.turnCaption, isCardGame ? "Board" : "Turn");
+    setText(elements.activeCaption, isCardGame ? "Market" : "Active actor");
     setText(elements.turnLabel, `${game?.turn || 0} / ${game?.maxTurns || 0}`);
-    setText(elements.activeActor, capWords(game?.activeActor || ""));
+    setText(elements.activeActor, isCardGame ? `${game?.liveQuotes?.length || 0} live` : capWords(game?.activeActor || ""));
     setText(elements.gameTypeLabel, formatGameType(gameType));
     setText(elements.matchType, roomState?.matchType === "bot" ? "RL Bot" : "Human");
     setText(elements.gameNumber, String(roomState?.gameNumber || 0));
 
+    setText(elements.contractCaption, isCardGame ? "Objective" : "Contract");
     setText(elements.contractPrompt, game?.contract?.prompt || "Waiting for room");
-    setText(elements.contractUnit, game?.contract?.unitLabel || "-");
+    setText(elements.contractUnit, isCardGame ? game?.target?.label || "-" : game?.contract?.unitLabel || "-");
     setText(
       elements.contractRange,
-      game?.contract
-        ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
-        : "Range: -"
+      isCardGame
+        ? `Board shown: ${game?.boardCards?.length || 0} / ${game?.boardRevealTotal || 0}. Every reveal refreshes one private card for every player.`
+        : game?.contract
+          ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
+          : "Range: -"
     );
     setText(elements.roleHeadline, buildRoleHeadline(role, roomState, game));
     setText(elements.turnPrompt, buildTurnPrompt(role, roomState, game));
@@ -1018,12 +1096,15 @@
     setText(elements.takerQuoteSize, currentSize);
     setText(elements.previousQuote, formatQuote(game?.previousQuote));
     setText(elements.quoteContext, buildQuoteContext(game));
+    setText(elements.quoteCardCaption, isCardGame ? "Your market" : "Maker controls");
+    setText(elements.quoteCardTitle, isCardGame ? "Keep a live quote in the room" : "Submit a quote");
     setText(
       elements.cardMakerBadge,
       isFinished ? "Round settled" : `Next reveal: ${formatDuration(game?.nextRevealAt ? Math.max(game.nextRevealAt - Date.now(), 0) : game?.msUntilNextReveal)}`
     );
-    setText(elements.privateHand, formatCards(game?.privateHand || []));
-    setText(elements.boardCards, formatCards(game?.boardCards || []));
+    renderCardRack(elements.privateHand, game?.privateHand || [], "No cards dealt yet.");
+    renderCardRack(elements.boardCards, game?.boardCards || [], "No board cards revealed yet.");
+    setText(elements.handUpdate, describeHandUpdate(game?.recentHandUpdate));
     setText(
       elements.cardResponseStatus,
       isCardGame
@@ -1117,6 +1198,7 @@
   state.backendUrl = defaultBackendUrl();
   state.clientId = getOrCreateClientId();
 
+  applyTheme();
   renderModeSelection();
   render();
   window.setInterval(() => {

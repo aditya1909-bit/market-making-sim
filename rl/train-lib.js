@@ -17,6 +17,7 @@ import {
   updateEstimateFromQuote,
   updateEstimateFromResolution,
 } from "../workers/src/rl-core.js";
+import { RL_POLICY_MIN_SUPPORT } from "../workers/src/rl-policy-config.js";
 import { GAME_ROLE, TAKER_ACTION } from "../workers/src/protocol.js";
 
 function ensureRow(table, key, count) {
@@ -340,54 +341,58 @@ export function mergeCompressedShardOutputs(outputs) {
   };
 }
 
-export function exportCompressedPolicy(policyBundle, metadata) {
-  return `export const RL_POLICY = ${JSON.stringify(
-    {
-      metadata: {
-        ...metadata,
-        exportedMakerStates: Object.keys(policyBundle.maker.policy).length,
-        exportedTakerModeStates: Object.keys(policyBundle.takerModes.policy).length,
-        exportedTakerStates: Object.keys(policyBundle.taker.policy).length,
-      },
-      maker: policyBundle.maker.policy,
-      takerModes: policyBundle.takerModes.policy,
-      taker: policyBundle.taker.policy,
-      counts: {
-        maker: policyBundle.maker.support,
-        takerModes: policyBundle.takerModes.support,
-        taker: policyBundle.taker.support,
-      },
-    },
-    null,
-    2
-  )};\n`;
+function filterCompressedSide(side, minSupport) {
+  const policy = {};
+  const support = side?.support || {};
+  for (const [stateKey, actionIndex] of Object.entries(side?.policy || {})) {
+    if (Number(support[stateKey] || 0) < minSupport) {
+      continue;
+    }
+    policy[stateKey] = actionIndex;
+  }
+  return policy;
 }
 
-export function exportModule(qMaker, qTakerModes, qTaker, countsMaker, countsTakerModes, countsTaker, metadata, minSamples = 12) {
-  const maker = compressPolicy(qMaker, countsMaker, minSamples);
-  const takerModes = compressPolicy(qTakerModes, countsTakerModes, minSamples);
-  const taker = compressPolicy(qTaker, countsTaker, minSamples);
-
-  return `export const RL_POLICY = ${JSON.stringify(
-    {
-      metadata: {
-        ...metadata,
-        exportMinSamples: minSamples,
-        exportedMakerStates: Object.keys(maker.policy).length,
-        exportedTakerModeStates: Object.keys(takerModes.policy).length,
-        exportedTakerStates: Object.keys(taker.policy).length,
-      },
-      maker: maker.policy,
-      takerModes: takerModes.policy,
-      taker: taker.policy,
-      counts: {
-        maker: maker.support,
-        takerModes: takerModes.support,
-        taker: taker.support,
-      },
+function exportLivePolicyObject(maker, takerModes, taker, metadata, trainingMinSamples = null, liveMinSupport = RL_POLICY_MIN_SUPPORT) {
+  return {
+    metadata: {
+      ...metadata,
+      trainingMinSamples,
+      liveMinSupport,
+      exportedMakerStates: Object.keys(maker).length,
+      exportedTakerModeStates: Object.keys(takerModes).length,
+      exportedTakerStates: Object.keys(taker).length,
     },
-    null,
-    2
+    maker,
+    takerModes,
+    taker,
+  };
+}
+
+export function exportCompressedPolicy(policyBundle, metadata, liveMinSupport = RL_POLICY_MIN_SUPPORT) {
+  const maker = filterCompressedSide(policyBundle.maker, liveMinSupport.maker);
+  const takerModes = filterCompressedSide(policyBundle.takerModes, liveMinSupport.takerModes);
+  const taker = filterCompressedSide(policyBundle.taker, liveMinSupport.taker);
+  return `export const RL_POLICY=${JSON.stringify(exportLivePolicyObject(maker, takerModes, taker, metadata, null, liveMinSupport))};\n`;
+}
+
+export function exportModule(
+  qMaker,
+  qTakerModes,
+  qTaker,
+  countsMaker,
+  countsTakerModes,
+  countsTaker,
+  metadata,
+  minSamples = 12,
+  liveMinSupport = RL_POLICY_MIN_SUPPORT
+) {
+  const maker = compressPolicy(qMaker, countsMaker, liveMinSupport.maker);
+  const takerModes = compressPolicy(qTakerModes, countsTakerModes, liveMinSupport.takerModes);
+  const taker = compressPolicy(qTaker, countsTaker, liveMinSupport.taker);
+
+  return `export const RL_POLICY=${JSON.stringify(
+    exportLivePolicyObject(maker.policy, takerModes.policy, taker.policy, metadata, minSamples, liveMinSupport)
   )};\n`;
 }
 

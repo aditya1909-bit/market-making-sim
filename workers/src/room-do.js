@@ -330,6 +330,7 @@ export class RoomDurableObject extends DurableObject {
         case CLIENT_EVENTS.SUBMIT_QUOTE:
           if (isCardGame(this.room)) {
             submitCardQuote(this.room, playerId, parsed.payload || {});
+            await this.scheduleCardAlarm();
           } else {
             submitQuote(this.room, playerId, parsed.payload || {});
           }
@@ -343,6 +344,7 @@ export class RoomDurableObject extends DurableObject {
         case CLIENT_EVENTS.TAKER_ACTION:
           if (isCardGame(this.room)) {
             takeCardAction(this.room, playerId, parsed.payload || {});
+            await this.scheduleCardAlarm();
           } else {
             takeAction(this.room, playerId, parsed.payload || {});
           }
@@ -453,7 +455,7 @@ export class RoomDurableObject extends DurableObject {
         refreshBotEstimate(this.room);
       }
 
-      const decision = botDecision(this.room, botPlayerId);
+      const decision = await botDecision(this.room, botPlayerId, this.env);
       if (decision.type === "submit_quote") {
         submitQuote(this.room, botPlayerId, decision.payload);
       } else {

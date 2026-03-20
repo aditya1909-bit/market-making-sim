@@ -37,3 +37,23 @@ npm run dev
 ```
 
 That serves the Worker locally on `http://127.0.0.1:8787`.
+
+## RL Bot Policy
+
+The live RL bot policy is loaded from a Workers KV binding named `RL_POLICY_KV`.
+The local training export in `workers/src/rl-policy-data.js` is no longer bundled into the Worker.
+
+Create the namespace and bind it:
+
+```bash
+cd workers
+npx wrangler kv namespace create RL_POLICY_KV --binding RL_POLICY_KV --update-config
+```
+
+Then, from the repo root, upload the split policy blobs:
+
+```bash
+node rl/upload-policy-to-kv.js --apply
+```
+
+If the binding is absent or empty, bot rooms still run, but they fall back to the heuristic policy instead of the trained RL policy.
