@@ -20,6 +20,7 @@ import {
   createBotRoomState,
   createMatchedRoomState,
   createRoomState,
+  handleHiddenPlayerDeparture,
   hasAllRematchVotes,
   maybeStartGame,
   playerFor,
@@ -196,6 +197,9 @@ export class RoomDurableObject extends DurableObject {
     const player = addPlayerToRoom(this.room, validateName(body.name));
     if (!isCardGame(this.room) && this.room.players.length === 2 && (!this.room.makerId || !this.room.takerId)) {
       assignRoles(this.room);
+    }
+    if (!isCardGame(this.room) && this.room.players.length === 2 && !this.room.game.contract) {
+      prepareNextGame(this.room, sampleContract());
     }
     if (isCardGame(this.room) && this.room.status === "lobby") {
       prepareNextCardGame(this.room);
@@ -394,9 +398,11 @@ export class RoomDurableObject extends DurableObject {
           return;
         }
         case CLIENT_EVENTS.LEAVE_ROOM:
-          setReady(this.room, playerId, false);
+          await this.handleLeaveRoom(playerId);
           await this.persist();
-          this.broadcastRoom();
+          if (this.room) {
+            this.broadcastRoom();
+          }
           return;
         case CLIENT_EVENTS.PING:
           this.send(ws, { type: SERVER_EVENTS.PONG, at: Date.now() });
@@ -474,8 +480,62 @@ export class RoomDurableObject extends DurableObject {
       this.ctx
         .getWebSockets()
         .map((socket) => socket.deserializeAttachment()?.playerId)
-        .filter(Boolean)
+        .filter((playerId) => playerId && playerFor(this.room, playerId))
     );
+  }
+
+  closeSocketsForPlayer(playerId, code = 1000, reason = "Connection closed") {
+    for (const socket of this.ctx.getWebSockets()) {
+      const attachment = socket.deserializeAttachment();
+      if (attachment?.playerId !== playerId) {
+        continue;
+      }
+      try {
+        socket.close(code, reason);
+      } catch {
+        // ignore socket close failures
+      }
+    }
+  }
+
+  async handleLeaveRoom(playerId) {
+    if (!this.room) {
+      return;
+    }
+
+    const departing = playerFor(this.room, playerId);
+    if (!departing) {
+      throw new Error("Unknown player.");
+    }
+
+    const liveHiddenRoom = !isCardGame(this.room) && this.room.status === "live";
+    const message = liveHiddenRoom
+      ? `${departing.name} left the room. The round was cancelled. Waiting for a new opponent.`
+      : `${departing.name} left the room. Waiting for a new opponent.`;
+
+    if (this.room.bot?.enabled) {
+      this.closeSocketsForPlayer(playerId, 1000, "Left room");
+      this.room = null;
+      await this.scheduleCardAlarm();
+      return;
+    }
+
+    if (isCardGame(this.room)) {
+      setReady(this.room, playerId, false);
+      this.closeSocketsForPlayer(playerId, 1000, "Left room");
+      return;
+    }
+
+    const outcome = handleHiddenPlayerDeparture(this.room, playerId, message);
+    this.closeSocketsForPlayer(playerId, 1000, "Left room");
+    if (outcome.roomEmpty) {
+      this.room = null;
+      await this.scheduleCardAlarm();
+    }
+  }
+
+  validPlayerId(playerId) {
+    return Boolean(playerId && playerFor(this.room, playerId));
   }
 
   serializeJoin(playerId) {
@@ -499,7 +559,12 @@ export class RoomDurableObject extends DurableObject {
     const connectedIds = this.connectedIds();
     for (const socket of this.ctx.getWebSockets()) {
       const playerId = socket.deserializeAttachment()?.playerId;
-      if (!playerId) {
+      if (!this.validPlayerId(playerId)) {
+        try {
+          socket.close(1000, "Player is no longer in the room");
+        } catch {
+          // ignore stale socket close failures
+        }
         continue;
       }
       this.send(socket, {
@@ -512,7 +577,11 @@ export class RoomDurableObject extends DurableObject {
   }
 
   async persist() {
-    await this.ctx.storage.put("room", this.room);
+    if (this.room) {
+      await this.ctx.storage.put("room", this.room);
+      return;
+    }
+    await this.ctx.storage.delete("room");
   }
 
   syncCardGameClock() {

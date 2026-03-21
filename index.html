@@ -32,16 +32,16 @@
       <section id="mode-section" class="mode-switch card">
         <div class="card-head">
           <div>
-            <p class="eyebrow">Game Select</p>
-            <h2>Choose a mode</h2>
+            <p class="eyebrow">Live Mode</p>
+            <h2>Playable right now</h2>
           </div>
         </div>
         <div class="toggle-row">
           <button id="toggle-hidden-value" class="mode-toggle mode-toggle-active" type="button">Hidden Value</button>
-          <button id="toggle-card-market" class="mode-toggle" type="button">Card Market</button>
+          <button id="toggle-card-market" class="mode-toggle hidden" type="button">Card Market</button>
         </div>
         <p id="mode-description" class="body-copy subtle-copy">
-          Two-player interview-style market making with one hidden settlement value.
+          Hidden Value is the current polished mode: a clean 1v1 maker-versus-taker game with private settlement and authoritative multiplayer state.
         </p>
       </section>
 
@@ -176,11 +176,20 @@
               <span class="mini-label">Game #</span>
               <strong id="game-number">0</strong>
             </div>
+            <div class="mini-metric">
+              <span class="mini-label">Connection</span>
+              <strong id="session-connection-status">Offline</strong>
+            </div>
+          </div>
+          <div class="soft-panel top-gap">
+            <span class="mini-label">Next step</span>
+            <p id="session-connection-detail" class="body-copy">Create, join, or queue into a room to start playing.</p>
           </div>
           <div class="action-row top-gap">
             <button id="copy-room-code" class="secondary-button" disabled>Copy Room Code</button>
             <button id="ready-toggle" class="primary-button" disabled>Mark Ready</button>
             <button id="request-rematch" class="secondary-button" disabled>Request Rematch</button>
+            <button id="retry-connection" class="secondary-button" disabled>Reconnect</button>
             <button id="leave-room" class="secondary-button danger">Leave Room</button>
           </div>
         </article>

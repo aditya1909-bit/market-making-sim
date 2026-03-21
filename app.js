@@ -17,6 +17,8 @@
     gameSection: document.getElementById("game-section"),
     lowerSection: document.getElementById("lower-section"),
     connectionStatus: document.getElementById("connection-status"),
+    sessionConnectionStatus: document.getElementById("session-connection-status"),
+    sessionConnectionDetail: document.getElementById("session-connection-detail"),
     playerName: document.getElementById("player-name"),
     heroTitle: document.getElementById("hero-title"),
     heroText: document.getElementById("hero-text"),
@@ -48,6 +50,7 @@
     copyRoomCode: document.getElementById("copy-room-code"),
     readyToggle: document.getElementById("ready-toggle"),
     requestRematch: document.getElementById("request-rematch"),
+    retryConnection: document.getElementById("retry-connection"),
     leaveRoom: document.getElementById("leave-room"),
     roleLabel: document.getElementById("role-label"),
     gameStatus: document.getElementById("game-status"),
@@ -124,6 +127,12 @@
     queueJoinPending: false,
     restoring: false,
     manualClose: false,
+    reconnectHandle: null,
+    reconnectAttempts: 0,
+    reconnecting: false,
+    connectionState: "idle",
+    connectionDetail: "Create, join, or queue into a room to start playing.",
+    socketSessionId: 0,
   };
 
   function defaultBackendUrl() {
@@ -285,7 +294,7 @@
   }
 
   function selectedGameType() {
-    return state.selectedGameType === "card_market" ? "card_market" : "hidden_value";
+    return "hidden_value";
   }
 
   function activeVisualGameType() {
@@ -308,28 +317,21 @@
   }
 
   function renderModeSelection() {
-    const gameType = selectedGameType();
-    const isCardGame = gameType === "card_market";
+    elements.toggleHiddenValue.classList.add("mode-toggle-active");
+    elements.toggleCardMarket.classList.remove("mode-toggle-active");
 
-    elements.toggleHiddenValue.classList.toggle("mode-toggle-active", !isCardGame);
-    elements.toggleCardMarket.classList.toggle("mode-toggle-active", isCardGame);
-
-    setText(elements.heroTitle, isCardGame ? "Private cards. Public reveals. Live markets." : "One hidden value. One market.");
+    setText(elements.heroTitle, "One hidden value. One market.");
     setText(
       elements.heroText,
-      isCardGame
-        ? "Create a private card-market room, deal fixed hidden hands, reveal board cards one by one, and trade a live market on a card-derived property."
-        : "Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker chooses buy, sell, or pass, and settlement stays hidden until the round ends."
+      "Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker chooses buy, sell, or pass, and settlement stays hidden until the round ends."
     );
     setText(
       elements.modeDescription,
-      isCardGame
-        ? "Multiplayer card-market play with fixed private hands, timed board reveals, and live room-wide quoting."
-        : "Two-player interview-style market making with one hidden settlement value."
+      "Hidden Value is the current polished mode: a fast 1v1 market-making game with private settlement, reconnect support, and authoritative multiplayer state."
     );
-    setText(elements.setupMessage, isCardGame ? "Card market rooms support 2 to 10 players. Each player gets 2 private cards from a normal deck, and the table reveals one new public card each minute." : "The site connects to the live game server automatically. Refreshing the page restores your room when possible.");
-    setText(elements.roomActionMessage, isCardGame ? "Use a private code room for a larger table, or queue into a random card market." : "Private rooms are best for playing a specific friend.");
-    setText(elements.queueTitle, isCardGame ? "Queue into a random card market" : "Queue into the next game");
+    setText(elements.setupMessage, "The site connects to the live game server automatically. Refreshing the page restores your room when possible.");
+    setText(elements.roomActionMessage, "Private rooms are best for playing a specific friend.");
+    setText(elements.queueTitle, "Queue into the next game");
     setText(elements.queueStatus, "Not in matchmaking queue.");
     setText(elements.botTitle, "Play the trained model");
     setText(elements.cardInfoTitle, "How this game runs");
@@ -339,8 +341,8 @@
     elements.profileCard.classList.remove("hidden");
     elements.privateRoomCard.classList.remove("hidden");
     elements.randomMatchCard.classList.remove("hidden");
-    elements.rlBotCard.classList.toggle("hidden", isCardGame);
-    elements.cardMarketInfoCard.classList.toggle("hidden", !isCardGame);
+    elements.rlBotCard.classList.remove("hidden");
+    elements.cardMarketInfoCard.classList.add("hidden");
   }
 
   function normalizeBackendUrl(input) {
@@ -386,6 +388,9 @@
     if (role === "market_taker") {
       return "You decide whether to buy, sell, or wait.";
     }
+    if (roomState?.players?.length === 1) {
+      return "You have the room. Share the code and wait for the second seat.";
+    }
     return "Join a room to get a seat.";
   }
 
@@ -408,9 +413,15 @@
       return "The round is settled. Review the tape and request a rematch if you want the other side.";
     }
     if (roomState.status === "lobby") {
+      if ((roomState.players || []).length < 2) {
+        return "Waiting for a second player to join the room.";
+      }
+      if (!roomState.ready) {
+        return "Both seats are filled. Mark ready when you want to start.";
+      }
       return roomState.matchType === "bot"
         ? "The bot room is preparing the next round."
-        : "Waiting for both sides to mark ready.";
+        : "You are ready. Waiting for the other player.";
     }
     if (role === "market_maker") {
       return game.activeActor === "maker"
@@ -434,6 +445,12 @@
         return "Keep a live quote in the room if you want to make markets, and hit or lift other players when they are off.";
       }
       return "The timed card market starts once everyone in the room is ready.";
+    }
+    if (roomState.status === "lobby" && (roomState.players || []).length < 2) {
+      return "Share the room code. The round contract appears once the second player joins.";
+    }
+    if (roomState.status === "lobby" && !roomState.ready) {
+      return "Mark ready once you are set. The server starts the round automatically when both players are ready.";
     }
     if (role === "market_maker") {
       return "Quote both sides and manage your inventory.";
@@ -525,6 +542,53 @@
     const spreadText =
       Math.abs(spreadDelta) < 0.005 ? "The spread is roughly unchanged." : spreadDelta > 0 ? "The spread widened." : "The spread tightened.";
     return `${driftText} ${spreadText}`;
+  }
+
+  function quoteDraft() {
+    const bid = Number(elements.bidInput.value);
+    const ask = Number(elements.askInput.value);
+    const size = Number(elements.sizeInput.value);
+    const hasBid = elements.bidInput.value !== "";
+    const hasAsk = elements.askInput.value !== "";
+    const hasSize = elements.sizeInput.value !== "";
+
+    if (!hasBid || !hasAsk) {
+      return { valid: false, message: "Enter both bid and ask." };
+    }
+    if (!Number.isFinite(bid) || !Number.isFinite(ask)) {
+      return { valid: false, message: "Bid and ask must be numeric." };
+    }
+    if (ask <= bid) {
+      return { valid: false, message: "Ask must be above bid." };
+    }
+    if (!hasSize || !Number.isFinite(size) || size < 1 || size > 10) {
+      return { valid: false, message: "Size must be between 1 and 10." };
+    }
+
+    return {
+      valid: true,
+      bid,
+      ask,
+      size,
+      message: "Quote is ready to send.",
+    };
+  }
+
+  function connectionStatusLabel() {
+    switch (state.connectionState) {
+      case "connected":
+        return "Connected";
+      case "connecting":
+        return "Connecting";
+      case "reconnecting":
+        return "Reconnecting";
+      case "failed":
+        return "Retry needed";
+      case "disconnected":
+        return "Disconnected";
+      default:
+        return "Not connected";
+    }
   }
 
   function requireBackendUrl() {
@@ -643,15 +707,123 @@
     }
   }
 
+  function clearReconnectTimer() {
+    if (state.reconnectHandle) {
+      window.clearTimeout(state.reconnectHandle);
+      state.reconnectHandle = null;
+    }
+  }
+
+  function resetConnectionState() {
+    state.reconnecting = false;
+    state.reconnectAttempts = 0;
+    state.connectionState = state.roomId ? "disconnected" : "idle";
+    state.connectionDetail = state.roomId
+      ? "You are not connected to the room right now."
+      : "Create, join, or queue into a room to start playing.";
+  }
+
+  function fetchRoomState(roomCode = state.roomCode, playerId = state.playerId) {
+    return api(`/api/rooms/${encodeURIComponent(roomCode)}/state?playerId=${encodeURIComponent(playerId)}`);
+  }
+
+  function reconnectDelay(attemptNumber) {
+    return Math.min(700 * 2 ** Math.max(attemptNumber - 1, 0), 4000);
+  }
+
+  function handleReconnectFailure(message, options = {}) {
+    const clearRoom = Boolean(options.clearRoom);
+    clearReconnectTimer();
+    state.reconnecting = false;
+    state.connectionState = "failed";
+    state.connectionDetail = message;
+
+    if (clearRoom) {
+      closeSocket();
+      state.roomId = null;
+      state.roomCode = null;
+      state.playerId = null;
+      state.roomState = null;
+      clearSession();
+      setSetupMessage(message, true);
+      resetConnectionState();
+    } else {
+      setActionMessage(message, true);
+    }
+
+    render();
+  }
+
+  function scheduleReconnect() {
+    clearReconnectTimer();
+    if (!state.roomCode || !state.playerId) {
+      resetConnectionState();
+      render();
+      return;
+    }
+
+    const nextAttempt = state.reconnectAttempts + 1;
+    state.reconnecting = true;
+    state.connectionState = "reconnecting";
+    state.connectionDetail =
+      nextAttempt === 1
+        ? "Connection dropped. Reconnecting to the room now."
+        : `Connection dropped. Retry ${nextAttempt} will start in ${Math.ceil(reconnectDelay(nextAttempt) / 1000)}s.`;
+
+    state.reconnectHandle = window.setTimeout(() => {
+      attemptReconnect();
+    }, reconnectDelay(nextAttempt));
+  }
+
+  async function attemptReconnect() {
+    clearReconnectTimer();
+    if (!state.roomCode || !state.playerId) {
+      handleReconnectFailure("Your room session is no longer available.", { clearRoom: true });
+      return;
+    }
+
+    state.reconnectAttempts += 1;
+    state.reconnecting = true;
+    state.connectionState = "reconnecting";
+    state.connectionDetail = `Trying to reconnect to room ${state.roomCode}.`;
+    render();
+
+    try {
+      const payload = await fetchRoomState();
+      state.roomId = payload.roomId;
+      state.roomCode = payload.roomCode;
+      state.playerId = payload.playerId;
+      state.roomState = payload.view || state.roomState;
+      persistSession();
+      await openSocket({ reconnecting: true });
+    } catch (error) {
+      const fatal = /Unknown player|Room code not found/i.test(error.message || "");
+      if (fatal) {
+        handleReconnectFailure("Your room session expired. Join or create a new room.", { clearRoom: true });
+        return;
+      }
+      if (state.reconnectAttempts >= 4) {
+        handleReconnectFailure("Could not reconnect automatically. Use Reconnect to try again.");
+        return;
+      }
+      scheduleReconnect();
+      render();
+    }
+  }
+
   async function connectToRoom(joinPayload, options = {}) {
     clearQueuePolling();
+    clearReconnectTimer();
+    state.reconnecting = false;
+    state.reconnectAttempts = 0;
     state.queueTicketId = null;
-    state.manualClose = false;
-    closeSocket();
+    closeSocket({ manual: true });
     state.roomId = joinPayload.roomId;
     state.roomCode = joinPayload.roomCode;
     state.playerId = joinPayload.playerId;
     state.roomState = joinPayload.view || null;
+    state.connectionState = "connecting";
+    state.connectionDetail = `Connecting to room ${state.roomCode}.`;
     persistSession();
     await openSocket(options);
     render();
@@ -661,25 +833,53 @@
     if (!state.playerId) {
       return;
     }
+    const socketSessionId = state.socketSessionId + 1;
+    state.socketSessionId = socketSessionId;
     const ws = new WebSocket(toWebSocketUrl(requireBackendUrl()));
     state.ws = ws;
-    setText(elements.connectionStatus, "Connecting");
+    state.manualClose = false;
+    state.connectionState = options.reconnecting ? "reconnecting" : "connecting";
+    state.connectionDetail = options.reconnecting ? `Rejoining room ${state.roomCode}.` : `Connecting to room ${state.roomCode}.`;
+    render();
 
     ws.addEventListener("open", () => {
-      setText(elements.connectionStatus, "Connected");
+      if (socketSessionId !== state.socketSessionId) {
+        return;
+      }
+      clearReconnectTimer();
+      state.reconnecting = false;
+      state.reconnectAttempts = 0;
+      state.connectionState = "connected";
+      state.connectionDetail =
+        state.roomState?.status === "live"
+          ? "Connected. The room is live."
+          : "Connected. Wait for the other seat or mark ready when both players are in.";
       if (options.restored) {
         setSetupMessage(`Restored room ${state.roomCode}.`);
+      }
+      if (options.reconnecting) {
+        setActionMessage(`Reconnected to room ${state.roomCode}.`);
       }
       render();
     });
 
     ws.addEventListener("message", (event) => {
+      if (socketSessionId !== state.socketSessionId) {
+        return;
+      }
       const message = JSON.parse(event.data);
       if (message.type === "room_state") {
         state.roomState = message.payload;
         state.roomId = message.payload.roomId;
         state.roomCode = message.payload.roomCode;
         persistSession();
+        if (state.connectionState !== "connected") {
+          state.connectionState = "connected";
+          state.connectionDetail =
+            state.roomState?.status === "live"
+              ? "Connected. The room is live."
+              : "Connected. Wait for the other seat or mark ready when both players are in.";
+        }
         render();
         return;
       }
@@ -689,19 +889,39 @@
     });
 
     ws.addEventListener("close", () => {
-      setText(elements.connectionStatus, state.roomId ? "Disconnected" : "Not connected");
+      if (socketSessionId !== state.socketSessionId) {
+        return;
+      }
       state.ws = null;
+      if (state.manualClose) {
+        state.manualClose = false;
+        resetConnectionState();
+        render();
+        return;
+      }
+      if (state.roomId && state.playerId) {
+        scheduleReconnect();
+      } else {
+        resetConnectionState();
+      }
       render();
     });
 
     ws.addEventListener("error", () => {
-      setText(elements.connectionStatus, "Socket error");
+      if (socketSessionId !== state.socketSessionId) {
+        return;
+      }
+      state.connectionState = "reconnecting";
+      state.connectionDetail = `Network issue while connected to room ${state.roomCode}.`;
+      render();
     });
   }
 
-  function closeSocket() {
+  function closeSocket(options = {}) {
+    const manual = options.manual !== false;
+    clearReconnectTimer();
     if (state.ws) {
-      state.manualClose = true;
+      state.manualClose = manual;
       state.ws.close();
     }
     state.ws = null;
@@ -727,10 +947,6 @@
   }
 
   async function createBotRoom(humanRole) {
-    if (selectedGameType() === "card_market") {
-      setActionMessage("The RL bot is only available for Hidden Value right now.", true);
-      return;
-    }
     try {
       const name = requirePlayerName();
       const payload = await api("/api/bot-rooms", { method: "POST", body: { name, humanRole } });
@@ -779,7 +995,7 @@
         return;
       }
 
-      setQueueStatus(gameType === "card_market" ? "Searching for a card-market table..." : "Searching for opponent...");
+      setQueueStatus("Searching for opponent...");
       clearQueuePolling();
       state.queuePollHandle = window.setInterval(async () => {
         try {
@@ -829,19 +1045,39 @@
 
   function leaveRoom() {
     clearQueuePolling();
+    clearReconnectTimer();
+    state.reconnecting = false;
+    state.reconnectAttempts = 0;
     state.queueTicketId = null;
     if (state.ws && state.ws.readyState === 1) {
       state.ws.send(JSON.stringify({ type: "leave_room" }));
     }
-    closeSocket();
+    closeSocket({ manual: true });
     state.roomId = null;
     state.roomCode = null;
     state.playerId = null;
     state.roomState = null;
     clearSession();
-    setText(elements.connectionStatus, "Not connected");
+    resetConnectionState();
     setSetupMessage("Disconnected from the room.");
     render();
+  }
+
+  function retryConnection() {
+    if (state.reconnecting) {
+      return;
+    }
+    if (!state.roomCode || !state.playerId) {
+      const session = readStoredSession();
+      if (!session) {
+        setSetupMessage("No saved room session is available to reconnect.", true);
+        return;
+      }
+      state.roomCode = session.roomCode;
+      state.roomId = session.roomId || null;
+      state.playerId = session.playerId;
+    }
+    attemptReconnect();
   }
 
   function toggleReady() {
@@ -866,11 +1102,15 @@
 
   function submitQuote() {
     try {
+      const draft = quoteDraft();
+      if (!draft.valid) {
+        throw new Error(draft.message);
+      }
       sendMessage("submit_quote", {
         payload: {
-          bid: Number(elements.bidInput.value),
-          ask: Number(elements.askInput.value),
-          size: Number(elements.sizeInput.value),
+          bid: draft.bid,
+          ask: draft.ask,
+          size: draft.size,
         },
       });
     } catch (error) {
@@ -914,10 +1154,11 @@
       if (preferredBackend && !safeStorageGet(STORAGE_KEYS.backendUrl)) {
         state.backendUrl = preferredBackend;
       }
-      const payload = await api(`/api/rooms/${encodeURIComponent(session.roomCode)}/state?playerId=${encodeURIComponent(session.playerId)}`);
+      const payload = await fetchRoomState(session.roomCode, session.playerId);
       await connectToRoom(payload, { restored: true });
     } catch {
       clearSession();
+      setSetupMessage("Saved room session expired. Create or join a new room.");
     } finally {
       state.restoring = false;
       render();
@@ -1053,7 +1294,7 @@
     const selectedType = selectedGameType();
     const gameType = roomState?.gameType || selectedType;
     const isCardGame = gameType === "card_market";
-    const hasRoom = Boolean(state.roomCode && roomState);
+    const hasRoom = Boolean(state.roomCode);
     const isLive = roomState?.status === "live";
     const role = roomState?.role || "";
     const you = !isCardGame ? (role === "market_maker" ? game?.maker : role === "market_taker" ? game?.taker : null) : null;
@@ -1068,13 +1309,30 @@
     const boardFullyRevealed = isCardGame ? (game?.boardCards?.length || 0) >= (game?.boardRevealTotal || 0) : false;
     const canVoteReveal = isCardGame && isLive && !boardFullyRevealed && !game?.revealRequestedByYou;
     const leadQuote = isCardGame ? game?.liveQuotes?.[0] || null : null;
+    const draft = quoteDraft();
+    const canSubmitQuote = canQuote && draft.valid;
+    const contractPrompt = game?.contract?.prompt || (hasRoom ? "Waiting for the second player so the server can deal a fresh contract." : "Waiting for room");
+    const contractUnit = isCardGame ? game?.target?.label || "-" : game?.contract?.unitLabel || "-";
+    const contractRange = isCardGame
+      ? `Board shown: ${game?.boardCards?.length || 0} / ${game?.boardRevealTotal || 0}. Private hands stay fixed while the table reveals one new card at a time.`
+      : game?.contract
+        ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
+        : "The server will load a fresh contract once two players are seated.";
+    const liveQuoteAvailable = Boolean(game?.currentQuote);
 
     elements.heroSection.classList.toggle("hidden", hasRoom);
     elements.modeSection.classList.toggle("hidden", hasRoom);
     elements.setupSection.classList.toggle("hidden", hasRoom);
     elements.sessionSection.classList.toggle("hidden", !hasRoom);
-    elements.gameSection.classList.toggle("hidden", !hasRoom || (!isLive && !isFinished));
-    elements.lowerSection.classList.toggle("hidden", !hasRoom || (!isLive && !isFinished));
+    elements.gameSection.classList.toggle("hidden", !hasRoom);
+    elements.lowerSection.classList.toggle("hidden", !hasRoom);
+
+    setText(elements.connectionStatus, connectionStatusLabel());
+    setText(elements.sessionConnectionStatus, connectionStatusLabel());
+    setText(
+      elements.sessionConnectionDetail,
+      state.connectionState === "connected" && roomState ? buildTurnPrompt(role, roomState, game) : state.connectionDetail
+    );
 
     setText(elements.roomCodeDisplay, state.roomCode || "No room");
     setText(elements.roleLabel, formatRoleLabel(role, gameType));
@@ -1088,16 +1346,9 @@
     setText(elements.gameNumber, String(roomState?.gameNumber || 0));
 
     setText(elements.contractCaption, isCardGame ? "Objective" : "Contract");
-    setText(elements.contractPrompt, game?.contract?.prompt || "Waiting for room");
-    setText(elements.contractUnit, isCardGame ? game?.target?.label || "-" : game?.contract?.unitLabel || "-");
-    setText(
-      elements.contractRange,
-      isCardGame
-        ? `Board shown: ${game?.boardCards?.length || 0} / ${game?.boardRevealTotal || 0}. Private hands stay fixed while the table reveals one new card at a time.`
-        : game?.contract
-          ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
-          : "Range: -"
-    );
+    setText(elements.contractPrompt, contractPrompt);
+    setText(elements.contractUnit, contractUnit);
+    setText(elements.contractRange, contractRange);
     setText(elements.roleHeadline, buildRoleHeadline(role, roomState, game));
     setText(elements.turnPrompt, buildTurnPrompt(role, roomState, game));
     setText(
@@ -1159,14 +1410,18 @@
     elements.takerCard.classList.toggle("hidden", isCardGame || role !== "market_taker" || !isLive);
     elements.cardStateCard.classList.toggle("hidden", !isCardGame || (!isLive && !isFinished));
     elements.cardQuotesCard.classList.toggle("hidden", !isCardGame || (!isLive && !isFinished));
-    elements.marketCard.classList.toggle("hidden", isCardGame || (!isLive && !isFinished));
+    elements.marketCard.classList.toggle("hidden", isCardGame);
     elements.classicPositionCard.classList.toggle("hidden", isCardGame);
-    elements.positionsCard.classList.toggle("hidden", !isCardGame || (!isLive && !isFinished));
+    elements.positionsCard.classList.toggle("hidden", !isCardGame);
 
-    elements.submitQuote.disabled = !canQuote;
+    elements.submitQuote.disabled = !canSubmitQuote;
+    elements.submitQuote.textContent = canQuote ? (draft.valid ? "Submit Quote" : "Fix Quote First") : "Waiting For Turn";
     elements.takerBuy.disabled = !canTake;
     elements.takerSell.disabled = !canTake;
     elements.takerPass.disabled = !canTake;
+    elements.takerBuy.textContent = liveQuoteAvailable ? "Buy Ask" : "Waiting";
+    elements.takerSell.textContent = liveQuoteAvailable ? "Sell Bid" : "Waiting";
+    elements.takerPass.textContent = liveQuoteAvailable ? "Pass" : "No Quote Yet";
     elements.requestNextReveal.disabled = !canVoteReveal;
     elements.queueMatch.disabled = Boolean(state.queueTicketId) || Boolean(state.roomCode);
     if (state.queueJoinPending) {
@@ -1175,8 +1430,8 @@
     elements.cancelQueue.disabled = !state.queueTicketId;
     elements.createRoom.disabled = Boolean(state.roomCode);
     elements.joinRoom.disabled = Boolean(state.roomCode);
-    elements.playBotMaker.disabled = selectedType === "card_market" || Boolean(state.roomCode);
-    elements.playBotTaker.disabled = selectedType === "card_market" || Boolean(state.roomCode);
+    elements.playBotMaker.disabled = Boolean(state.roomCode);
+    elements.playBotTaker.disabled = Boolean(state.roomCode);
 
     elements.bidInput.disabled = !canQuote;
     elements.askInput.disabled = !canQuote;
@@ -1186,6 +1441,7 @@
     elements.readyToggle.textContent = roomState?.ready ? "Unready" : "Mark Ready";
     elements.copyRoomCode.disabled = !state.roomCode;
     elements.requestRematch.disabled = !isFinished || Boolean(roomState?.rematch?.requested);
+    elements.retryConnection.disabled = !(state.roomCode && state.playerId) || state.reconnecting || state.connectionState === "connected";
 
     renderPlayers(roomState?.players || []);
     renderPositions(game?.positions || []);
@@ -1203,12 +1459,16 @@
   elements.playBotTaker.addEventListener("click", () => createBotRoom("market_taker"));
   elements.readyToggle.addEventListener("click", toggleReady);
   elements.requestRematch.addEventListener("click", requestRematch);
+  elements.retryConnection.addEventListener("click", retryConnection);
   elements.leaveRoom.addEventListener("click", leaveRoom);
   elements.submitQuote.addEventListener("click", submitQuote);
   elements.takerBuy.addEventListener("click", () => takerAction("buy"));
   elements.takerSell.addEventListener("click", () => takerAction("sell"));
   elements.takerPass.addEventListener("click", () => takerAction("pass"));
   elements.requestNextReveal.addEventListener("click", requestNextReveal);
+  elements.bidInput.addEventListener("input", render);
+  elements.askInput.addEventListener("input", render);
+  elements.sizeInput.addEventListener("input", render);
 
   elements.copyRoomCode.addEventListener("click", async () => {
     if (!state.roomCode) {
@@ -1228,9 +1488,10 @@
 
   elements.playerName.value = safeStorageGet(STORAGE_KEYS.playerName) || "";
   state.playerName = elements.playerName.value.trim();
-  state.selectedGameType = safeStorageGet(STORAGE_KEYS.selectedGameType) || "hidden_value";
+  state.selectedGameType = "hidden_value";
   state.backendUrl = defaultBackendUrl();
   state.clientId = getOrCreateClientId();
+  resetConnectionState();
 
   applyTheme();
   renderModeSelection();

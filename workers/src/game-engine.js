@@ -68,6 +68,16 @@ function baseRoom(code, options = {}) {
   };
 }
 
+function lobbyMessage(text) {
+  if (!text) {
+    return null;
+  }
+  return {
+    type: "player_left",
+    text,
+  };
+}
+
 export function createRoomState(code, hostName, options = {}) {
   const room = baseRoom(code, options);
   const host = createPlayer(hostName);
@@ -117,6 +127,11 @@ export function createBotRoomState(code, humanName, humanRole = GAME_ROLE.MAKER,
   return room;
 }
 
+export function clearRoles(room) {
+  room.makerId = null;
+  room.takerId = null;
+}
+
 export function seedContract(room, contract) {
   room.game = createGameState(contract);
 }
@@ -147,6 +162,26 @@ export function addPlayerToRoom(room, name) {
     assignRoles(room);
   }
   return player;
+}
+
+export function removePlayerFromRoom(room, playerId) {
+  const index = room.players.findIndex((player) => player.id === playerId);
+  if (index < 0) {
+    throw new Error("Unknown player.");
+  }
+
+  const [removed] = room.players.splice(index, 1);
+  delete room.rematchVotes[playerId];
+
+  if (room.hostId === playerId) {
+    room.hostId = room.players[0]?.id || null;
+  }
+
+  if (room.makerId === playerId || room.takerId === playerId) {
+    clearRoles(room);
+  }
+
+  return removed;
 }
 
 export function setReady(room, playerId, ready) {
@@ -240,6 +275,36 @@ export function prepareNextGame(room, contract, { swap = false, autoStart = fals
     });
     startGame(room);
   }
+}
+
+export function handleHiddenPlayerDeparture(room, playerId, message) {
+  const removed = removePlayerFromRoom(room, playerId);
+
+  if (!room.players.length) {
+    return {
+      removed,
+      roomEmpty: true,
+    };
+  }
+
+  resetRematchVotes(room);
+  clearReady(room);
+  clearRoles(room);
+  room.status = ROOM_STATUS.LOBBY;
+  room.game = createGameState();
+  room.game.lastResolution = lobbyMessage(message);
+  if (room.game.lastResolution) {
+    room.game.log.unshift({
+      type: "info",
+      turn: 0,
+      text: room.game.lastResolution.text,
+    });
+  }
+
+  return {
+    removed,
+    roomEmpty: false,
+  };
 }
 
 export function submitQuote(room, playerId, payload) {
