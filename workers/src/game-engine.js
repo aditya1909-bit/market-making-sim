@@ -23,11 +23,13 @@ export function roleForPlayer(room, playerId) {
 }
 
 export function createPlayer(name, options = {}) {
+  const lastActiveAt = Number.isFinite(options.lastActiveAt) ? Number(options.lastActiveAt) : Date.now();
   return {
     id: crypto.randomUUID(),
     name: String(name || "Player").trim().slice(0, 32) || "Player",
     ready: Boolean(options.ready),
     isBot: Boolean(options.isBot),
+    lastActiveAt,
   };
 }
 
@@ -56,6 +58,7 @@ function baseRoom(code, options = {}) {
     hostId: null,
     players: [],
     gameType: options.gameType || "hidden_value",
+    roomVisibility: options.roomVisibility || "private_room",
     maxPlayers: options.maxPlayers || 2,
     makerId: null,
     takerId: null,
@@ -91,6 +94,7 @@ export function createMatchedRoomState(code, nameA, nameB, gameType = "hidden_va
   const room = baseRoom(code, {
     gameType: normalizedGameType,
     maxPlayers: normalizedGameType === "card_market" ? 10 : 2,
+    roomVisibility: "private_room",
   });
   const a = createPlayer(nameA);
   const b = createPlayer(nameB);
@@ -103,7 +107,7 @@ export function createMatchedRoomState(code, nameA, nameB, gameType = "hidden_va
 }
 
 export function createBotRoomState(code, humanName, humanRole = GAME_ROLE.MAKER, strategy = "rl") {
-  const room = baseRoom(code, { gameType: "hidden_value", maxPlayers: 2 });
+  const room = baseRoom(code, { gameType: "hidden_value", maxPlayers: 2, roomVisibility: "private_room" });
   const human = createPlayer(humanName, { ready: true });
   const bot = createPlayer("RL Bot", { ready: true, isBot: true });
   room.players = [human, bot];
@@ -182,6 +186,32 @@ export function removePlayerFromRoom(room, playerId) {
   }
 
   return removed;
+}
+
+export function markPlayerActive(room, playerId, now = Date.now()) {
+  const player = playerFor(room, playerId);
+  if (!player || player.isBot) {
+    return false;
+  }
+  player.lastActiveAt = now;
+  return true;
+}
+
+export function inactivePlayerIds(room, now = Date.now(), inactivityMs = 5 * 60 * 1000) {
+  return room.players
+    .filter((player) => !player.isBot && Number.isFinite(player.lastActiveAt) && now - player.lastActiveAt >= inactivityMs)
+    .map((player) => player.id);
+}
+
+export function nextInactivityDeadline(room, inactivityMs = 5 * 60 * 1000) {
+  const deadlines = room.players
+    .filter((player) => !player.isBot && Number.isFinite(player.lastActiveAt))
+    .map((player) => player.lastActiveAt + inactivityMs);
+
+  if (!deadlines.length) {
+    return null;
+  }
+  return Math.min(...deadlines);
 }
 
 export function setReady(room, playerId, ready) {

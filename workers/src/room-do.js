@@ -3,9 +3,11 @@ import { botDecision, observeBotQuote, observeBotResolution, refreshBotEstimate 
 import {
   advanceCardGameClock,
   buildCardPlayerView,
+  cancelCardRound,
   maybeStartCardGame,
   nextCardAlarmAt,
   prepareNextCardGame,
+  refreshCardLobbyState,
   requestCardRevealVote,
   startCardGame,
   submitCardQuote,
@@ -22,10 +24,14 @@ import {
   createRoomState,
   handleHiddenPlayerDeparture,
   hasAllRematchVotes,
+  inactivePlayerIds,
+  markPlayerActive,
   maybeStartGame,
+  nextInactivityDeadline,
   playerFor,
   prepareNextGame,
   requestRematch,
+  removePlayerFromRoom,
   resetRematchVotes,
   setReady,
   startGame,
@@ -33,6 +39,10 @@ import {
   takeAction,
 } from "./game-engine.js";
 import { CLIENT_EVENTS, GAME_ACTOR, SERVER_EVENTS } from "./protocol.js";
+
+const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+const INACTIVITY_CLOSE_CODE = 4001;
+const INACTIVITY_CLOSE_REASON = "Removed for inactivity";
 
 function json(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -120,22 +130,51 @@ export class RoomDurableObject extends DurableObject {
         return this.seedMatchedRoom(request);
       }
 
+      if (request.method === "GET" && url.pathname === "/internal/card-public-availability") {
+        return this.getCardPublicAvailability();
+      }
+
       return json({ error: "Not found." }, 404);
     } catch (error) {
       return json({ error: error.message || "Room request failed." }, 400);
     }
   }
 
-  getPlayerState(url) {
+  async getPlayerState(url) {
     if (!this.room) {
       return json({ error: "Room code not found." }, 404);
     }
-    this.syncCardGameClock();
+    await this.syncCardGameState();
     const playerId = url.searchParams.get("playerId");
     if (!playerId || !playerFor(this.room, playerId)) {
       return json({ error: "Unknown player." }, 404);
     }
     return json(this.serializeJoin(playerId), 200);
+  }
+
+  async getCardPublicAvailability() {
+    if (!this.room) {
+      return json({ exists: false, joinable: false }, 404);
+    }
+    await this.syncCardGameState();
+    const joinable =
+      this.room.gameType === "card_market" &&
+      this.room.roomVisibility === "public_table" &&
+      this.room.status === "lobby" &&
+      this.room.players.length < this.room.maxPlayers;
+    return json(
+      {
+        exists: true,
+        joinable,
+        roomId: this.room.id,
+        roomCode: this.room.code,
+        status: this.room.status,
+        roomVisibility: this.room.roomVisibility,
+        playerCount: this.room.players.length,
+        maxPlayers: this.room.maxPlayers,
+      },
+      200
+    );
   }
 
   async createPrivateRoom(request) {
@@ -147,12 +186,14 @@ export class RoomDurableObject extends DurableObject {
     const name = validateName(body.name);
     const code = String(body.code || "").trim().toUpperCase();
     const gameType = body.gameType === "card_market" ? "card_market" : "hidden_value";
+    const roomVisibility = body.roomVisibility === "public_table" ? "public_table" : "private_room";
     if (!code) {
       throw new Error("Room code is required.");
     }
 
     this.room = createRoomState(code, name, {
       gameType,
+      roomVisibility,
       maxPlayers: gameType === "card_market" ? 10 : 2,
     });
     if (gameType === "card_market") {
@@ -160,6 +201,8 @@ export class RoomDurableObject extends DurableObject {
     } else {
       prepareNextGame(this.room, sampleContract());
     }
+    markPlayerActive(this.room, this.room.players[0].id);
+    await this.scheduleRoomAlarm();
     await this.persist();
 
     return json(this.serializeJoin(this.room.players[0].id), 201);
@@ -180,11 +223,13 @@ export class RoomDurableObject extends DurableObject {
 
     this.room = createBotRoomState(code, name, humanRole, "rl");
     prepareNextGame(this.room, sampleContract(), { autoStart: true });
+    const human = this.room.players.find((player) => !player.isBot);
+    markPlayerActive(this.room, human.id);
     refreshBotEstimate(this.room);
     await this.advanceBotUntilHumanTurn();
+    await this.scheduleRoomAlarm();
     await this.persist();
 
-    const human = this.room.players.find((player) => !player.isBot);
     return json(this.serializeJoin(human.id), 201);
   }
 
@@ -202,8 +247,10 @@ export class RoomDurableObject extends DurableObject {
       prepareNextGame(this.room, sampleContract());
     }
     if (isCardGame(this.room) && this.room.status === "lobby") {
-      prepareNextCardGame(this.room);
+      refreshCardLobbyState(this.room, this.connectedIds(), Date.now());
     }
+    markPlayerActive(this.room, player.id);
+    await this.scheduleRoomAlarm();
     await this.persist();
 
     return json(this.serializeJoin(player.id), 200);
@@ -231,6 +278,10 @@ export class RoomDurableObject extends DurableObject {
     } else {
       prepareNextGame(this.room, sampleContract());
     }
+    this.room.players.forEach((player) => {
+      markPlayerActive(this.room, player.id);
+    });
+    await this.scheduleRoomAlarm();
     await this.persist();
 
     return json(
@@ -251,7 +302,7 @@ export class RoomDurableObject extends DurableObject {
       return new Response("Room not found.", { status: 404 });
     }
 
-    this.syncCardGameClock();
+    await this.syncCardGameState();
 
     const playerId = url.searchParams.get("playerId");
     const roomCode = String(url.searchParams.get("roomCode") || "").toUpperCase();
@@ -281,6 +332,9 @@ export class RoomDurableObject extends DurableObject {
 
     server.serializeAttachment({ playerId });
     this.ctx.acceptWebSocket(server);
+    markPlayerActive(this.room, playerId);
+    await this.persist();
+    await this.scheduleRoomAlarm();
     this.broadcastRoom();
 
     return new Response(null, {
@@ -298,8 +352,10 @@ export class RoomDurableObject extends DurableObject {
       return;
     }
 
+    let activityChanged = false;
     try {
-      this.syncCardGameClock();
+      await this.syncCardGameState();
+      activityChanged = markPlayerActive(this.room, playerId);
       const parsed = JSON.parse(toText(message));
       switch (parsed.type) {
         case CLIENT_EVENTS.READY:
@@ -308,10 +364,7 @@ export class RoomDurableObject extends DurableObject {
             assignRoles(this.room);
           }
           if (isCardGame(this.room)) {
-            maybeStartCardGame(this.room);
-            if (this.room.status === "live") {
-              await this.scheduleCardAlarm();
-            }
+            maybeStartCardGame(this.room, this.connectedIds(), Date.now());
           } else {
             maybeStartGame(this.room);
           }
@@ -319,13 +372,13 @@ export class RoomDurableObject extends DurableObject {
             refreshBotEstimate(this.room);
           }
           await this.advanceBotUntilHumanTurn();
+          await this.scheduleRoomAlarm();
           await this.persist();
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.START_GAME:
           if (isCardGame(this.room)) {
-            startCardGame(this.room);
-            await this.scheduleCardAlarm();
+            startCardGame(this.room, this.room.game.countdownSeatIds, Date.now());
           } else {
             startGame(this.room);
           }
@@ -333,13 +386,13 @@ export class RoomDurableObject extends DurableObject {
             refreshBotEstimate(this.room);
           }
           await this.advanceBotUntilHumanTurn();
+          await this.scheduleRoomAlarm();
           await this.persist();
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.SUBMIT_QUOTE:
           if (isCardGame(this.room)) {
             submitCardQuote(this.room, playerId, parsed.payload || {});
-            await this.scheduleCardAlarm();
           } else {
             submitQuote(this.room, playerId, parsed.payload || {});
           }
@@ -347,13 +400,13 @@ export class RoomDurableObject extends DurableObject {
             observeBotQuote(this.room, this.room.bot.playerId);
           }
           await this.advanceBotUntilHumanTurn();
+          await this.scheduleRoomAlarm();
           await this.persist();
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.TAKER_ACTION:
           if (isCardGame(this.room)) {
             takeCardAction(this.room, playerId, parsed.payload || {});
-            await this.scheduleCardAlarm();
           } else {
             takeAction(this.room, playerId, parsed.payload || {});
           }
@@ -361,6 +414,7 @@ export class RoomDurableObject extends DurableObject {
             observeBotResolution(this.room, this.room.bot.playerId);
           }
           await this.advanceBotUntilHumanTurn();
+          await this.scheduleRoomAlarm();
           await this.persist();
           this.broadcastRoom();
           return;
@@ -369,8 +423,8 @@ export class RoomDurableObject extends DurableObject {
             throw new Error("Early reveal voting is only available in the card market.");
           }
           requestCardRevealVote(this.room, playerId);
-          await this.scheduleCardAlarm();
           await this.persist();
+          await this.scheduleRoomAlarm();
           this.broadcastRoom();
           return;
         case CLIENT_EVENTS.REQUEST_REMATCH: {
@@ -384,7 +438,6 @@ export class RoomDurableObject extends DurableObject {
               resetRematchVotes(this.room);
               clearReady(this.room);
               prepareNextCardGame(this.room, { incrementGameNumber: true });
-              await this.scheduleCardAlarm();
             } else {
               prepareNextGame(this.room, sampleContract(), { swap: true, autoStart: true });
             }
@@ -393,24 +446,34 @@ export class RoomDurableObject extends DurableObject {
               await this.advanceBotUntilHumanTurn();
             }
           }
+          await this.scheduleRoomAlarm();
           await this.persist();
           this.broadcastRoom();
           return;
         }
         case CLIENT_EVENTS.LEAVE_ROOM:
           await this.handleLeaveRoom(playerId);
+          await this.scheduleRoomAlarm();
           await this.persist();
           if (this.room) {
             this.broadcastRoom();
           }
           return;
         case CLIENT_EVENTS.PING:
+          if (activityChanged) {
+            await this.persist();
+          }
+          await this.scheduleRoomAlarm();
           this.send(ws, { type: SERVER_EVENTS.PONG, at: Date.now() });
           return;
         default:
           throw new Error(`Unknown client event: ${parsed.type}`);
       }
     } catch (error) {
+      if (activityChanged) {
+        await this.persist();
+      }
+      await this.scheduleRoomAlarm();
       this.send(ws, { type: SERVER_EVENTS.ERROR, error: error.message || "Message failed." });
     }
   }
@@ -419,7 +482,8 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
-    this.syncCardGameClock();
+    await this.syncCardGameState();
+    await this.scheduleRoomAlarm();
     this.broadcastRoom();
   }
 
@@ -427,7 +491,8 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
-    this.syncCardGameClock();
+    await this.syncCardGameState();
+    await this.scheduleRoomAlarm();
     this.broadcastRoom();
   }
 
@@ -436,8 +501,11 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
-    const changed = this.syncCardGameClock();
-    await this.scheduleCardAlarm();
+    let changed = await this.syncCardGameState();
+    if (await this.removeInactivePlayers()) {
+      changed = true;
+    }
+    await this.scheduleRoomAlarm();
     if (changed) {
       await this.persist();
       this.broadcastRoom();
@@ -516,13 +584,19 @@ export class RoomDurableObject extends DurableObject {
     if (this.room.bot?.enabled) {
       this.closeSocketsForPlayer(playerId, 1000, "Left room");
       this.room = null;
-      await this.scheduleCardAlarm();
+      await this.scheduleRoomAlarm();
       return;
     }
 
     if (isCardGame(this.room)) {
-      setReady(this.room, playerId, false);
+      const activeCardSeat = this.room.status === "live" && this.room.game.activeSeatIds?.includes(playerId);
+      removePlayerFromRoom(this.room, playerId);
       this.closeSocketsForPlayer(playerId, 1000, "Left room");
+      if (activeCardSeat) {
+        cancelCardRound(this.room, `${departing.name} left during the round. The table returned to lobby for a fresh deal.`);
+      } else {
+        refreshCardLobbyState(this.room, this.connectedIds(), Date.now());
+      }
       return;
     }
 
@@ -530,8 +604,65 @@ export class RoomDurableObject extends DurableObject {
     this.closeSocketsForPlayer(playerId, 1000, "Left room");
     if (outcome.roomEmpty) {
       this.room = null;
-      await this.scheduleCardAlarm();
+      await this.scheduleRoomAlarm();
     }
+  }
+
+  async removeInactivePlayers(now = Date.now()) {
+    if (!this.room) {
+      return false;
+    }
+
+    const inactiveIds = inactivePlayerIds(this.room, now, INACTIVITY_TIMEOUT_MS);
+    if (!inactiveIds.length) {
+      return false;
+    }
+
+    let changed = false;
+    for (const playerId of inactiveIds) {
+      const inactivePlayer = playerFor(this.room, playerId);
+      if (!inactivePlayer) {
+        continue;
+      }
+
+      if (this.room.bot?.enabled) {
+        this.closeSocketsForPlayer(playerId, INACTIVITY_CLOSE_CODE, INACTIVITY_CLOSE_REASON);
+        this.room = null;
+        changed = true;
+        break;
+      }
+
+      if (isCardGame(this.room)) {
+        const activeCardSeat = this.room.status === "live" && this.room.game.activeSeatIds?.includes(playerId);
+        removePlayerFromRoom(this.room, playerId);
+        this.closeSocketsForPlayer(playerId, INACTIVITY_CLOSE_CODE, INACTIVITY_CLOSE_REASON);
+        if (activeCardSeat) {
+          cancelCardRound(
+            this.room,
+            `${inactivePlayer.name} was removed after 5 minutes of inactivity. The table returned to lobby for a fresh deal.`,
+            now
+          );
+        } else {
+          refreshCardLobbyState(this.room, this.connectedIds(), now);
+        }
+        changed = true;
+        continue;
+      }
+
+      const outcome = handleHiddenPlayerDeparture(
+        this.room,
+        playerId,
+        `${inactivePlayer.name} was removed after 5 minutes of inactivity. Waiting for a new opponent.`
+      );
+      this.closeSocketsForPlayer(playerId, INACTIVITY_CLOSE_CODE, INACTIVITY_CLOSE_REASON);
+      changed = true;
+      if (outcome.roomEmpty) {
+        this.room = null;
+        break;
+      }
+    }
+
+    return changed;
   }
 
   validPlayerId(playerId) {
@@ -539,7 +670,6 @@ export class RoomDurableObject extends DurableObject {
   }
 
   serializeJoin(playerId) {
-    this.syncCardGameClock();
     return {
       roomId: this.room.id,
       roomCode: this.room.code,
@@ -555,7 +685,6 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
-    this.syncCardGameClock();
     const connectedIds = this.connectedIds();
     for (const socket of this.ctx.getWebSockets()) {
       const playerId = socket.deserializeAttachment()?.playerId;
@@ -584,19 +713,40 @@ export class RoomDurableObject extends DurableObject {
     await this.ctx.storage.delete("room");
   }
 
-  syncCardGameClock() {
+  async syncCardGameState(now = Date.now()) {
     if (!isCardGame(this.room)) {
       return false;
     }
-    return advanceCardGameClock(this.room, Date.now());
+    const changed = advanceCardGameClock(this.room, this.connectedIds(), now);
+    if (changed) {
+      await this.persist();
+    }
+    return changed;
   }
 
-  async scheduleCardAlarm() {
-    if (!isCardGame(this.room)) {
-      await this.ctx.storage.deleteAlarm();
-      return;
+  nextAlarmAt() {
+    if (!this.room) {
+      return null;
     }
-    const nextAt = nextCardAlarmAt(this.room);
+    const deadlines = [];
+    const inactivityAt = nextInactivityDeadline(this.room, INACTIVITY_TIMEOUT_MS);
+    if (inactivityAt) {
+      deadlines.push(inactivityAt);
+    }
+    if (isCardGame(this.room)) {
+      const cardAt = nextCardAlarmAt(this.room);
+      if (cardAt) {
+        deadlines.push(cardAt);
+      }
+    }
+    if (!deadlines.length) {
+      return null;
+    }
+    return Math.min(...deadlines);
+  }
+
+  async scheduleRoomAlarm() {
+    const nextAt = this.nextAlarmAt();
     if (nextAt) {
       await this.ctx.storage.setAlarm(nextAt);
       return;

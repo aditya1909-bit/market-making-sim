@@ -3,10 +3,13 @@ import { playerFor } from "./game-engine.js";
 
 const BOARD_CARD_COUNT = 5;
 const PRIVATE_CARDS_PER_PLAYER = 2;
+const CARD_MIN_PLAYERS = 2;
+const CARD_MAX_PLAYERS = 10;
 const MAX_QUOTE_SIZE = 5;
 const ROUND_DURATION_MS = 5 * 60 * 1000;
 const REVEAL_INTERVAL_MS = 60 * 1000;
 const QUOTE_TTL_MS = 25 * 1000;
+const CARD_AUTO_START_COUNTDOWN_MS = 8 * 1000;
 const SHOE_COUNT = 1;
 
 const TARGETS = [
@@ -145,12 +148,128 @@ function chooseTarget(totalCards) {
   };
 }
 
+function targetForSeatCount(playerCount) {
+  return chooseTarget(playerCount * PRIVATE_CARDS_PER_PLAYER + BOARD_CARD_COUNT);
+}
+
 function scorerFor(targetId) {
   return TARGETS.find((entry) => entry.id === targetId) || TARGETS[0];
 }
 
 function emptyPositions(players) {
   return Object.fromEntries(players.map((player) => [player.id, { cash: 0, inventory: 0 }]));
+}
+
+function activeSeatIds(room) {
+  return room.game.activeSeatIds || [];
+}
+
+function activeSeatSet(room) {
+  return new Set(activeSeatIds(room));
+}
+
+function activePlayers(room) {
+  const seatIds = activeSeatSet(room);
+  return room.players.filter((player) => seatIds.has(player.id));
+}
+
+function eligibleSeatIds(room, connectedIds = new Set()) {
+  return room.players
+    .filter((player) => player.ready && connectedIds.has(player.id))
+    .map((player) => player.id)
+    .sort();
+}
+
+function arraysEqual(a, b) {
+  if (a.length !== b.length) {
+    return false;
+  }
+  return a.every((value, index) => value === b[index]);
+}
+
+function isActiveSeat(room, playerId) {
+  return activeSeatSet(room).has(playerId);
+}
+
+function resetCardReady(room) {
+  room.players.forEach((player) => {
+    player.ready = false;
+  });
+}
+
+function applyLobbyTarget(room, seatCount) {
+  const target = targetForSeatCount(Math.max(seatCount, CARD_MIN_PLAYERS));
+  let changed = false;
+
+  if (room.game.prompt !== target.prompt) {
+    room.game.prompt = target.prompt;
+    changed = true;
+  }
+  if (room.game.unitLabel !== target.unitLabel) {
+    room.game.unitLabel = target.unitLabel;
+    changed = true;
+  }
+  if (room.game.rangeLow !== target.rangeLow || room.game.rangeHigh !== target.rangeHigh) {
+    room.game.rangeLow = target.rangeLow;
+    room.game.rangeHigh = target.rangeHigh;
+    changed = true;
+  }
+  if (room.game.target?.id !== target.id || room.game.target?.label !== target.label) {
+    room.game.target = { id: target.id, label: target.label };
+    changed = true;
+  }
+  if (room.game.targetScorerId !== target.id) {
+    room.game.targetScorerId = target.id;
+    changed = true;
+  }
+
+  return changed;
+}
+
+function playerSeatStatus(room, playerId) {
+  if (!playerFor(room, playerId)) {
+    return "spectator";
+  }
+  if (room.status === ROOM_STATUS.LIVE) {
+    return isActiveSeat(room, playerId) ? "active_round" : "waiting_next_round";
+  }
+  return "lobby_member";
+}
+
+function roleForCardPlayer() {
+  return GAME_ROLE.SPECTATOR;
+}
+
+function makeSummary(kind, text, options = {}) {
+  return {
+    kind,
+    text,
+    settlement: options.settlement ?? null,
+    activeSeatCount: options.activeSeatCount ?? 0,
+    positions: options.positions || [],
+    completedAt: options.completedAt || Date.now(),
+  };
+}
+
+function currentPositionSnapshot(room, playerId, mark) {
+  const position = room.game.positions?.[playerId] || { cash: 0, inventory: 0 };
+  return {
+    id: playerId,
+    name: playerFor(room, playerId)?.name || "Player",
+    cash: round2(position.cash || 0),
+    inventory: position.inventory || 0,
+    pnl: provisionalPnl(position, mark),
+  };
+}
+
+function cardSummaryForRound(room, kind, text, settlement = null, completedAt = Date.now()) {
+  const mark = settlement ?? markForGame(room);
+  return makeSummary(kind, text, {
+    settlement,
+    activeSeatCount: activeSeatIds(room).length,
+    completedAt,
+    positions: activeSeatIds(room).map((playerId) => currentPositionSnapshot(room, playerId, mark)),
+  });
 }
 
 function pruneExpiredQuotes(room, now) {
@@ -167,19 +286,12 @@ function pruneExpiredQuotes(room, now) {
   return changed;
 }
 
-function drawCard(room) {
-  if (!room.game.deck?.length) {
-    return null;
-  }
-  return room.game.deck.shift() || null;
-}
-
 function visibleBoard(room) {
   return (room.game.boardCards || []).slice(0, room.game.revealedBoardCount || 0);
 }
 
 function allCardsInPlay(room) {
-  const privateCards = Object.values(room.game.privateHands || {}).flat();
+  const privateCards = activeSeatIds(room).flatMap((playerId) => room.game.privateHands?.[playerId] || []);
   return privateCards.concat(room.game.boardCards || []);
 }
 
@@ -204,14 +316,7 @@ function markForGame(room) {
 }
 
 function provisionalPnl(position, mark) {
-  return round2(position.cash + position.inventory * mark);
-}
-
-function roleForCardPlayer(room, playerId) {
-  if (room.players.some((player) => player.id === playerId)) {
-    return room.game.liveQuotes?.[playerId] ? "quoting" : "trader";
-  }
-  return GAME_ROLE.SPECTATOR;
+  return round2((position?.cash || 0) + (position?.inventory || 0) * mark);
 }
 
 function revealNextBoardCard(room, now, reason) {
@@ -225,7 +330,7 @@ function revealNextBoardCard(room, now, reason) {
   room.game.liveQuotes = {};
   room.game.lastResolution = {
     type: "board_revealed",
-    text: `${reason}. Board is now ${visibleBoard(room).map((card) => card.code).join(" ")}. Private hands stay fixed for the full round and all live quotes were cleared.`,
+    text: `${reason}. Board is now ${visibleBoard(room).map((card) => card.code).join(" ")}. All live quotes were cleared.`,
   };
   room.game.log.unshift({
     type: "reveal",
@@ -240,9 +345,8 @@ function revealNextBoardCard(room, now, reason) {
   return true;
 }
 
-export function createCardGamePreview(room) {
-  const totalCards = room.players.length * PRIVATE_CARDS_PER_PLAYER + BOARD_CARD_COUNT;
-  const target = chooseTarget(totalCards);
+export function createCardGamePreview(room, options = {}) {
+  const target = options.target || targetForSeatCount(Math.max(room.players.length, CARD_MIN_PLAYERS));
   return {
     mode: "card_market",
     status: ROOM_STATUS.LOBBY,
@@ -253,17 +357,22 @@ export function createCardGamePreview(room) {
     maxTurns: BOARD_CARD_COUNT,
     turn: 0,
     activeActor: null,
-    lastResolution: null,
-    log: [],
+    lastResolution: options.lastResolution || null,
+    log: options.log ? [...options.log] : [],
     boardCards: [],
     revealedBoardCount: 0,
     privateHands: {},
     deck: [],
-    positions: emptyPositions(room.players),
+    positions: {},
     settlement: null,
     lastMark: 0,
     liveQuotes: {},
     revealVotes: {},
+    activeSeatIds: [],
+    countdownSeatIds: [],
+    countdownStartedAt: null,
+    countdownEndsAt: null,
+    previousSummary: options.previousSummary || null,
     startedAt: null,
     endsAt: null,
     nextRevealAt: null,
@@ -272,63 +381,120 @@ export function createCardGamePreview(room) {
       id: target.id,
       label: target.label,
     },
+    targetScorerId: target.id,
   };
 }
 
 export function prepareNextCardGame(room, options = {}) {
-  const incrementGameNumber = Boolean(options.incrementGameNumber);
   room.status = ROOM_STATUS.LOBBY;
-  room.game = createCardGamePreview(room);
-  if (incrementGameNumber) {
+  resetCardReady(room);
+  room.game = createCardGamePreview(room, {
+    previousSummary: options.previousSummary || null,
+    target: options.target || null,
+    lastResolution: options.lastResolution || null,
+    log: options.log || [],
+  });
+  if (options.incrementGameNumber) {
     room.gameNumber += 1;
   }
 }
 
-export function maybeStartCardGame(room) {
+export function refreshCardLobbyState(room, connectedIds = new Set(), now = Date.now()) {
   if (room.status !== ROOM_STATUS.LOBBY) {
     return false;
   }
-  if (room.players.length < 2) {
-    return false;
+
+  const eligibleIds = eligibleSeatIds(room, connectedIds);
+  const previewSeatCount = eligibleIds.length >= CARD_MIN_PLAYERS ? eligibleIds.length : room.players.length;
+  let changed = applyLobbyTarget(room, previewSeatCount);
+
+  if (refreshCardLobbyCountdown(room, connectedIds, now)) {
+    changed = true;
   }
-  if (room.players.length > 10) {
-    throw new Error("Card market supports between 2 and 10 players.");
-  }
-  if (!room.players.every((player) => player.ready)) {
+
+  return changed;
+}
+
+export function refreshCardLobbyCountdown(room, connectedIds = new Set(), now = Date.now()) {
+  if (room.status !== ROOM_STATUS.LOBBY) {
     return false;
   }
 
-  startCardGame(room);
+  const eligibleIds = eligibleSeatIds(room, connectedIds);
+  const currentIds = room.game.countdownSeatIds || [];
+  const hasCountdown = Boolean(room.game.countdownEndsAt);
+  let changed = false;
+
+  if (eligibleIds.length < CARD_MIN_PLAYERS) {
+    if (hasCountdown || currentIds.length) {
+      room.game.countdownSeatIds = [];
+      room.game.countdownStartedAt = null;
+      room.game.countdownEndsAt = null;
+      changed = true;
+    }
+    return changed;
+  }
+
+  if (!hasCountdown || !arraysEqual(currentIds, eligibleIds)) {
+    applyLobbyTarget(room, eligibleIds.length);
+    room.game.countdownSeatIds = eligibleIds;
+    room.game.countdownStartedAt = now;
+    room.game.countdownEndsAt = now + CARD_AUTO_START_COUNTDOWN_MS;
+    room.game.lastResolution = {
+      type: "countdown_started",
+      text: `Countdown started for ${eligibleIds.length} ready player${eligibleIds.length === 1 ? "" : "s"}.`,
+    };
+    changed = true;
+  }
+
+  return changed;
+}
+
+export function maybeStartCardGame(room, connectedIds = new Set(), now = Date.now()) {
+  if (room.status !== ROOM_STATUS.LOBBY) {
+    return false;
+  }
+  refreshCardLobbyCountdown(room, connectedIds, now);
+  if (!room.game.countdownEndsAt || now < room.game.countdownEndsAt) {
+    return false;
+  }
+  const seatIds = room.game.countdownSeatIds || [];
+  if (seatIds.length < CARD_MIN_PLAYERS) {
+    return false;
+  }
+  startCardGame(room, seatIds, now);
   return true;
 }
 
-export function startCardGame(room, now = Date.now()) {
-  if (room.players.length < 2 || room.players.length > 10) {
-    throw new Error("Card market supports between 2 and 10 players.");
+export function startCardGame(room, seatIds = null, now = Date.now()) {
+  const resolvedSeatIds = Array.isArray(seatIds) && seatIds.length ? [...seatIds] : [...(room.game.countdownSeatIds || [])];
+  const seatedPlayers = room.players.filter((player) => resolvedSeatIds.includes(player.id));
+  if (seatedPlayers.length < CARD_MIN_PLAYERS || seatedPlayers.length > CARD_MAX_PLAYERS) {
+    throw new Error("Card market supports between 2 and 10 active players.");
   }
 
-  const totalCards = room.players.length * PRIVATE_CARDS_PER_PLAYER + BOARD_CARD_COUNT;
+  const totalCards = seatedPlayers.length * PRIVATE_CARDS_PER_PLAYER + BOARD_CARD_COUNT;
   if (totalCards > 52 * SHOE_COUNT) {
     throw new Error("Not enough cards in the deck for this room size.");
   }
-  const target = chooseTarget(totalCards);
+
+  const scorer = scorerFor(room.game.targetScorerId);
+  const range = scorer.rangeFor(totalCards);
   const shuffledDeck = shuffle(buildDeck());
   const privateHands = {};
-
-  room.players.forEach((player) => {
+  for (const player of seatedPlayers) {
     privateHands[player.id] = shuffledDeck.splice(0, PRIVATE_CARDS_PER_PLAYER);
-  });
-
+  }
   const boardCards = shuffledDeck.splice(0, BOARD_CARD_COUNT);
 
   room.status = ROOM_STATUS.LIVE;
   room.game = {
     mode: "card_market",
     status: ROOM_STATUS.LIVE,
-    prompt: target.prompt,
-    unitLabel: target.unitLabel,
-    rangeLow: target.rangeLow,
-    rangeHigh: target.rangeHigh,
+    prompt: scorer.prompt,
+    unitLabel: scorer.unitLabel,
+    rangeLow: range.rangeLow,
+    rangeHigh: range.rangeHigh,
     maxTurns: BOARD_CARD_COUNT,
     turn: 1,
     activeActor: null,
@@ -336,29 +502,34 @@ export function startCardGame(room, now = Date.now()) {
     revealedBoardCount: 1,
     privateHands,
     deck: shuffledDeck,
-    positions: emptyPositions(room.players),
+    positions: emptyPositions(seatedPlayers),
     settlement: null,
     lastMark: 0,
     liveQuotes: {},
     revealVotes: {},
+    activeSeatIds: resolvedSeatIds,
+    countdownSeatIds: [],
+    countdownStartedAt: null,
+    countdownEndsAt: null,
+    previousSummary: room.game.previousSummary || null,
     startedAt: now,
     endsAt: now + ROUND_DURATION_MS,
     nextRevealAt: now + REVEAL_INTERVAL_MS,
     lastRevealAt: now,
     target: {
-      id: target.id,
-      label: target.label,
+      id: scorer.id,
+      label: scorer.label,
     },
-    targetScorerId: target.id,
+    targetScorerId: scorer.id,
     lastResolution: {
       type: "game_started",
-      text: `Game ${room.gameNumber} started. First board card is live and the round clock is running.`,
+      text: `Game ${room.gameNumber} started with ${seatedPlayers.length} seated player${seatedPlayers.length === 1 ? "" : "s"}.`,
     },
     log: [
       {
         type: "info",
         turn: 0,
-        text: `Game ${room.gameNumber} started. Trade freely for five minutes while the board reveals over time.`,
+        text: `Game ${room.gameNumber} started. ${seatedPlayers.length} seated player${seatedPlayers.length === 1 ? "" : "s"} can trade while the board reveals over time.`,
       },
     ],
   };
@@ -389,8 +560,8 @@ export function submitCardQuote(room, playerId, payload) {
     throw new Error("The card market is not live.");
   }
   pruneExpiredQuotes(room, Date.now());
-  if (!playerFor(room, playerId)) {
-    throw new Error("Unknown player.");
+  if (!isActiveSeat(room, playerId)) {
+    throw new Error("You are waiting for the next round.");
   }
 
   const quote = validateQuote(payload);
@@ -407,12 +578,19 @@ export function takeCardAction(room, playerId, payload) {
     throw new Error("The card market is not live.");
   }
   pruneExpiredQuotes(room, Date.now());
+  if (!isActiveSeat(room, playerId)) {
+    throw new Error("You are waiting for the next round.");
+  }
+
   const targetPlayerId = String(payload.targetPlayerId || "");
   if (!targetPlayerId) {
     throw new Error("Select a quote first.");
   }
   if (playerId === targetPlayerId) {
     throw new Error("You cannot trade against your own quote.");
+  }
+  if (!isActiveSeat(room, targetPlayerId)) {
+    throw new Error("That player is not seated in this round.");
   }
 
   const quote = room.game.liveQuotes?.[targetPlayerId];
@@ -467,14 +645,17 @@ export function requestCardRevealVote(room, playerId, now = Date.now()) {
     throw new Error("The card market is not live.");
   }
   pruneExpiredQuotes(room, now);
+  if (!isActiveSeat(room, playerId)) {
+    throw new Error("You are waiting for the next round.");
+  }
   if ((room.game.revealedBoardCount || 0) >= (room.game.boardCards?.length || 0)) {
     throw new Error("All board cards are already visible.");
   }
 
   room.game.revealVotes[playerId] = true;
-  const allVoted = room.players.every((player) => room.game.revealVotes[player.id]);
+  const allVoted = activeSeatIds(room).every((activePlayerId) => room.game.revealVotes[activePlayerId]);
   if (allVoted) {
-    revealNextBoardCard(room, now, "All players voted to reveal the next card early");
+    revealNextBoardCard(room, now, "All seated players voted to reveal the next card early");
     return { revealed: true };
   }
 
@@ -485,12 +666,46 @@ export function requestCardRevealVote(room, playerId, now = Date.now()) {
   return { revealed: false };
 }
 
-export function advanceCardGameClock(room, now = Date.now()) {
-  if (room?.gameType !== "card_market" || room.status !== ROOM_STATUS.LIVE) {
+export function cancelCardRound(room, reason, now = Date.now()) {
+  const summary = cardSummaryForRound(room, "cancelled", reason, null, now);
+  prepareNextCardGame(room, {
+    incrementGameNumber: true,
+    previousSummary: summary,
+    lastResolution: {
+      type: "round_cancelled",
+      text: reason,
+    },
+    log: [
+      {
+        type: "cancelled",
+        turn: 0,
+        text: reason,
+      },
+    ],
+  });
+}
+
+export function advanceCardGameClock(room, connectedIds = new Set(), now = Date.now()) {
+  if (room?.gameType !== "card_market") {
     return false;
   }
 
   let changed = false;
+
+  if (room.status === ROOM_STATUS.LOBBY) {
+    if (refreshCardLobbyCountdown(room, connectedIds, now)) {
+      changed = true;
+    }
+    if (room.game.countdownEndsAt && now >= room.game.countdownEndsAt) {
+      startCardGame(room, room.game.countdownSeatIds, now);
+      changed = true;
+    }
+    return changed;
+  }
+
+  if (room.status !== ROOM_STATUS.LIVE) {
+    return false;
+  }
 
   if (pruneExpiredQuotes(room, now)) {
     changed = true;
@@ -502,7 +717,7 @@ export function advanceCardGameClock(room, now = Date.now()) {
   }
 
   if (room.game.endsAt && now >= room.game.endsAt) {
-    finishCardGame(room);
+    finishCardGame(room, now);
     changed = true;
   }
 
@@ -510,62 +725,98 @@ export function advanceCardGameClock(room, now = Date.now()) {
 }
 
 export function nextCardAlarmAt(room) {
-  if (room?.gameType !== "card_market" || room.status !== ROOM_STATUS.LIVE) {
+  if (room?.gameType !== "card_market") {
     return null;
   }
+
   const deadlines = [];
-  if (room.game.nextRevealAt) {
-    deadlines.push(room.game.nextRevealAt);
+  if (room.status === ROOM_STATUS.LOBBY && room.game.countdownEndsAt) {
+    deadlines.push(room.game.countdownEndsAt);
   }
-  if (room.game.endsAt) {
-    deadlines.push(room.game.endsAt);
-  }
-  for (const quote of Object.values(room.game.liveQuotes || {})) {
-    if (quote?.quotedAt) {
-      deadlines.push(quote.quotedAt + QUOTE_TTL_MS);
+  if (room.status === ROOM_STATUS.LIVE) {
+    if (room.game.nextRevealAt) {
+      deadlines.push(room.game.nextRevealAt);
+    }
+    if (room.game.endsAt) {
+      deadlines.push(room.game.endsAt);
+    }
+    for (const quote of Object.values(room.game.liveQuotes || {})) {
+      if (quote?.quotedAt) {
+        deadlines.push(quote.quotedAt + QUOTE_TTL_MS);
+      }
     }
   }
+
   if (!deadlines.length) {
     return null;
   }
   return Math.min(...deadlines);
 }
 
-export function finishCardGame(room) {
+export function finishCardGame(room, now = Date.now()) {
   const target = scorerFor(room.game.targetScorerId);
   const settlement = round2(target.score(allCardsInPlay(room)));
-
-  room.status = ROOM_STATUS.FINISHED;
-  room.game.status = ROOM_STATUS.FINISHED;
-  room.game.settlement = settlement;
-  room.game.liveQuotes = {};
-  room.game.revealVotes = {};
-  room.game.nextRevealAt = null;
-  room.game.lastResolution = {
-    type: "game_finished",
-    settlement,
-    text: `Game finished. Final settlement ${settlement}.`,
-  };
-  room.game.log.unshift({
-    type: "finished",
-    turn: room.game.revealedBoardCount,
-    text: room.game.lastResolution.text,
+  const summary = cardSummaryForRound(room, "finished", `Game finished. Final settlement ${settlement}.`, settlement, now);
+  prepareNextCardGame(room, {
+    incrementGameNumber: true,
+    previousSummary: summary,
+    lastResolution: {
+      type: "game_finished",
+      settlement,
+      text: summary.text,
+    },
+    log: [
+      {
+        type: "finished",
+        turn: 0,
+        text: summary.text,
+      },
+    ],
   });
 }
 
 export function buildCardPlayerView(room, playerId, connectedIds = new Set(), now = Date.now()) {
-  pruneExpiredQuotes(room, now);
-  const positions = room.game.positions || emptyPositions(room.players);
+  const positions = room.game.positions || {};
   const mark = markForGame(room);
   const revealVotes = room.game.revealVotes || {};
   const liveQuotes = room.game.liveQuotes || {};
+  const activeIds = activeSeatIds(room);
+  const activeIdSet = activeSeatSet(room);
+  const canQuote = room.status === ROOM_STATUS.LIVE && activeIdSet.has(playerId);
+  const canTrade =
+    room.status === ROOM_STATUS.LIVE &&
+    activeIdSet.has(playerId) &&
+    activeIds.some((activePlayerId) => activePlayerId !== playerId && liveQuotes[activePlayerId]);
+  const canVoteReveal =
+    room.status === ROOM_STATUS.LIVE &&
+    activeIdSet.has(playerId) &&
+    (room.game.revealedBoardCount || 0) < (room.game.boardCards?.length || 0) &&
+    !revealVotes[playerId];
 
   return {
     roomId: room.id,
     roomCode: room.code,
     gameType: room.gameType,
+    roomVisibility: room.roomVisibility,
     status: room.status,
     role: roleForCardPlayer(room, playerId),
+    cardSeatStatus: playerSeatStatus(room, playerId),
+    cardCapabilities: {
+      canQuote,
+      canTrade,
+      canVoteReveal,
+    },
+    table: {
+      minPlayers: CARD_MIN_PLAYERS,
+      maxPlayers: room.maxPlayers || CARD_MAX_PLAYERS,
+      playerCount: room.players.length,
+      activeSeatCount: activeIds.length,
+      waitingCount: room.players.length - activeIds.length,
+      countdownStartedAt: room.game.countdownStartedAt,
+      countdownEndsAt: room.game.countdownEndsAt,
+      msUntilStart:
+        room.status === ROOM_STATUS.LOBBY && room.game.countdownEndsAt ? Math.max(room.game.countdownEndsAt - now, 0) : null,
+    },
     ready: playerFor(room, playerId)?.ready ?? false,
     matchType: room.matchType,
     gameNumber: room.gameNumber,
@@ -578,6 +829,8 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
       name: entry.name,
       ready: entry.ready,
       role: roleForCardPlayer(room, entry.id),
+      seatStatus: playerSeatStatus(room, entry.id),
+      quotingNow: Boolean(liveQuotes[entry.id]),
       connected: connectedIds.has(entry.id),
       isBot: entry.isBot,
     })),
@@ -597,39 +850,49 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
       activeActor: null,
       currentQuote: null,
       lastResolution: room.game.lastResolution,
+      previousSummary: room.game.previousSummary || null,
       boardCards: visibleBoard(room),
       boardRevealTotal: room.game.boardCards?.length || 0,
-      privateHand: room.game.privateHands?.[playerId] || [],
-      positions: room.players.map((entry) => ({
-        id: entry.id,
-        name: entry.name,
-        cash: round2(positions[entry.id]?.cash || 0),
-        inventory: positions[entry.id]?.inventory || 0,
-        pnl: provisionalPnl(positions[entry.id] || { cash: 0, inventory: 0 }, mark),
-      })),
+      privateHand: activeIdSet.has(playerId) ? room.game.privateHands?.[playerId] || [] : [],
+      activeSeatIds: activeIds,
+      waitingPlayerIds: room.players.filter((entry) => !activeIdSet.has(entry.id)).map((entry) => entry.id),
+      positions: room.players
+        .filter((entry) => positions[entry.id])
+        .map((entry) => ({
+          id: entry.id,
+          name: entry.name,
+          cash: round2(positions[entry.id]?.cash || 0),
+          inventory: positions[entry.id]?.inventory || 0,
+          pnl: provisionalPnl(positions[entry.id] || { cash: 0, inventory: 0 }, mark),
+        })),
       liveQuotes: room.players
-        .filter((entry) => liveQuotes[entry.id])
+        .filter((entry) => liveQuotes[entry.id] && activeIdSet.has(entry.id))
         .map((entry) => ({
           playerId: entry.id,
           playerName: entry.name,
+          seatStatus: playerSeatStatus(room, entry.id),
           bid: liveQuotes[entry.id].bid,
           ask: liveQuotes[entry.id].ask,
           size: liveQuotes[entry.id].size,
           quotedAt: liveQuotes[entry.id].quotedAt,
           msUntilExpiry: Math.max(QUOTE_TTL_MS - (now - liveQuotes[entry.id].quotedAt), 0),
-          canTrade: entry.id !== playerId,
+          canTrade: canTrade && entry.id !== playerId,
         }))
         .sort((a, b) => (b.quotedAt || 0) - (a.quotedAt || 0)),
-      revealVotes: room.players.filter((entry) => revealVotes[entry.id]).map((entry) => entry.id),
-      revealVotesNeeded: room.players.length,
+      revealVotes: activeIds.filter((activePlayerId) => revealVotes[activePlayerId]),
+      revealVotesNeeded: activeIds.length,
       revealRequestedByYou: Boolean(revealVotes[playerId]),
       startedAt: room.game.startedAt,
       endsAt: room.game.endsAt,
       nextRevealAt: room.game.nextRevealAt,
+      countdownStartedAt: room.game.countdownStartedAt,
+      countdownEndsAt: room.game.countdownEndsAt,
       msRemaining: room.game.endsAt ? Math.max(room.game.endsAt - now, 0) : null,
       msUntilNextReveal:
         room.status === ROOM_STATUS.LIVE && room.game.nextRevealAt ? Math.max(room.game.nextRevealAt - now, 0) : null,
-      settlement: room.status === ROOM_STATUS.FINISHED ? room.game.settlement : null,
+      msUntilStart:
+        room.status === ROOM_STATUS.LOBBY && room.game.countdownEndsAt ? Math.max(room.game.countdownEndsAt - now, 0) : null,
+      settlement: room.game.settlement,
       log: room.game.log.slice(0, 18),
     },
   };

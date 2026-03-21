@@ -7,6 +7,9 @@ import {
   createRoomState,
   finishGame,
   handleHiddenPlayerDeparture,
+  inactivePlayerIds,
+  markPlayerActive,
+  nextInactivityDeadline,
   prepareNextGame,
   requestRematch,
   startGame,
@@ -82,4 +85,20 @@ test("normal rematch flow still works after a completed round", () => {
   assert.equal(room.makerId, takerBefore);
   assert.equal(room.takerId, makerBefore);
   assert.ok(room.game.contract);
+});
+
+test("inactivity helpers identify and clear stale players", () => {
+  const now = 1_000_000;
+  const room = createRoomState("TEST2", "Alpha");
+  room.players[0].lastActiveAt = now - 301_000;
+  const second = addPlayerToRoom(room, "Bravo");
+  second.lastActiveAt = now - 120_000;
+
+  assert.deepEqual(inactivePlayerIds(room, now, 300_000), [room.players[0].id]);
+  assert.equal(nextInactivityDeadline(room, 300_000), room.players[0].lastActiveAt + 300_000);
+
+  markPlayerActive(room, room.players[0].id, now);
+
+  assert.deepEqual(inactivePlayerIds(room, now, 300_000), []);
+  assert.equal(nextInactivityDeadline(room, 300_000), second.lastActiveAt + 300_000);
 });

@@ -33,12 +33,12 @@
         <div class="card-head">
           <div>
             <p class="eyebrow">Live Mode</p>
-            <h2>Playable right now</h2>
+            <h2>Choose game mode</h2>
           </div>
         </div>
         <div class="toggle-row">
           <button id="toggle-hidden-value" class="mode-toggle mode-toggle-active" type="button">Hidden Value</button>
-          <button id="toggle-card-market" class="mode-toggle hidden" type="button">Card Market</button>
+          <button id="toggle-card-market" class="mode-toggle" type="button">Card Market</button>
         </div>
         <p id="mode-description" class="body-copy subtle-copy">
           Hidden Value is the current polished mode: a clean 1v1 maker-versus-taker game with private settlement and authoritative multiplayer state.
@@ -62,6 +62,9 @@
           <p id="setup-message" class="body-copy subtle-copy">
             The site connects to the live game server automatically. Refreshing the page restores your room when possible.
           </p>
+          <div class="action-row top-gap">
+            <button id="reload-app" class="secondary-button hidden" type="button">Reload To Play</button>
+          </div>
         </article>
 
         <article id="private-room-card" class="card">

@@ -67,9 +67,11 @@ export class MatchmakerDurableObject extends DurableObject {
     this.env = env;
     this.queue = [];
     this.tickets = {};
+    this.publicCardRooms = [];
     this.ready = this.ctx.blockConcurrencyWhile(async () => {
       this.queue = (await this.ctx.storage.get("queue")) || [];
       this.tickets = (await this.ctx.storage.get("tickets")) || {};
+      this.publicCardRooms = (await this.ctx.storage.get("publicCardRooms")) || [];
     });
   }
 
@@ -105,6 +107,15 @@ export class MatchmakerDurableObject extends DurableObject {
     if (existingTicket) {
       return json(serializeTicket(existingTicket), 200);
     }
+
+    if (gameType === "card_market") {
+      return this.joinPublicCardTable(name, clientId);
+    }
+
+    return this.joinHiddenValueQueue(name, clientId, gameType);
+  }
+
+  async joinHiddenValueQueue(name, clientId, gameType) {
     const ticketId = crypto.randomUUID();
 
     let waitingTicketId = null;
@@ -119,10 +130,8 @@ export class MatchmakerDurableObject extends DurableObject {
         skippedIds.push(candidateId);
         continue;
       }
-      if (candidate.status === "queued") {
-        waitingTicketId = candidateId;
-        break;
-      }
+      waitingTicketId = candidateId;
+      break;
     }
     if (skippedIds.length) {
       this.queue = skippedIds.concat(this.queue);
@@ -164,8 +173,92 @@ export class MatchmakerDurableObject extends DurableObject {
     };
 
     await this.persist();
-
     return json(serializeTicket(this.tickets[ticketId]), 200);
+  }
+
+  async joinPublicCardTable(name, clientId) {
+    const joined = (await this.tryJoinExistingPublicCardRoom(name)) || (await this.createPublicCardRoom(name));
+    const ticketId = crypto.randomUUID();
+    this.tickets[ticketId] = {
+      id: ticketId,
+      status: "matched",
+      name,
+      clientId,
+      gameType: "card_market",
+      roomId: joined.roomId,
+      roomCode: joined.roomCode,
+      playerId: joined.playerId,
+    };
+    await this.persist();
+    return json(serializeTicket(this.tickets[ticketId]), 200);
+  }
+
+  async tryJoinExistingPublicCardRoom(name) {
+    const nextRooms = [];
+    for (const roomCode of this.publicCardRooms) {
+      const stub = this.env.ROOM.get(this.env.ROOM.idFromName(roomCode));
+      const availabilityResponse = await stub.fetch("https://room/internal/card-public-availability");
+      if (availabilityResponse.status === 404) {
+        continue;
+      }
+      const availability = await availabilityResponse.json();
+      nextRooms.push(roomCode);
+      if (!availability.joinable) {
+        continue;
+      }
+
+      const joinResponse = await stub.fetch("https://room/internal/join", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ name }),
+      });
+      const payload = await joinResponse.json();
+      if (!joinResponse.ok) {
+        continue;
+      }
+      this.publicCardRooms = nextRooms.concat(this.publicCardRooms.filter((entry) => !nextRooms.includes(entry)));
+      return payload;
+    }
+
+    this.publicCardRooms = nextRooms;
+    return null;
+  }
+
+  async createPublicCardRoom(name) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const code = randomCode();
+      const roomId = this.env.ROOM.idFromName(code);
+      const roomStub = this.env.ROOM.get(roomId);
+      const response = await roomStub.fetch("https://room/internal/create", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          code,
+          name,
+          gameType: "card_market",
+          roomVisibility: "public_table",
+        }),
+      });
+
+      if (response.status === 409) {
+        continue;
+      }
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Could not create public card room.");
+      }
+      if (!this.publicCardRooms.includes(code)) {
+        this.publicCardRooms.push(code);
+      }
+      return payload;
+    }
+
+    throw new Error("Could not allocate a public card room.");
   }
 
   getTicket(ticketId) {
@@ -196,7 +289,7 @@ export class MatchmakerDurableObject extends DurableObject {
       if (!ticket || ticket.clientId !== clientId) {
         continue;
       }
-      if (ticket.status === "queued" || ticket.status === "matched") {
+      if (ticket.status === "queued") {
         return ticket;
       }
     }
@@ -233,5 +326,6 @@ export class MatchmakerDurableObject extends DurableObject {
   async persist() {
     await this.ctx.storage.put("queue", this.queue);
     await this.ctx.storage.put("tickets", this.tickets);
+    await this.ctx.storage.put("publicCardRooms", this.publicCardRooms);
   }
 }

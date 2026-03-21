@@ -26,6 +26,7 @@
     toggleHiddenValue: document.getElementById("toggle-hidden-value"),
     toggleCardMarket: document.getElementById("toggle-card-market"),
     setupMessage: document.getElementById("setup-message"),
+    reloadApp: document.getElementById("reload-app"),
     createRoom: document.getElementById("create-room"),
     joinCode: document.getElementById("join-code"),
     joinRoom: document.getElementById("join-room"),
@@ -133,6 +134,14 @@
     connectionState: "idle",
     connectionDetail: "Create, join, or queue into a room to start playing.",
     socketSessionId: 0,
+    reloadRequired: false,
+    lastActivityPingAt: 0,
+    setupMessage: "",
+    setupMessageIsError: false,
+    actionMessage: "",
+    actionMessageIsError: false,
+    queueMessage: "",
+    queueMessageIsError: false,
   };
 
   function defaultBackendUrl() {
@@ -200,13 +209,16 @@
     return "Hidden Value";
   }
 
-  function formatRoleLabel(role, gameType) {
+  function formatRoleLabel(role, gameType, seatStatus = "") {
     if (gameType === "card_market") {
-      if (role === "quoting") {
-        return "Quoting";
+      if (seatStatus === "active_round") {
+        return "Seated This Round";
       }
-      if (role === "trader") {
-        return "Trader";
+      if (seatStatus === "waiting_next_round") {
+        return "Waiting Next Round";
+      }
+      if (seatStatus === "lobby_member") {
+        return "Lobby Seat";
       }
       if (role === "spectator") {
         return "Observer";
@@ -294,7 +306,7 @@
   }
 
   function selectedGameType() {
-    return "hidden_value";
+    return state.selectedGameType === "card_market" ? "card_market" : "hidden_value";
   }
 
   function activeVisualGameType() {
@@ -317,32 +329,43 @@
   }
 
   function renderModeSelection() {
-    elements.toggleHiddenValue.classList.add("mode-toggle-active");
-    elements.toggleCardMarket.classList.remove("mode-toggle-active");
+    const isCardGame = selectedGameType() === "card_market";
+    const hasRoom = Boolean(state.roomCode);
+    const currentRoomGameType = state.roomState?.gameType || null;
+    const selectedLabel = isCardGame ? "Card Market" : "Hidden Value";
+    const currentLabel = currentRoomGameType === "card_market" ? "Card Market" : "Hidden Value";
 
-    setText(elements.heroTitle, "One hidden value. One market.");
+    elements.toggleHiddenValue.classList.toggle("mode-toggle-active", !isCardGame);
+    elements.toggleCardMarket.classList.toggle("mode-toggle-active", isCardGame);
+
+    setText(elements.heroTitle, isCardGame ? "Public tables. Private cards. Live markets." : "One hidden value. One market.");
     setText(
       elements.heroText,
-      "Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker chooses buy, sell, or pass, and settlement stays hidden until the round ends."
+      isCardGame
+        ? "Join the next public card table or build a private room. Ready players get seated into each round, late joins wait for the next deal, and the board reveals over time."
+        : "Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker chooses buy, sell, or pass, and settlement stays hidden until the round ends."
     );
     setText(
       elements.modeDescription,
-      "Hidden Value is the current polished mode: a fast 1v1 market-making game with private settlement, reconnect support, and authoritative multiplayer state."
+      hasRoom
+        ? currentRoomGameType === selectedGameType()
+          ? `${currentLabel} is the current room mode. You can switch this selector at any time; it only changes what you create, join, or queue into after leaving the room.`
+          : `Current room: ${currentLabel}. Next selected mode: ${selectedLabel}. Leave this room when you want to create, join, or queue into the selected mode instead.`
+        : isCardGame
+          ? "Card Market is now a real table mode: public lobbies, private rooms, active-round seating, auto-start countdowns, and persistent tables."
+          : "Hidden Value is the current polished mode: a fast 1v1 market-making game with private settlement, reconnect support, and authoritative multiplayer state."
     );
-    setText(elements.setupMessage, "The site connects to the live game server automatically. Refreshing the page restores your room when possible.");
-    setText(elements.roomActionMessage, "Private rooms are best for playing a specific friend.");
-    setText(elements.queueTitle, "Queue into the next game");
-    setText(elements.queueStatus, "Not in matchmaking queue.");
+    setText(elements.queueTitle, isCardGame ? "Join the next public card table" : "Queue into the next game");
     setText(elements.botTitle, "Play the trained model");
     setText(elements.cardInfoTitle, "How this game runs");
     setText(elements.cardInfoPrivate, "Each player starts with 2 private cards from a standard 52-card deck. Your hand stays fixed for the full round.");
-    setText(elements.cardInfoTrading, "There is no maker turn. Anyone can post a live market and anyone else can trade against it.");
-    setText(elements.cardInfoTiming, "The round runs on a shared clock. Cards reveal automatically, or faster if everyone votes to reveal early.");
+    setText(elements.cardInfoTrading, "Only seated players for the current deal can quote, trade, and vote reveal. Players who join late wait for the next round.");
+    setText(elements.cardInfoTiming, "As soon as at least 2 connected players are ready, an 8 second countdown starts. If a seated player leaves mid-round, the table resets to lobby and redeals.");
     elements.profileCard.classList.remove("hidden");
     elements.privateRoomCard.classList.remove("hidden");
     elements.randomMatchCard.classList.remove("hidden");
-    elements.rlBotCard.classList.remove("hidden");
-    elements.cardMarketInfoCard.classList.add("hidden");
+    elements.rlBotCard.classList.toggle("hidden", isCardGame);
+    elements.cardMarketInfoCard.classList.toggle("hidden", !isCardGame);
   }
 
   function normalizeBackendUrl(input) {
@@ -377,10 +400,15 @@
 
   function buildRoleHeadline(role, roomState, game) {
     if (roomState?.gameType === "card_market") {
-      if (roomState?.status === "live") {
-        return "You can quote the market and trade against anyone else's live quote.";
+      if (roomState?.status === "live" && roomState?.cardSeatStatus === "active_round") {
+        return "You are seated in the live round. Quote carefully and trade the board as it reveals.";
       }
-      return "Join a room to receive private cards and trade the shared board reveal.";
+      if (roomState?.status === "live") {
+        return "You joined after the deal started. Watch this round and you will be eligible for the next one.";
+      }
+      return roomState?.roomVisibility === "public_table"
+        ? "You are in a persistent public table. Ready up to get seated into the next live round."
+        : "You are in a private card room. Ready players will be seated into the next deal.";
     }
     if (role === "market_maker") {
       return "You set the market and decide how much edge to show.";
@@ -399,11 +427,16 @@
       return "No active turn.";
     }
     if (roomState.gameType === "card_market") {
-      if (roomState.status === "finished") {
-        return "The clock is over. Review the final board and settled positions.";
-      }
       if (roomState.status === "lobby") {
-        return "Waiting for at least two players to mark ready.";
+        if (game?.msUntilStart !== null && game?.msUntilStart !== undefined) {
+          return `Countdown live. Next round starts in ${formatDuration(game.msUntilStart)} if the table stays ready.`;
+        }
+        return (roomState?.table?.playerCount || 0) < 2
+          ? "Waiting for at least two players to join the table."
+          : "Need at least two connected ready players to start the countdown.";
+      }
+      if (roomState?.cardSeatStatus === "waiting_next_round") {
+        return "This round is locked. Watch the market and wait for the next deal.";
       }
       const msRemaining = game?.endsAt ? Math.max(game.endsAt - Date.now(), 0) : game?.msRemaining;
       const msUntilNextReveal = game?.nextRevealAt ? Math.max(game.nextRevealAt - Date.now(), 0) : game?.msUntilNextReveal;
@@ -441,10 +474,18 @@
       return "Create, join, or resume a room to receive a role.";
     }
     if (roomState.gameType === "card_market") {
-      if (roomState.status === "live") {
-        return "Keep a live quote in the room if you want to make markets, and hit or lift other players when they are off.";
+      if (roomState.status === "lobby") {
+        return roomState.ready
+          ? "You are ready. Stay connected so the countdown can complete."
+          : "Mark ready when you want a seat in the next deal.";
       }
-      return "The timed card market starts once everyone in the room is ready.";
+      if (roomState.cardSeatStatus === "waiting_next_round") {
+        return "Live rounds are seat-locked. You can observe now and join automatically once the table returns to lobby.";
+      }
+      if (roomState.status === "live") {
+        return "Only seated players can quote, trade, and vote reveal. Quotes expire quickly, so manage your timing.";
+      }
+      return "The timed card market starts once the countdown finishes.";
     }
     if (roomState.status === "lobby" && (roomState.players || []).length < 2) {
       return "Share the room code. The round contract appears once the second player joins.";
@@ -463,6 +504,12 @@
 
   function buildBluffSummary(role, game) {
     if (game?.mode === "card_market") {
+      if (game?.previousSummary?.kind === "cancelled") {
+        return game.previousSummary.text;
+      }
+      if (game?.previousSummary?.kind === "finished") {
+        return game.previousSummary.text;
+      }
       if (!(game?.liveQuotes || []).length) {
         return "No live quotes yet. Private information still dominates.";
       }
@@ -520,7 +567,9 @@
   function buildQuoteContext(game) {
     if (game?.mode === "card_market") {
       if (!(game?.liveQuotes || []).length) {
-        return "Waiting for the first live quote.";
+        return game?.msUntilStart !== null && game?.msUntilStart !== undefined
+          ? "The table is in countdown. Seats are locked once the round begins."
+          : "Waiting for the first live quote.";
       }
       const best = game.liveQuotes[0];
       return `${best.playerName} is quoting ${format(best.bid)} / ${format(best.ask)} x ${best.size}.`;
@@ -679,18 +728,39 @@
   }
 
   function setActionMessage(message, isError = false) {
-    elements.roomActionMessage.textContent = message;
-    elements.roomActionMessage.style.color = isError ? "var(--red)" : "";
+    state.actionMessage = String(message || "");
+    state.actionMessageIsError = Boolean(isError);
   }
 
   function setQueueStatus(message, isError = false) {
-    elements.queueStatus.textContent = message;
-    elements.queueStatus.style.color = isError ? "var(--red)" : "";
+    state.queueMessage = String(message || "");
+    state.queueMessageIsError = Boolean(isError);
   }
 
   function setSetupMessage(message, isError = false) {
-    elements.setupMessage.textContent = message;
-    elements.setupMessage.style.color = isError ? "var(--red)" : "";
+    state.setupMessage = String(message || "");
+    state.setupMessageIsError = Boolean(isError);
+  }
+
+  function defaultSetupMessage() {
+    return selectedGameType() === "card_market"
+      ? "Public card tables stay open in lobby state, auto-start after a short countdown, and lock the current seats once the round goes live."
+      : "The site connects to the live game server automatically. Refreshing the page restores your room when possible.";
+  }
+
+  function defaultRoomActionMessage() {
+    return selectedGameType() === "card_market"
+      ? "Private card rooms work best for specific groups; public queue drops you into the next open table."
+      : "Private rooms are best for playing a specific friend.";
+  }
+
+  function defaultQueueMessage() {
+    return selectedGameType() === "card_market" ? "Not queued. Join the next open public card table when ready." : "Not in matchmaking queue.";
+  }
+
+  function renderStatusMessage(node, message, isError) {
+    node.textContent = message;
+    node.style.color = isError ? "var(--red)" : "";
   }
 
   function copyText(text) {
@@ -714,9 +784,32 @@
     }
   }
 
+  function setReloadRequired(message) {
+    clearReconnectTimer();
+    state.reconnecting = false;
+    state.reconnectAttempts = 0;
+    state.reloadRequired = true;
+    state.connectionState = "failed";
+    state.connectionDetail = message;
+    state.roomId = null;
+    state.roomCode = null;
+    state.playerId = null;
+    state.roomState = null;
+    clearSession();
+    setSetupMessage(message, true);
+    setActionMessage(message, true);
+    setQueueStatus("Reload required before you can queue again.", true);
+    render();
+  }
+
   function resetConnectionState() {
     state.reconnecting = false;
     state.reconnectAttempts = 0;
+    if (state.reloadRequired) {
+      state.connectionState = "failed";
+      state.connectionDetail = "You were removed from the room. Reload to play again.";
+      return;
+    }
     state.connectionState = state.roomId ? "disconnected" : "idle";
     state.connectionDetail = state.roomId
       ? "You are not connected to the room right now."
@@ -725,6 +818,29 @@
 
   function fetchRoomState(roomCode = state.roomCode, playerId = state.playerId) {
     return api(`/api/rooms/${encodeURIComponent(roomCode)}/state?playerId=${encodeURIComponent(playerId)}`);
+  }
+
+  function sendPresencePing(force = false) {
+    if (state.reloadRequired) {
+      return;
+    }
+    const now = Date.now();
+    if (!force && now - state.lastActivityPingAt < 15000) {
+      return;
+    }
+    if (!state.ws || state.ws.readyState !== 1) {
+      return;
+    }
+    state.lastActivityPingAt = now;
+    try {
+      state.ws.send(JSON.stringify({ type: "ping" }));
+    } catch {
+      // no-op
+    }
+  }
+
+  function recordUserActivity() {
+    sendPresencePing(false);
   }
 
   function reconnectDelay(attemptNumber) {
@@ -822,6 +938,8 @@
     state.roomCode = joinPayload.roomCode;
     state.playerId = joinPayload.playerId;
     state.roomState = joinPayload.view || null;
+    state.reloadRequired = false;
+    state.lastActivityPingAt = 0;
     state.connectionState = "connecting";
     state.connectionDetail = `Connecting to room ${state.roomCode}.`;
     persistSession();
@@ -860,6 +978,7 @@
       if (options.reconnecting) {
         setActionMessage(`Reconnected to room ${state.roomCode}.`);
       }
+      sendPresencePing(true);
       render();
     });
 
@@ -883,16 +1002,23 @@
         render();
         return;
       }
+      if (message.type === "pong") {
+        return;
+      }
       if (message.type === "error") {
         setActionMessage(message.error || "Server error.", true);
       }
     });
 
-    ws.addEventListener("close", () => {
+    ws.addEventListener("close", (event) => {
       if (socketSessionId !== state.socketSessionId) {
         return;
       }
       state.ws = null;
+      if (event.code === 4001) {
+        setReloadRequired("Removed after 5 minutes of inactivity. Reload to play again.");
+        return;
+      }
       if (state.manualClose) {
         state.manualClose = false;
         resetConnectionState();
@@ -935,6 +1061,10 @@
   }
 
   async function createRoom() {
+    if (state.reloadRequired) {
+      setSetupMessage("Reload to play again after inactivity removal.", true);
+      return;
+    }
     try {
       const name = requirePlayerName();
       const gameType = selectedGameType();
@@ -947,6 +1077,14 @@
   }
 
   async function createBotRoom(humanRole) {
+    if (state.reloadRequired) {
+      setSetupMessage("Reload to play again after inactivity removal.", true);
+      return;
+    }
+    if (selectedGameType() === "card_market") {
+      setActionMessage("Bot rooms are only available for Hidden Value.", true);
+      return;
+    }
     try {
       const name = requirePlayerName();
       const payload = await api("/api/bot-rooms", { method: "POST", body: { name, humanRole } });
@@ -958,6 +1096,10 @@
   }
 
   async function joinRoom() {
+    if (state.reloadRequired) {
+      setSetupMessage("Reload to play again after inactivity removal.", true);
+      return;
+    }
     try {
       const name = requirePlayerName();
       const code = (elements.joinCode.value || "").trim().toUpperCase();
@@ -973,6 +1115,10 @@
   }
 
   async function queueRandomMatch() {
+    if (state.reloadRequired) {
+      setQueueStatus("Reload to play again after inactivity removal.", true);
+      return;
+    }
     if (state.queueTicketId || state.queueJoinPending) {
       return;
     }
@@ -985,7 +1131,11 @@
       state.queueTicketId = payload.ticketId;
 
       if (payload.status === "matched") {
-        setQueueStatus(`Matched into room ${payload.roomCode}.`);
+        setQueueStatus(
+          gameType === "card_market"
+            ? `Joined public table ${payload.roomCode}.`
+            : `Matched into room ${payload.roomCode}.`
+        );
         await connectToRoom({
           roomId: payload.roomId,
           roomCode: payload.roomCode,
@@ -995,7 +1145,7 @@
         return;
       }
 
-      setQueueStatus("Searching for opponent...");
+      setQueueStatus(gameType === "card_market" ? "Joining the next public card table..." : "Searching for opponent...");
       clearQueuePolling();
       state.queuePollHandle = window.setInterval(async () => {
         try {
@@ -1005,7 +1155,11 @@
           }
           clearQueuePolling();
           state.queueTicketId = null;
-          setQueueStatus(`Matched into room ${ticket.roomCode}.`);
+          setQueueStatus(
+            gameType === "card_market"
+              ? `Joined public table ${ticket.roomCode}.`
+              : `Matched into room ${ticket.roomCode}.`
+          );
           await connectToRoom({
             roomId: ticket.roomId,
             roomCode: ticket.roomCode,
@@ -1057,6 +1211,7 @@
     state.roomCode = null;
     state.playerId = null;
     state.roomState = null;
+    state.reloadRequired = false;
     clearSession();
     resetConnectionState();
     setSetupMessage("Disconnected from the room.");
@@ -1064,6 +1219,10 @@
   }
 
   function retryConnection() {
+    if (state.reloadRequired) {
+      setSetupMessage("Reload to play again after inactivity removal.", true);
+      return;
+    }
     if (state.reconnecting) {
       return;
     }
@@ -1197,7 +1356,9 @@
       const meta = document.createElement("div");
       meta.className = "player-meta";
       const name = document.createElement("strong");
-      name.textContent = `${player.name}${player.isBot ? " · RL Bot" : ""} · ${formatRoleLabel(player.role, gameType)}`;
+      const seatText = formatRoleLabel(player.role, gameType, player.seatStatus);
+      const quoteText = gameType === "card_market" && player.quotingNow ? " · Quoting Now" : "";
+      name.textContent = `${player.name}${player.isBot ? " · RL Bot" : ""} · ${seatText}${quoteText}`;
       const ready = document.createElement("span");
       ready.className = `status-chip${player.ready ? " ready" : ""}`;
       ready.textContent = player.ready ? "Ready" : "Not ready";
@@ -1289,6 +1450,7 @@
 
   function render() {
     applyTheme();
+    renderModeSelection();
     const roomState = state.roomState;
     const game = roomState?.game || null;
     const selectedType = selectedGameType();
@@ -1301,13 +1463,13 @@
     const opponent = !isCardGame ? (role === "market_maker" ? game?.taker : role === "market_taker" ? game?.maker : null) : null;
     const makerTurn = game?.activeActor === "maker";
     const takerTurn = game?.activeActor === "taker";
-    const canQuote = isCardGame ? isLive : roomState?.status === "live" && role === "market_maker" && makerTurn;
+    const canQuote = isCardGame ? Boolean(roomState?.cardCapabilities?.canQuote) : roomState?.status === "live" && role === "market_maker" && makerTurn;
     const canTake = !isCardGame && roomState?.status === "live" && role === "market_taker" && takerTurn && game?.currentQuote;
     const isFinished = roomState?.status === "finished";
     const needsReady = roomState?.status === "lobby" && roomState?.matchType !== "bot";
     const pendingRematch = roomState?.rematch?.pendingPlayers || [];
     const boardFullyRevealed = isCardGame ? (game?.boardCards?.length || 0) >= (game?.boardRevealTotal || 0) : false;
-    const canVoteReveal = isCardGame && isLive && !boardFullyRevealed && !game?.revealRequestedByYou;
+    const canVoteReveal = isCardGame ? Boolean(roomState?.cardCapabilities?.canVoteReveal) : false;
     const leadQuote = isCardGame ? game?.liveQuotes?.[0] || null : null;
     const draft = quoteDraft();
     const canSubmitQuote = canQuote && draft.valid;
@@ -1319,13 +1481,17 @@
         ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
         : "The server will load a fresh contract once two players are seated.";
     const liveQuoteAvailable = Boolean(game?.currentQuote);
+    const controlsLocked = state.reloadRequired;
 
     elements.heroSection.classList.toggle("hidden", hasRoom);
-    elements.modeSection.classList.toggle("hidden", hasRoom);
+    elements.modeSection.classList.remove("hidden");
     elements.setupSection.classList.toggle("hidden", hasRoom);
     elements.sessionSection.classList.toggle("hidden", !hasRoom);
     elements.gameSection.classList.toggle("hidden", !hasRoom);
     elements.lowerSection.classList.toggle("hidden", !hasRoom);
+    renderStatusMessage(elements.setupMessage, state.setupMessage || defaultSetupMessage(), state.setupMessageIsError);
+    renderStatusMessage(elements.roomActionMessage, state.actionMessage || defaultRoomActionMessage(), state.actionMessageIsError);
+    renderStatusMessage(elements.queueStatus, state.queueMessage || defaultQueueMessage(), state.queueMessageIsError);
 
     setText(elements.connectionStatus, connectionStatusLabel());
     setText(elements.sessionConnectionStatus, connectionStatusLabel());
@@ -1335,14 +1501,22 @@
     );
 
     setText(elements.roomCodeDisplay, state.roomCode || "No room");
-    setText(elements.roleLabel, formatRoleLabel(role, gameType));
+    setText(elements.roleLabel, formatRoleLabel(role, gameType, roomState?.cardSeatStatus));
     setText(elements.gameStatus, capWords(roomState?.status || "lobby"));
     setText(elements.turnCaption, isCardGame ? "Board" : "Turn");
-    setText(elements.activeCaption, isCardGame ? "Market" : "Active actor");
+    setText(elements.activeCaption, isCardGame ? "Table" : "Active actor");
     setText(elements.turnLabel, `${game?.turn || 0} / ${game?.maxTurns || 0}`);
-    setText(elements.activeActor, isCardGame ? `${game?.liveQuotes?.length || 0} live` : capWords(game?.activeActor || ""));
+    setText(
+      elements.activeActor,
+      isCardGame
+        ? `${roomState?.table?.activeSeatCount || 0} seated / ${roomState?.table?.playerCount || 0} total`
+        : capWords(game?.activeActor || "")
+    );
     setText(elements.gameTypeLabel, formatGameType(gameType));
-    setText(elements.matchType, roomState?.matchType === "bot" ? "RL Bot" : "Human");
+    setText(
+      elements.matchType,
+      isCardGame ? (roomState?.roomVisibility === "public_table" ? "Public Table" : "Private Room") : roomState?.matchType === "bot" ? "RL Bot" : "Human"
+    );
     setText(elements.gameNumber, String(roomState?.gameNumber || 0));
 
     setText(elements.contractCaption, isCardGame ? "Objective" : "Contract");
@@ -1362,7 +1536,9 @@
     }
     setText(elements.bluffSummary, buildBluffSummary(role, game));
 
-    if (isFinished && pendingRematch.length && !roomState?.rematch?.requested) {
+    if (isCardGame && game?.previousSummary?.text) {
+      setText(elements.resolutionSummary, game.previousSummary.text);
+    } else if (isFinished && pendingRematch.length && !roomState?.rematch?.requested) {
       setText(elements.resolutionSummary, `Settlement is in. Waiting on rematch votes from: ${pendingRematch.join(", ")}.`);
     } else if (isFinished && roomState?.rematch?.requested && pendingRematch.length) {
       setText(elements.resolutionSummary, `Rematch requested. Waiting on: ${pendingRematch.join(", ")}.`);
@@ -1382,20 +1558,39 @@
     setText(elements.previousQuote, formatQuote(game?.previousQuote));
     setText(elements.quoteContext, buildQuoteContext(game));
     setText(elements.quoteCardCaption, isCardGame ? "Your market" : "Maker controls");
-    setText(elements.quoteCardTitle, isCardGame ? "Keep a live quote in the room" : "Submit a quote");
+    setText(
+      elements.quoteCardTitle,
+      isCardGame
+        ? roomState?.cardSeatStatus === "waiting_next_round"
+          ? "Waiting for next round"
+          : "Keep a live quote in the room"
+        : "Submit a quote"
+    );
     setText(
       elements.cardMakerBadge,
-      isFinished ? "Round settled" : `Next reveal: ${formatDuration(game?.nextRevealAt ? Math.max(game.nextRevealAt - Date.now(), 0) : game?.msUntilNextReveal)}`
+      isCardGame
+        ? game?.msUntilStart !== null && game?.msUntilStart !== undefined
+          ? `Start in: ${formatDuration(game.msUntilStart)}`
+          : `Next reveal: ${formatDuration(game?.nextRevealAt ? Math.max(game.nextRevealAt - Date.now(), 0) : game?.msUntilNextReveal)}`
+        : isFinished
+          ? "Round settled"
+          : `Next reveal: ${formatDuration(game?.nextRevealAt ? Math.max(game.nextRevealAt - Date.now(), 0) : game?.msUntilNextReveal)}`
     );
-    renderCardRack(elements.privateHand, game?.privateHand || [], "No cards dealt yet.");
+    renderCardRack(
+      elements.privateHand,
+      game?.privateHand || [],
+      roomState?.cardSeatStatus === "waiting_next_round" ? "You will receive cards at the next deal." : "No cards dealt yet."
+    );
     renderCardRack(elements.boardCards, game?.boardCards || [], "No board cards revealed yet.");
     setText(elements.handUpdate, describeHandUpdate());
     setText(
       elements.cardResponseStatus,
       isCardGame
-        ? isFinished
-          ? `Final board revealed. Settlement ${format(game?.settlement)}.`
-          : `${game?.revealVotes?.length || 0} of ${game?.revealVotesNeeded || 0} players have voted to reveal the next card early.`
+        ? game?.msUntilStart !== null && game?.msUntilStart !== undefined
+          ? `${roomState?.table?.activeSeatCount || 0} ready seat${roomState?.table?.activeSeatCount === 1 ? "" : "s"} locked for the next deal.`
+          : roomState?.cardSeatStatus === "waiting_next_round" && isLive
+            ? "This round is already live. You are observing until the table returns to lobby."
+            : `${game?.revealVotes?.length || 0} of ${game?.revealVotesNeeded || 0} seated players have voted to reveal the next card early.`
         : "No live quote."
     );
 
@@ -1408,14 +1603,14 @@
 
     elements.quoteCard.classList.toggle("hidden", isCardGame ? !isLive : role !== "market_maker" || !isLive);
     elements.takerCard.classList.toggle("hidden", isCardGame || role !== "market_taker" || !isLive);
-    elements.cardStateCard.classList.toggle("hidden", !isCardGame || (!isLive && !isFinished));
-    elements.cardQuotesCard.classList.toggle("hidden", !isCardGame || (!isLive && !isFinished));
+    elements.cardStateCard.classList.toggle("hidden", !isCardGame);
+    elements.cardQuotesCard.classList.toggle("hidden", !isCardGame);
     elements.marketCard.classList.toggle("hidden", isCardGame);
     elements.classicPositionCard.classList.toggle("hidden", isCardGame);
     elements.positionsCard.classList.toggle("hidden", !isCardGame);
 
     elements.submitQuote.disabled = !canSubmitQuote;
-    elements.submitQuote.textContent = canQuote ? (draft.valid ? "Submit Quote" : "Fix Quote First") : "Waiting For Turn";
+    elements.submitQuote.textContent = isCardGame ? (canQuote ? (draft.valid ? "Post Live Quote" : "Fix Quote First") : "Waiting For Next Deal") : canQuote ? (draft.valid ? "Submit Quote" : "Fix Quote First") : "Waiting For Turn";
     elements.takerBuy.disabled = !canTake;
     elements.takerSell.disabled = !canTake;
     elements.takerPass.disabled = !canTake;
@@ -1423,25 +1618,28 @@
     elements.takerSell.textContent = liveQuoteAvailable ? "Sell Bid" : "Waiting";
     elements.takerPass.textContent = liveQuoteAvailable ? "Pass" : "No Quote Yet";
     elements.requestNextReveal.disabled = !canVoteReveal;
-    elements.queueMatch.disabled = Boolean(state.queueTicketId) || Boolean(state.roomCode);
+    elements.queueMatch.disabled = controlsLocked || Boolean(state.queueTicketId) || Boolean(state.roomCode);
     if (state.queueJoinPending) {
       elements.queueMatch.disabled = true;
     }
-    elements.cancelQueue.disabled = !state.queueTicketId;
-    elements.createRoom.disabled = Boolean(state.roomCode);
-    elements.joinRoom.disabled = Boolean(state.roomCode);
-    elements.playBotMaker.disabled = Boolean(state.roomCode);
-    elements.playBotTaker.disabled = Boolean(state.roomCode);
+    elements.queueMatch.textContent = selectedType === "card_market" ? "Join Public Table" : "Find Random Opponent";
+    elements.cancelQueue.disabled = controlsLocked || !state.queueTicketId;
+    elements.createRoom.disabled = controlsLocked || Boolean(state.roomCode);
+    elements.joinRoom.disabled = controlsLocked || Boolean(state.roomCode);
+    elements.playBotMaker.disabled = controlsLocked || selectedType === "card_market" || Boolean(state.roomCode);
+    elements.playBotTaker.disabled = controlsLocked || selectedType === "card_market" || Boolean(state.roomCode);
 
     elements.bidInput.disabled = !canQuote;
     elements.askInput.disabled = !canQuote;
     elements.sizeInput.disabled = !canQuote;
 
-    elements.readyToggle.disabled = !needsReady;
+    elements.readyToggle.disabled = controlsLocked || !needsReady;
     elements.readyToggle.textContent = roomState?.ready ? "Unready" : "Mark Ready";
-    elements.copyRoomCode.disabled = !state.roomCode;
-    elements.requestRematch.disabled = !isFinished || Boolean(roomState?.rematch?.requested);
-    elements.retryConnection.disabled = !(state.roomCode && state.playerId) || state.reconnecting || state.connectionState === "connected";
+    elements.copyRoomCode.disabled = controlsLocked || !state.roomCode;
+    elements.requestRematch.disabled = controlsLocked || isCardGame || !isFinished || Boolean(roomState?.rematch?.requested);
+    elements.retryConnection.disabled =
+      controlsLocked || !(state.roomCode && state.playerId) || state.reconnecting || state.connectionState === "connected";
+    elements.reloadApp.classList.toggle("hidden", !controlsLocked);
 
     renderPlayers(roomState?.players || []);
     renderPositions(game?.positions || []);
@@ -1460,6 +1658,7 @@
   elements.readyToggle.addEventListener("click", toggleReady);
   elements.requestRematch.addEventListener("click", requestRematch);
   elements.retryConnection.addEventListener("click", retryConnection);
+  elements.reloadApp.addEventListener("click", () => window.location.reload());
   elements.leaveRoom.addEventListener("click", leaveRoom);
   elements.submitQuote.addEventListener("click", submitQuote);
   elements.takerBuy.addEventListener("click", () => takerAction("buy"));
@@ -1486,9 +1685,18 @@
     safeStorageSet(STORAGE_KEYS.playerName, (elements.playerName.value || "").trim());
   });
 
+  ["pointerdown", "keydown", "touchstart", "focus"].forEach((eventName) => {
+    window.addEventListener(eventName, recordUserActivity, { passive: true });
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      recordUserActivity();
+    }
+  });
+
   elements.playerName.value = safeStorageGet(STORAGE_KEYS.playerName) || "";
   state.playerName = elements.playerName.value.trim();
-  state.selectedGameType = "hidden_value";
+  state.selectedGameType = safeStorageGet(STORAGE_KEYS.selectedGameType) === "card_market" ? "card_market" : "hidden_value";
   state.backendUrl = defaultBackendUrl();
   state.clientId = getOrCreateClientId();
   resetConnectionState();
