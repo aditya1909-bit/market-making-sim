@@ -7,6 +7,7 @@ import {
   nextCardBotAlarmAt,
   pruneCardBotsPendingRemoval,
   reseedCardBotWakeups,
+  scheduleCardBotPostAction,
 } from "./card-bot-manager.js";
 
 function isDue(player, now) {
@@ -68,7 +69,7 @@ export async function advanceCardBots(room, env, now = Date.now()) {
       }
 
       bot.botPolicyVersion = bot.botPolicyVersion || policyVersionLabel(policy);
-      bot.botNextActionAt = now + 700 + Math.floor(Math.random() * 800);
+      scheduleCardBotPostAction(room, bot, now);
 
       if (acted) {
         changed = true;

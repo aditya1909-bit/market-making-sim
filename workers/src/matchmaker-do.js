@@ -47,6 +47,10 @@ function randomCode(length = 6) {
   return out;
 }
 
+function roomStubForCode(env, code) {
+  return env.ROOM.get(env.ROOM.idFromName(String(code || "").toUpperCase()));
+}
+
 export class MatchmakerDurableObject extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -94,7 +98,15 @@ export class MatchmakerDurableObject extends DurableObject {
     if (existing.changed) {
       this.queue = existing.queue;
     }
-    const existingTicket = existing.ticket;
+    let existingTicket = existing.ticket;
+    if (existingTicket?.status === "matched") {
+      const reusable = await this.validateMatchedTicket(existingTicket);
+      if (!reusable) {
+        existingTicket.status = "cancelled";
+        existingTicket = null;
+        await this.persist();
+      }
+    }
     if (existingTicket) {
       if (existing.changed) {
         await this.persist();
@@ -107,6 +119,16 @@ export class MatchmakerDurableObject extends DurableObject {
     }
 
     return this.joinHiddenValueQueue(name, clientId, gameType);
+  }
+
+  async validateMatchedTicket(ticket) {
+    if (!ticket?.roomCode || !ticket?.playerId) {
+      return false;
+    }
+    const stateUrl = new URL("https://room/internal/state");
+    stateUrl.searchParams.set("playerId", ticket.playerId);
+    const response = await roomStubForCode(this.env, ticket.roomCode).fetch(stateUrl.toString());
+    return response.ok;
   }
 
   async joinHiddenValueQueue(name, clientId, gameType) {

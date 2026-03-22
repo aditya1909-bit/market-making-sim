@@ -391,6 +391,28 @@ export function heuristicCardBotDecision(room, playerId, now = Date.now()) {
   };
 }
 
+function strongestTakeOpportunity(base) {
+  const stats = base.stats;
+  let bestTake = null;
+  base.quotes.forEach((entry) => {
+    const buyEdge = (stats.mean - Number(entry.quote.ask)) / stats.width;
+    const sellEdge = (Number(entry.quote.bid) - stats.mean) / stats.width;
+    const edge = Math.max(buyEdge, sellEdge);
+    const action = buyEdge >= sellEdge ? TAKER_ACTION.BUY : TAKER_ACTION.SELL;
+    if (!bestTake || edge > bestTake.edge) {
+      bestTake = { entry, action, edge };
+    }
+  });
+  return bestTake;
+}
+
+function strongTakeThreshold(base) {
+  const seatRatio = Number(base.values?.[4] || 0);
+  const uncertaintyRatio = Number(base.values?.[1] || 0);
+  const revealRatio = Number(base.values?.[3] || 0);
+  return 0.08 + seatRatio * 0.12 + uncertaintyRatio * 0.14 - revealRatio * 0.04;
+}
+
 function chooseQuoteFromModel(room, playerId, model, now) {
   const base = baseFeatureVector(room, playerId, now);
   const templates = Array.isArray(model?.quoteTemplates) && model.quoteTemplates.length ? model.quoteTemplates : CARD_QUOTE_TEMPLATES;
@@ -474,9 +496,30 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
     return heuristicCardBotDecision(room, playerId, now);
   }
 
+  const base = baseFeatureVector(room, playerId, now);
+  const heuristicTake = strongestTakeOpportunity(base);
   const takeChoice = chooseTakeFromModel(room, playerId, policy.model, now);
   const quoteChoice = chooseQuoteFromModel(room, playerId, policy.model, now);
   const revealChoice = chooseRevealFromModel(room, playerId, policy.model, now);
+  const shouldForceTake =
+    heuristicTake &&
+    heuristicTake.edge >= strongTakeThreshold(base) &&
+    (takeChoice.pass || takeChoice.score >= quoteChoice.score - 0.08);
+
+  if (shouldForceTake) {
+    return {
+      type: "taker_action",
+      payload: {
+        targetPlayerId: heuristicTake.entry.targetPlayerId,
+        action: heuristicTake.action,
+      },
+      debug: {
+        source: "policy",
+        reason: "forced_take_edge",
+        edge: round2(heuristicTake.edge),
+      },
+    };
+  }
 
   if (!takeChoice.pass && takeChoice.score >= quoteChoice.score && takeChoice.score >= (revealChoice.vote ? revealChoice.probability : -Infinity)) {
     return {

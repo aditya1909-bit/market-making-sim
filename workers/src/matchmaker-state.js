@@ -21,7 +21,7 @@ export function serializeTicket(ticket) {
 }
 
 export function reconcileClientTickets(tickets, queue, clientId, requestedGameType) {
-  const matchedTickets = [];
+  const sameGameMatchedTickets = [];
   const sameGameQueuedTickets = [];
   const conflictingQueuedTickets = [];
 
@@ -30,7 +30,9 @@ export function reconcileClientTickets(tickets, queue, clientId, requestedGameTy
       continue;
     }
     if (ticket.status === "matched") {
-      matchedTickets.push(ticket);
+      if (ticket.gameType === requestedGameType) {
+        sameGameMatchedTickets.push(ticket);
+      }
       continue;
     }
     if (ticket.status !== "queued") {
@@ -54,7 +56,7 @@ export function reconcileClientTickets(tickets, queue, clientId, requestedGameTy
     changed = true;
   }
 
-  const reusableTicket = pickNewestTicket(matchedTickets) || pickNewestTicket(sameGameQueuedTickets);
+  const reusableTicket = pickNewestTicket(sameGameMatchedTickets) || pickNewestTicket(sameGameQueuedTickets);
   return {
     changed,
     queue: nextQueue,

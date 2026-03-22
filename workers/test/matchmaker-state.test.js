@@ -3,7 +3,32 @@ import assert from "node:assert/strict";
 
 import { cancelTicketState, reconcileClientTickets, serializeTicket } from "../src/matchmaker-state.js";
 
-test("retrying matchmaking after a matched ticket returns the existing assignment", () => {
+test("retrying matchmaking after a same-game matched ticket returns the existing assignment", () => {
+  const matchedTicket = {
+    id: "ticket-1",
+    status: "matched",
+    clientId: "client-1",
+    gameType: "card_market",
+    roomId: "room-1",
+    roomCode: "ABC123",
+    playerId: "player-1",
+    createdAt: 10,
+  };
+  const result = reconcileClientTickets({ [matchedTicket.id]: matchedTicket }, [], "client-1", "card_market");
+
+  assert.equal(result.changed, false);
+  assert.equal(result.ticket, matchedTicket);
+  assert.deepEqual(serializeTicket(result.ticket), {
+    ticketId: "ticket-1",
+    status: "matched",
+    gameType: "card_market",
+    roomId: "room-1",
+    roomCode: "ABC123",
+    playerId: "player-1",
+  });
+});
+
+test("matched tickets from a different game type are not reused", () => {
   const matchedTicket = {
     id: "ticket-1",
     status: "matched",
@@ -17,15 +42,7 @@ test("retrying matchmaking after a matched ticket returns the existing assignmen
   const result = reconcileClientTickets({ [matchedTicket.id]: matchedTicket }, [], "client-1", "card_market");
 
   assert.equal(result.changed, false);
-  assert.equal(result.ticket, matchedTicket);
-  assert.deepEqual(serializeTicket(result.ticket), {
-    ticketId: "ticket-1",
-    status: "matched",
-    gameType: "hidden_value",
-    roomId: "room-1",
-    roomCode: "ABC123",
-    playerId: "player-1",
-  });
+  assert.equal(result.ticket, null);
 });
 
 test("requesting a different game type replaces an older queued ticket", () => {

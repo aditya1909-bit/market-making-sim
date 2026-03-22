@@ -2,15 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { addPlayerToRoom, createRoomState, removePlayerFromRoom } from "../src/game-engine.js";
+import { addCardBotsToRoom } from "../src/card-bot-manager.js";
 import {
   buildCardPlayerView,
   cancelCardRound,
+  finishCardGame,
   maybeStartCardGame,
   prepareNextCardGame,
   refreshCardLobbyCountdown,
   refreshCardLobbyState,
   requestCardRevealVote,
   submitCardQuote,
+  takeCardAction,
 } from "../src/card-engine.js";
 
 function createCardRoom() {
@@ -140,4 +143,48 @@ test("only active seats can quote or vote to reveal in card market", () => {
 
   submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 });
   assert.throws(() => requestCardRevealVote(room, lateJoiner.id, 15_000), /waiting for the next round/i);
+});
+
+test("finished card rounds preserve ranking and trade tape in the next lobby view", () => {
+  const { room, alpha, bravo, connectedIds } = startLiveCardRoom();
+
+  submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 1 });
+  takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
+  finishCardGame(room, 30_000);
+
+  const view = buildCardPlayerView(room, alpha.id, connectedIds, 30_100);
+
+  assert.equal(view.status, "lobby");
+  assert.equal(view.game.previousSummary?.kind, "finished");
+  assert.ok((view.game.previousSummary?.ranking || []).length >= 2);
+  assert.ok((view.game.previousSummary?.log || []).some((entry) => /buys 1 at 2/i.test(entry.text)));
+  assert.equal(view.game.positions.length, 0);
+});
+
+test("bots cannot start the next card countdown without enough human opt-in", () => {
+  const now = 20_000;
+  const room = createRoomState("CARD2", "Alpha", {
+    gameType: "card_market",
+    maxPlayers: 10,
+    roomVisibility: "private_room",
+  });
+  prepareNextCardGame(room, { incrementGameNumber: true });
+  addCardBotsToRoom(room, 2, "policy-v1", now);
+
+  room.players.forEach((player) => {
+    if (player.isBot) {
+      player.ready = true;
+    }
+  });
+
+  const connectedIds = new Set([room.hostId]);
+  refreshCardLobbyCountdown(room, connectedIds, now);
+
+  assert.equal(room.game.countdownEndsAt, null);
+
+  room.players[0].ready = true;
+  refreshCardLobbyCountdown(room, connectedIds, now + 100);
+
+  assert.ok(room.game.countdownEndsAt);
+  assert.ok(room.game.countdownSeatIds.includes(room.hostId));
 });

@@ -147,6 +147,7 @@
     actionMessageIsError: false,
     botControlMessage: "",
     botControlMessageIsError: false,
+    cardBotCountDraft: "1",
     queueMessage: "",
     queueMessageIsError: false,
   };
@@ -444,12 +445,20 @@
     }
     if (roomState.gameType === "card_market") {
       if (roomState.status === "lobby") {
+        if (game?.previousSummary?.kind === "finished") {
+          const readyHumans = roomState?.table?.readyHumanCount || 0;
+          const readyThreshold = roomState?.table?.readyThreshold || 1;
+          if (game?.msUntilStart !== null && game?.msUntilStart !== undefined) {
+            return `Next deal starts in ${formatDuration(game.msUntilStart)}. ${readyHumans} of ${readyThreshold} required human votes are in.`;
+          }
+          return `Round settled. ${readyHumans} of ${readyThreshold} required human votes are in for the next deal.`;
+        }
         if (game?.msUntilStart !== null && game?.msUntilStart !== undefined) {
           return `Countdown live. Next round starts in ${formatDuration(game.msUntilStart)} if the table stays ready.`;
         }
         return (roomState?.table?.playerCount || 0) < 2
           ? "Waiting for at least two players to join the table."
-          : "Need at least two connected ready players to start the countdown.";
+          : "Need enough human opt-in before the countdown can start.";
       }
       if (roomState?.cardSeatStatus === "waiting_next_round") {
         return "This round is locked. Watch the market and wait for the next deal.";
@@ -491,6 +500,11 @@
     }
     if (roomState.gameType === "card_market") {
       if (roomState.status === "lobby") {
+        if (game?.previousSummary?.kind === "finished") {
+          return roomState.ready
+            ? "You are opted into the next deal. The lobby will wait until enough human players agree to continue."
+            : "Review the standings, then mark ready when you want to join the next deal.";
+        }
         return roomState.ready
           ? "You are ready. Stay connected so the countdown can complete."
           : "Mark ready when you want a seat in the next deal.";
@@ -524,7 +538,8 @@
         return game.previousSummary.text;
       }
       if (game?.previousSummary?.kind === "finished") {
-        return game.previousSummary.text;
+        const leader = (game.previousSummary.ranking || [])[0];
+        return leader ? `${game.previousSummary.text} Winner: ${leader.name} ${format(leader.pnl)}.` : game.previousSummary.text;
       }
       if (!(game?.liveQuotes || []).length) {
         return "No live quotes yet. Private information still dominates.";
@@ -1418,6 +1433,7 @@
       });
       const addedCount = Array.isArray(payload?.added) ? payload.added.length : nextValue;
       setBotControlMessage(`Added ${addedCount} RL bot${addedCount === 1 ? "" : "s"}.`);
+      state.cardBotCountDraft = "1";
       render();
     } catch (error) {
       setBotControlMessage(error.message, true);
@@ -1528,13 +1544,22 @@
     const maxPlayers = Number(roomState?.table?.maxPlayers || 0);
     const playerCount = Number(roomState?.players?.length || 0);
     const remainingSeats = Math.max(0, maxPlayers - playerCount);
-    const parsed = Number(elements.cardBotCount.value);
+    const rawDraft = String(state.cardBotCountDraft || "").trim();
+    const parsed = Number(rawDraft);
     const nextValue = remainingSeats <= 0 ? 0 : Math.max(1, Math.min(remainingSeats, Number.isFinite(parsed) ? Math.trunc(parsed) : 1));
     elements.cardBotCount.min = remainingSeats > 0 ? "1" : "0";
     elements.cardBotCount.max = String(Math.max(remainingSeats, 0));
-    elements.cardBotCount.value = String(nextValue);
     elements.cardBotCount.disabled = remainingSeats <= 0;
-    return { remainingSeats, nextValue };
+    if (remainingSeats <= 0) {
+      elements.cardBotCount.value = "0";
+      return { remainingSeats, nextValue: 0, hasValidDraft: false };
+    }
+    elements.cardBotCount.value = rawDraft === "" ? state.cardBotCountDraft || "1" : rawDraft;
+    return {
+      remainingSeats,
+      nextValue,
+      hasValidDraft: Number.isFinite(parsed) && Math.trunc(parsed) >= 1 && Math.trunc(parsed) <= remainingSeats,
+    };
   }
 
   function renderCardBotPanel(roomState, controlsLocked) {
@@ -1550,14 +1575,14 @@
       return;
     }
 
-    const { remainingSeats, nextValue } = clampCardBotCount(roomState);
+    const { remainingSeats, nextValue, hasValidDraft } = clampCardBotCount(roomState);
     const bots = (roomState?.players || []).filter((player) => player.isBot && player.botKind === "card_rl");
     renderStatusMessage(
       elements.cardBotStatus,
       state.botControlMessage || defaultBotControlMessage(roomState),
       state.botControlMessageIsError
     );
-    elements.addCardBots.disabled = controlsLocked || !state.roomCode || !state.playerId || remainingSeats <= 0 || nextValue < 1;
+    elements.addCardBots.disabled = controlsLocked || !state.roomCode || !state.playerId || remainingSeats <= 0 || nextValue < 1 || !hasValidDraft;
     elements.cardBotList.innerHTML = "";
 
     if (!bots.length) {
@@ -1624,9 +1649,36 @@
 
     positions.forEach((entry) => {
       const li = document.createElement("li");
-      li.textContent = `${entry.name}: cash ${format(entry.cash)}, inventory ${entry.inventory}, pnl ${format(entry.pnl)}`;
+      const rankPrefix = Number.isFinite(entry.rank) ? `${entry.rank}. ` : "";
+      li.textContent = `${rankPrefix}${entry.name}: cash ${format(entry.cash)}, inventory ${entry.inventory}, pnl ${format(entry.pnl)}`;
       elements.positionsList.appendChild(li);
     });
+  }
+
+  function cardDisplayPositions(roomState, game) {
+    if (!game) {
+      return [];
+    }
+    if (roomState?.status === "lobby" && game.previousSummary?.ranking?.length) {
+      return game.previousSummary.ranking.map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }));
+    }
+    return game.positions || [];
+  }
+
+  function cardDisplayHistory(roomState, game) {
+    if (!game) {
+      return [];
+    }
+    if (roomState?.status === "lobby" && game.previousSummary?.log?.length) {
+      return [
+        { text: game.previousSummary.text },
+        ...game.previousSummary.log,
+      ];
+    }
+    return game.log || [];
   }
 
   function renderCardQuotes(game) {
@@ -1809,10 +1861,12 @@
       elements.cardResponseStatus,
       isCardGame
         ? game?.msUntilStart !== null && game?.msUntilStart !== undefined
-          ? `${roomState?.table?.activeSeatCount || 0} ready seat${roomState?.table?.activeSeatCount === 1 ? "" : "s"} locked for the next deal.`
-          : roomState?.cardSeatStatus === "waiting_next_round" && isLive
-            ? "This round is already live. You are observing until the table returns to lobby."
-            : `${game?.revealVotes?.length || 0} of ${game?.revealVotesNeeded || 0} seated players have voted to reveal the next card early.`
+          ? `${roomState?.table?.readyHumanCount || 0} of ${roomState?.table?.readyThreshold || 1} required human votes are in for the next deal.`
+          : roomState?.status === "lobby" && game?.previousSummary?.kind === "finished"
+            ? `${roomState?.table?.readyHumanCount || 0} of ${roomState?.table?.readyThreshold || 1} required human votes are in. Final standings remain visible until the next deal starts.`
+            : roomState?.cardSeatStatus === "waiting_next_round" && isLive
+              ? "This round is already live. You are observing until the table returns to lobby."
+              : `${game?.revealVotes?.length || 0} of ${game?.revealVotesNeeded || 0} seated players have voted to reveal the next card early.`
         : "No live quote."
     );
 
@@ -1856,7 +1910,14 @@
     elements.sizeInput.disabled = !canQuote;
 
     elements.readyToggle.disabled = controlsLocked || !needsReady;
-    elements.readyToggle.textContent = roomState?.ready ? "Unready" : "Mark Ready";
+    elements.readyToggle.textContent =
+      isCardGame && game?.previousSummary?.kind === "finished"
+        ? roomState?.ready
+          ? "Leave Next Deal"
+          : "Join Next Deal"
+        : roomState?.ready
+          ? "Unready"
+          : "Mark Ready";
     elements.copyRoomCode.disabled = controlsLocked || !state.roomCode;
     elements.requestRematch.disabled = controlsLocked || isCardGame || !isFinished || Boolean(roomState?.rematch?.requested);
     elements.retryConnection.disabled =
@@ -1865,9 +1926,9 @@
 
     renderPlayers(roomState?.players || []);
     renderCardBotPanel(roomState, controlsLocked);
-    renderPositions(game?.positions || []);
+    renderPositions(isCardGame ? cardDisplayPositions(roomState, game) : game?.positions || []);
     renderCardQuotes(game);
-    renderHistory(game?.log || []);
+    renderHistory(isCardGame ? cardDisplayHistory(roomState, game) : game?.log || []);
   }
 
   elements.createRoom.addEventListener("click", createRoom);
@@ -1879,7 +1940,16 @@
   elements.playBotMaker.addEventListener("click", () => createBotRoom("market_maker"));
   elements.playBotTaker.addEventListener("click", () => createBotRoom("market_taker"));
   elements.addCardBots.addEventListener("click", addCardBots);
-  elements.cardBotCount.addEventListener("input", render);
+  elements.cardBotCount.addEventListener("input", () => {
+    state.cardBotCountDraft = elements.cardBotCount.value;
+    render();
+  });
+  elements.cardBotCount.addEventListener("blur", () => {
+    const roomState = state.roomState;
+    const { remainingSeats, nextValue } = clampCardBotCount(roomState);
+    state.cardBotCountDraft = remainingSeats <= 0 ? "0" : String(nextValue);
+    render();
+  });
   elements.readyToggle.addEventListener("click", toggleReady);
   elements.requestRematch.addEventListener("click", requestRematch);
   elements.retryConnection.addEventListener("click", retryConnection);

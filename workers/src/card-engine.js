@@ -173,7 +173,28 @@ function activePlayers(room) {
   return room.players.filter((player) => seatIds.has(player.id));
 }
 
+function connectedHumanPlayers(room, connectedIds = new Set()) {
+  return room.players.filter((player) => !player.isBot && connectedIds.has(player.id));
+}
+
+function readyConnectedHumanPlayers(room, connectedIds = new Set()) {
+  return connectedHumanPlayers(room, connectedIds).filter((player) => player.ready);
+}
+
+function nextRoundHumanReadyThreshold(room, connectedIds = new Set()) {
+  const connectedHumans = connectedHumanPlayers(room, connectedIds).length;
+  if (!connectedHumans) {
+    return 1;
+  }
+  return Math.max(1, Math.ceil(connectedHumans / 2));
+}
+
 function eligibleSeatIds(room, connectedIds = new Set()) {
+  const readyHumans = readyConnectedHumanPlayers(room, connectedIds);
+  const readyThreshold = nextRoundHumanReadyThreshold(room, connectedIds);
+  if (readyHumans.length < readyThreshold) {
+    return [];
+  }
   return room.players
     .filter((player) => !player.pendingRemoval && player.ready && (player.isBot || connectedIds.has(player.id)))
     .map((player) => player.id)
@@ -250,6 +271,8 @@ function makeSummary(kind, text, options = {}) {
     settlement: options.settlement ?? null,
     activeSeatCount: options.activeSeatCount ?? 0,
     positions: options.positions || [],
+    ranking: options.ranking || options.positions || [],
+    log: options.log || [],
     completedAt: options.completedAt || Date.now(),
   };
 }
@@ -267,12 +290,27 @@ function currentPositionSnapshot(room, playerId, mark) {
 
 function cardSummaryForRound(room, kind, text, settlement = null, completedAt = Date.now()) {
   const mark = settlement ?? markForGame(room);
+  const positions = activeSeatIds(room).map((playerId) => currentPositionSnapshot(room, playerId, mark));
+  const ranking = [...positions].sort((a, b) => Number(b.pnl || 0) - Number(a.pnl || 0) || a.name.localeCompare(b.name));
   return makeSummary(kind, text, {
     settlement,
     activeSeatCount: activeSeatIds(room).length,
     completedAt,
-    positions: activeSeatIds(room).map((playerId) => currentPositionSnapshot(room, playerId, mark)),
+    positions,
+    ranking,
+    log: room.game.log.slice(0, 40),
   });
+}
+
+function recordCardActionMoment(room, at = Date.now()) {
+  if (!room?.game) {
+    return;
+  }
+  const next = [...(room.game.recentActionMoments || []), at]
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b)
+    .slice(-10);
+  room.game.recentActionMoments = next;
 }
 
 function pruneExpiredQuotes(room, now) {
@@ -380,6 +418,7 @@ export function createCardGamePreview(room, options = {}) {
     endsAt: null,
     nextRevealAt: null,
     lastRevealAt: null,
+    recentActionMoments: [],
     target: {
       id: target.id,
       label: target.label,
@@ -519,6 +558,7 @@ export function startCardGame(room, seatIds = null, now = Date.now()) {
     endsAt: now + ROUND_DURATION_MS,
     nextRevealAt: now + REVEAL_INTERVAL_MS,
     lastRevealAt: now,
+    recentActionMoments: [],
     target: {
       id: scorer.id,
       label: scorer.label,
@@ -570,10 +610,16 @@ export function submitCardQuote(room, playerId, payload) {
   const quote = validateQuote(payload);
   room.game.liveQuotes[playerId] = quote;
   room.game.lastMark = midpoint(quote) ?? room.game.lastMark ?? 0;
+  recordCardActionMoment(room, quote.quotedAt);
   room.game.lastResolution = {
     type: "quote_submitted",
     text: `${playerFor(room, playerId)?.name || "Player"} quoted ${quote.bid} / ${quote.ask} for ${quote.size}.`,
   };
+  room.game.log.unshift({
+    type: "quote",
+    turn: room.game.revealedBoardCount,
+    text: room.game.lastResolution.text,
+  });
 }
 
 export function takeCardAction(room, playerId, payload) {
@@ -630,6 +676,7 @@ export function takeCardAction(room, playerId, payload) {
   }
 
   room.game.lastMark = tradePrice;
+  recordCardActionMoment(room, Date.now());
   room.game.lastResolution = {
     type: "trade",
     action,
@@ -656,6 +703,7 @@ export function requestCardRevealVote(room, playerId, now = Date.now()) {
   }
 
   room.game.revealVotes[playerId] = true;
+  recordCardActionMoment(room, now);
   const allVoted = activeSeatIds(room).every((activePlayerId) => room.game.revealVotes[activePlayerId]);
   if (allVoted) {
     revealNextBoardCard(room, now, "All seated players voted to reveal the next card early");
@@ -760,19 +808,23 @@ export function finishCardGame(room, now = Date.now()) {
   const target = scorerFor(room.game.targetScorerId);
   const settlement = round2(target.score(allCardsInPlay(room)));
   const summary = cardSummaryForRound(room, "finished", `Game finished. Final settlement ${settlement}.`, settlement, now);
+  const podium = summary.ranking
+    .slice(0, 3)
+    .map((entry, index) => `${index + 1}. ${entry.name} ${round2(entry.pnl)}`)
+    .join(" · ");
   prepareNextCardGame(room, {
     incrementGameNumber: true,
     previousSummary: summary,
     lastResolution: {
       type: "game_finished",
       settlement,
-      text: summary.text,
+      text: podium ? `${summary.text} ${podium}.` : summary.text,
     },
     log: [
       {
         type: "finished",
         turn: 0,
-        text: summary.text,
+        text: podium ? `${summary.text} ${podium}.` : summary.text,
       },
     ],
   });
@@ -785,6 +837,9 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
   const liveQuotes = room.game.liveQuotes || {};
   const activeIds = activeSeatIds(room);
   const activeIdSet = activeSeatSet(room);
+  const connectedHumanCount = connectedHumanPlayers(room, connectedIds).length;
+  const readyHumanCount = readyConnectedHumanPlayers(room, connectedIds).length;
+  const readyThreshold = nextRoundHumanReadyThreshold(room, connectedIds);
   const canQuote = room.status === ROOM_STATUS.LIVE && activeIdSet.has(playerId);
   const canTrade =
     room.status === ROOM_STATUS.LIVE &&
@@ -816,6 +871,9 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
       playerCount: room.players.length,
       activeSeatCount: activeIds.length,
       waitingCount: room.players.length - activeIds.length,
+      connectedHumanCount,
+      readyHumanCount,
+      readyThreshold,
       countdownStartedAt: room.game.countdownStartedAt,
       countdownEndsAt: room.game.countdownEndsAt,
       msUntilStart:

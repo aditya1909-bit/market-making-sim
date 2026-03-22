@@ -5,6 +5,7 @@ import {
   cardBotConnectedIds,
   ensureCardBotsReady,
   markCardBotForRemoval,
+  nudgeResponsiveCardBots,
   pruneCardBotsPendingRemoval,
 } from "./card-bot-manager.js";
 import { advanceCardBots, nextCardBotWakeAt, reseedLiveCardBots, resolveCardPolicyVersion } from "./card-bot-runtime.js";
@@ -286,7 +287,8 @@ export class RoomDurableObject extends DurableObject {
     if (!requester || requester !== this.room.hostId) {
       throw new Error("Only the room host can add card bots.");
     }
-    if (!playerFor(this.room, requester)) {
+    const requestingPlayer = playerFor(this.room, requester);
+    if (!requestingPlayer) {
       throw new Error("Unknown host player.");
     }
 
@@ -486,7 +488,7 @@ export class RoomDurableObject extends DurableObject {
         case CLIENT_EVENTS.SUBMIT_QUOTE:
           if (isCardGame(this.room)) {
             submitCardQuote(this.room, playerId, parsed.payload || {});
-            reseedLiveCardBots(this.room, Date.now());
+            nudgeResponsiveCardBots(this.room, Date.now(), playerId);
           } else {
             submitQuote(this.room, playerId, parsed.payload || {});
           }
@@ -501,7 +503,7 @@ export class RoomDurableObject extends DurableObject {
         case CLIENT_EVENTS.TAKER_ACTION:
           if (isCardGame(this.room)) {
             takeCardAction(this.room, playerId, parsed.payload || {});
-            reseedLiveCardBots(this.room, Date.now());
+            nudgeResponsiveCardBots(this.room, Date.now(), playerId);
           } else {
             takeAction(this.room, playerId, parsed.payload || {});
           }
@@ -518,7 +520,7 @@ export class RoomDurableObject extends DurableObject {
             throw new Error("Early reveal voting is only available in the card market.");
           }
           requestCardRevealVote(this.room, playerId);
-          reseedLiveCardBots(this.room, Date.now());
+          nudgeResponsiveCardBots(this.room, Date.now(), playerId);
           await this.persist();
           await this.scheduleRoomAlarm();
           this.broadcastRoom();
