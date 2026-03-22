@@ -5,3 +5,6 @@ app/__pycache__/
 _site/
 workers/node_modules/
 workers/.wrangler/
+workers/src/card-rl-policy-data.js
+card_train.log
+card_eval.log

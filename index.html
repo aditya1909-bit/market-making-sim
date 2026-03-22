@@ -206,6 +206,29 @@
           </div>
           <ul id="players-list" class="players-list"></ul>
         </article>
+
+        <article id="card-bot-panel" class="card hidden">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Manage Bots</p>
+              <h2>Card Bots</h2>
+            </div>
+          </div>
+          <div class="soft-panel">
+            <span class="mini-label">Host controls</span>
+            <p id="card-bot-status" class="body-copy subtle-copy">Add RL bots to open seats in this private card room.</p>
+          </div>
+          <div class="quote-inputs top-gap">
+            <label class="quote-field">
+              <span class="mini-label">Bot count</span>
+              <input id="card-bot-count" type="number" min="1" max="9" value="1" />
+            </label>
+          </div>
+          <div class="action-row top-gap">
+            <button id="add-card-bots" class="primary-button" disabled>Add Bots</button>
+          </div>
+          <ul id="card-bot-list" class="tape-list top-gap"></ul>
+        </article>
       </section>
 
       <section id="game-section" class="game-grid">

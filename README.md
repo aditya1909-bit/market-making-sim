@@ -12,6 +12,7 @@ Live backend: [Cloudflare Worker](https://market-making-sim-backend.adityasdutta
 - It is not a toy frontend. Room state, hidden settlement value, matchmaking, and rematch flow are all authoritative on the backend.
 - It uses Durable Objects in the right place: one room object per live match, plus a dedicated matchmaking object.
 - The solo mode is not scripted in the browser. It uses a server-side RL policy exported from local self-play training.
+- Card Market now has a separate seat-level bot path with local Python training and Worker-side JS inference.
 - The game format matches market-making interview dynamics more closely than a normal order-book sim: one maker, one taker, one hidden value, repeated quote/response rounds.
 
 ## Architecture
@@ -93,7 +94,15 @@ rl/
   train-shard.js       # Worker-thread shard runner
   train-lib.js         # Training and export helpers
   evaluate-policy.js   # Benchmark script
+  upload-card-policy-to-kv.js # Upload exported card policy
   README.md
+
+card_rl/
+  simulator.py         # Faithful card-market simulator
+  features.py          # Exact posterior features
+  heuristic.py         # Quote/take/reveal teacher
+  train.py             # Warm start + PPO-style self-play
+  export_policy.py     # JS policy export
 
 backend/               # Older Node prototype path, retained as reference
 ```

@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { cancelTicketState, reconcileClientTickets, serializeTicket } from "./matchmaker-state.js";
 
 function json(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -46,20 +47,6 @@ function randomCode(length = 6) {
   return out;
 }
 
-function serializeTicket(ticket) {
-  if (!ticket) {
-    return null;
-  }
-  return {
-    ticketId: ticket.id,
-    status: ticket.status,
-    gameType: ticket.gameType,
-    roomId: ticket.roomId,
-    roomCode: ticket.roomCode,
-    playerId: ticket.playerId,
-  };
-}
-
 export class MatchmakerDurableObject extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -103,8 +90,15 @@ export class MatchmakerDurableObject extends DurableObject {
     const name = validateName(body.name);
     const clientId = validateClientId(body.clientId);
     const gameType = normalizeGameType(body.gameType);
-    const existingTicket = this.findActiveTicketForClient(clientId);
+    const existing = reconcileClientTickets(this.tickets, this.queue, clientId, gameType);
+    if (existing.changed) {
+      this.queue = existing.queue;
+    }
+    const existingTicket = existing.ticket;
     if (existingTicket) {
+      if (existing.changed) {
+        await this.persist();
+      }
       return json(serializeTicket(existingTicket), 200);
     }
 
@@ -170,6 +164,7 @@ export class MatchmakerDurableObject extends DurableObject {
       roomId: created.roomId,
       roomCode: created.roomCode,
       playerId: created.players[1].playerId,
+      createdAt: Date.now(),
     };
 
     await this.persist();
@@ -188,6 +183,7 @@ export class MatchmakerDurableObject extends DurableObject {
       roomId: joined.roomId,
       roomCode: joined.roomCode,
       playerId: joined.playerId,
+      createdAt: Date.now(),
     };
     await this.persist();
     return json(serializeTicket(this.tickets[ticketId]), 200);
@@ -266,34 +262,19 @@ export class MatchmakerDurableObject extends DurableObject {
     if (!ticket) {
       return json({ error: "Matchmaking ticket not found." }, 404);
     }
-    return json(ticket, 200);
+    return json(serializeTicket(ticket), 200);
   }
 
   async cancelTicket(ticketId) {
-    const ticket = this.tickets[ticketId];
-    if (!ticket) {
+    const result = cancelTicketState(this.tickets, this.queue, ticketId);
+    if (!result.found) {
       return json({ error: "Matchmaking ticket not found." }, 404);
     }
-    if (ticket.status === "matched") {
-      return json(ticket, 200);
+    this.queue = result.queue;
+    if (result.ticket?.status === "cancelled") {
+      await this.persist();
     }
-
-    ticket.status = "cancelled";
-    this.queue = this.queue.filter((entry) => entry !== ticketId);
-    await this.persist();
-    return json(ticket, 200);
-  }
-
-  findActiveTicketForClient(clientId) {
-    for (const ticket of Object.values(this.tickets)) {
-      if (!ticket || ticket.clientId !== clientId) {
-        continue;
-      }
-      if (ticket.status === "queued") {
-        return ticket;
-      }
-    }
-    return null;
+    return json(serializeTicket(result.ticket), 200);
   }
 
   async createMatchedRoom(nameA, nameB, gameType) {

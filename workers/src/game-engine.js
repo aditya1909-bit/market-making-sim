@@ -29,6 +29,10 @@ export function createPlayer(name, options = {}) {
     name: String(name || "Player").trim().slice(0, 32) || "Player",
     ready: Boolean(options.ready),
     isBot: Boolean(options.isBot),
+    botKind: options.botKind ? String(options.botKind) : null,
+    botPolicyVersion: options.botPolicyVersion ? String(options.botPolicyVersion) : null,
+    botNextActionAt: Number.isFinite(options.botNextActionAt) ? Number(options.botNextActionAt) : null,
+    pendingRemoval: Boolean(options.pendingRemoval),
     lastActiveAt,
   };
 }
@@ -464,6 +468,7 @@ export function buildPlayerView(room, playerId, connectedIds = new Set()) {
     roomCode: room.code,
     gameType: room.gameType,
     status: room.status,
+    isHost: room.hostId === playerId,
     role,
     ready: player?.ready ?? false,
     matchType: room.matchType,
@@ -486,8 +491,11 @@ export function buildPlayerView(room, playerId, connectedIds = new Set()) {
       name: entry.name,
       ready: entry.ready,
       role: roleForPlayer(room, entry.id),
-      connected: connectedIds.has(entry.id),
+      connected: entry.isBot || connectedIds.has(entry.id),
       isBot: entry.isBot,
+      botKind: entry.botKind || null,
+      botPolicyVersion: entry.botPolicyVersion || null,
+      pendingRemoval: Boolean(entry.pendingRemoval),
     })),
     game: {
       contract: room.game.contract

@@ -64,6 +64,19 @@ node rl/upload-policy-to-kv.js --apply --preview
 The live bot also gates RL decisions by state support and falls back to the heuristic policy in sparse states.
 The taker also uses short quote memory and mode selection before choosing a buy/sell/pass action.
 
+## Card-Market RL
+
+The card-market bot is trained locally from the Python package in [`card_rl/`](/Users/adityadutta/Developer/market-making-sim/card_rl/).
+That trainer exports a compact linear policy module to `workers/src/card-rl-policy-data.js`, and the live Worker reads the deployed model from a KV namespace bound as `CARD_RL_POLICY_KV`.
+
+Upload the current card policy:
+
+```bash
+cd market-making-sim
+node rl/upload-card-policy-to-kv.js
+node rl/upload-card-policy-to-kv.js --apply
+```
+
 ## Evaluate it
 
 ```bash

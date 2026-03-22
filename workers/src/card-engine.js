@@ -175,7 +175,7 @@ function activePlayers(room) {
 
 function eligibleSeatIds(room, connectedIds = new Set()) {
   return room.players
-    .filter((player) => player.ready && connectedIds.has(player.id))
+    .filter((player) => !player.pendingRemoval && player.ready && (player.isBot || connectedIds.has(player.id)))
     .map((player) => player.id)
     .sort();
 }
@@ -229,6 +229,9 @@ function applyLobbyTarget(room, seatCount) {
 function playerSeatStatus(room, playerId) {
   if (!playerFor(room, playerId)) {
     return "spectator";
+  }
+  if (playerFor(room, playerId)?.pendingRemoval) {
+    return room.status === ROOM_STATUS.LIVE ? "active_round" : "removed";
   }
   if (room.status === ROOM_STATUS.LIVE) {
     return isActiveSeat(room, playerId) ? "active_round" : "waiting_next_round";
@@ -799,6 +802,7 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
     gameType: room.gameType,
     roomVisibility: room.roomVisibility,
     status: room.status,
+    isHost: room.hostId === playerId,
     role: roleForCardPlayer(room, playerId),
     cardSeatStatus: playerSeatStatus(room, playerId),
     cardCapabilities: {
@@ -831,8 +835,11 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
       role: roleForCardPlayer(room, entry.id),
       seatStatus: playerSeatStatus(room, entry.id),
       quotingNow: Boolean(liveQuotes[entry.id]),
-      connected: connectedIds.has(entry.id),
+      connected: entry.isBot || connectedIds.has(entry.id),
       isBot: entry.isBot,
+      botKind: entry.botKind || null,
+      botPolicyVersion: entry.botPolicyVersion || null,
+      pendingRemoval: Boolean(entry.pendingRemoval),
     })),
     game: {
       contract: {

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { sampleContract } from "../src/contracts.js";
 import {
   addPlayerToRoom,
+  buildPlayerView,
   createRoomState,
   finishGame,
   handleHiddenPlayerDeparture,
@@ -101,4 +102,14 @@ test("inactivity helpers identify and clear stale players", () => {
 
   assert.deepEqual(inactivePlayerIds(room, now, 300_000), []);
   assert.equal(nextInactivityDeadline(room, 300_000), second.lastActiveAt + 300_000);
+});
+
+test("hidden-value room view exposes host status for the current viewer", () => {
+  const { room, second } = createTwoPlayerRoom();
+
+  const hostView = buildPlayerView(room, room.hostId, new Set());
+  const secondView = buildPlayerView(room, second.id, new Set());
+
+  assert.equal(hostView.isHost, true);
+  assert.equal(secondView.isHost, false);
 });

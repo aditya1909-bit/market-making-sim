@@ -8,14 +8,24 @@
 	},
 	// Create and bind with:
 	// npx wrangler kv namespace create RL_POLICY_KV --binding RL_POLICY_KV --update-config
+	// npx wrangler kv namespace create CARD_RL_POLICY_KV --binding CARD_RL_POLICY_KV --update-config
 	// Then upload the split policy blobs with ../rl/upload-policy-to-kv.js.
 	"kv_namespaces": [
 		{
 			"binding": "RL_POLICY_KV",
 			"id": "914df3e545554244bab6e9098fd1cc50"
+		},
+		{
+			"binding": "CARD_RL_POLICY_KV",
+			"id": "0cbeee625965464e9f45d8ff0036a3a3"
 		}
 		// {
 		//   "binding": "RL_POLICY_KV",
+		//   "id": "<your-production-namespace-id>",
+		//   "preview_id": "<your-preview-namespace-id>"
+		// },
+		// {
+		//   "binding": "CARD_RL_POLICY_KV",
 		//   "id": "<your-production-namespace-id>",
 		//   "preview_id": "<your-preview-namespace-id>"
 		// }

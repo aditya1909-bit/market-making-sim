@@ -1,6 +1,14 @@
 import { DurableObject } from "cloudflare:workers";
 import { botDecision, observeBotQuote, observeBotResolution, refreshBotEstimate } from "./bot-policy.js";
 import {
+  addCardBotsToRoom,
+  cardBotConnectedIds,
+  ensureCardBotsReady,
+  markCardBotForRemoval,
+  pruneCardBotsPendingRemoval,
+} from "./card-bot-manager.js";
+import { advanceCardBots, nextCardBotWakeAt, reseedLiveCardBots, resolveCardPolicyVersion } from "./card-bot-runtime.js";
+import {
   advanceCardGameClock,
   buildCardPlayerView,
   cancelCardRound,
@@ -134,6 +142,14 @@ export class RoomDurableObject extends DurableObject {
         return this.getCardPublicAvailability();
       }
 
+      if (request.method === "POST" && url.pathname === "/internal/card-bots") {
+        return this.addCardBots(request);
+      }
+
+      if (request.method === "DELETE" && url.pathname.startsWith("/internal/card-bots/")) {
+        return this.removeCardBot(request, url.pathname.split("/")[3]);
+      }
+
       return json({ error: "Not found." }, 404);
     } catch (error) {
       return json({ error: error.message || "Room request failed." }, 400);
@@ -198,6 +214,7 @@ export class RoomDurableObject extends DurableObject {
     });
     if (gameType === "card_market") {
       prepareNextCardGame(this.room, { incrementGameNumber: true });
+      ensureCardBotsReady(this.room);
     } else {
       prepareNextGame(this.room, sampleContract());
     }
@@ -256,6 +273,78 @@ export class RoomDurableObject extends DurableObject {
     return json(this.serializeJoin(player.id), 200);
   }
 
+  async addCardBots(request) {
+    if (!this.room) {
+      return json({ error: "Room code not found." }, 404);
+    }
+    if (!isCardGame(this.room)) {
+      throw new Error("Card bots are only available in card-market rooms.");
+    }
+
+    const body = await readJson(request);
+    const requester = String(body.playerId || "");
+    if (!requester || requester !== this.room.hostId) {
+      throw new Error("Only the room host can add card bots.");
+    }
+    if (!playerFor(this.room, requester)) {
+      throw new Error("Unknown host player.");
+    }
+
+    const policyVersion = await resolveCardPolicyVersion(this.env, body.policyVersion || null);
+    const added = addCardBotsToRoom(this.room, body.count, policyVersion, Date.now());
+    if (!added.length) {
+      throw new Error("No seats available for additional card bots.");
+    }
+
+    ensureCardBotsReady(this.room);
+    if (this.room.status === "live") {
+      reseedLiveCardBots(
+        this.room,
+        Date.now(),
+        added.map((player) => player.id)
+      );
+    } else {
+      refreshCardLobbyState(this.room, this.connectedIds(), Date.now());
+    }
+
+    await this.persist();
+    await this.scheduleRoomAlarm();
+    this.broadcastRoom();
+    return json({
+      added: added.map((player) => ({
+        id: player.id,
+        name: player.name,
+        botKind: player.botKind,
+        botPolicyVersion: player.botPolicyVersion,
+      })),
+    });
+  }
+
+  async removeCardBot(request, botPlayerId) {
+    if (!this.room) {
+      return json({ error: "Room code not found." }, 404);
+    }
+    if (!isCardGame(this.room)) {
+      throw new Error("Card bots are only available in card-market rooms.");
+    }
+
+    const body = await readJson(request);
+    const requester = String(body.playerId || new URL(request.url).searchParams.get("playerId") || "");
+    if (!requester || requester !== this.room.hostId) {
+      throw new Error("Only the room host can remove card bots.");
+    }
+
+    const outcome = markCardBotForRemoval(this.room, botPlayerId);
+    if (!outcome.deferred) {
+      refreshCardLobbyState(this.room, this.connectedIds(), Date.now());
+    }
+
+    await this.persist();
+    await this.scheduleRoomAlarm();
+    this.broadcastRoom();
+    return json(outcome);
+  }
+
   async seedMatchedRoom(request) {
     if (this.room) {
       return json({ error: "Room already exists." }, 409);
@@ -290,7 +379,9 @@ export class RoomDurableObject extends DurableObject {
         roomCode: this.room.code,
         players: this.room.players.map((player) => ({
           playerId: player.id,
-          view: buildPlayerView(this.room, player.id, this.connectedIds()),
+          view: isCardGame(this.room)
+            ? buildCardPlayerView(this.room, player.id, this.connectedIds())
+            : buildPlayerView(this.room, player.id, this.connectedIds()),
         })),
       },
       201
@@ -360,6 +451,7 @@ export class RoomDurableObject extends DurableObject {
       switch (parsed.type) {
         case CLIENT_EVENTS.READY:
           setReady(this.room, playerId, parsed.payload?.ready ?? parsed.ready);
+          ensureCardBotsReady(this.room);
           if (!isCardGame(this.room) && this.room.players.length === 2 && (!this.room.makerId || !this.room.takerId)) {
             assignRoles(this.room);
           }
@@ -379,6 +471,7 @@ export class RoomDurableObject extends DurableObject {
         case CLIENT_EVENTS.START_GAME:
           if (isCardGame(this.room)) {
             startCardGame(this.room, this.room.game.countdownSeatIds, Date.now());
+            reseedLiveCardBots(this.room, Date.now());
           } else {
             startGame(this.room);
           }
@@ -393,6 +486,7 @@ export class RoomDurableObject extends DurableObject {
         case CLIENT_EVENTS.SUBMIT_QUOTE:
           if (isCardGame(this.room)) {
             submitCardQuote(this.room, playerId, parsed.payload || {});
+            reseedLiveCardBots(this.room, Date.now());
           } else {
             submitQuote(this.room, playerId, parsed.payload || {});
           }
@@ -407,6 +501,7 @@ export class RoomDurableObject extends DurableObject {
         case CLIENT_EVENTS.TAKER_ACTION:
           if (isCardGame(this.room)) {
             takeCardAction(this.room, playerId, parsed.payload || {});
+            reseedLiveCardBots(this.room, Date.now());
           } else {
             takeAction(this.room, playerId, parsed.payload || {});
           }
@@ -423,6 +518,7 @@ export class RoomDurableObject extends DurableObject {
             throw new Error("Early reveal voting is only available in the card market.");
           }
           requestCardRevealVote(this.room, playerId);
+          reseedLiveCardBots(this.room, Date.now());
           await this.persist();
           await this.scheduleRoomAlarm();
           this.broadcastRoom();
@@ -438,6 +534,8 @@ export class RoomDurableObject extends DurableObject {
               resetRematchVotes(this.room);
               clearReady(this.room);
               prepareNextCardGame(this.room, { incrementGameNumber: true });
+              ensureCardBotsReady(this.room);
+              pruneCardBotsPendingRemoval(this.room);
             } else {
               prepareNextGame(this.room, sampleContract(), { swap: true, autoStart: true });
             }
@@ -502,6 +600,9 @@ export class RoomDurableObject extends DurableObject {
       return;
     }
     let changed = await this.syncCardGameState();
+    if (this.room && isCardGame(this.room) && pruneCardBotsPendingRemoval(this.room)) {
+      changed = true;
+    }
     if (await this.removeInactivePlayers()) {
       changed = true;
     }
@@ -544,12 +645,14 @@ export class RoomDurableObject extends DurableObject {
   }
 
   connectedIds() {
-    return new Set(
+    const ids = new Set(
       this.ctx
         .getWebSockets()
         .map((socket) => socket.deserializeAttachment()?.playerId)
         .filter((playerId) => playerId && playerFor(this.room, playerId))
     );
+    cardBotConnectedIds(this.room).forEach((playerId) => ids.add(playerId));
+    return ids;
   }
 
   closeSocketsForPlayer(playerId, code = 1000, reason = "Connection closed") {
@@ -594,6 +697,7 @@ export class RoomDurableObject extends DurableObject {
       this.closeSocketsForPlayer(playerId, 1000, "Left room");
       if (activeCardSeat) {
         cancelCardRound(this.room, `${departing.name} left during the round. The table returned to lobby for a fresh deal.`);
+        pruneCardBotsPendingRemoval(this.room);
       } else {
         refreshCardLobbyState(this.room, this.connectedIds(), Date.now());
       }
@@ -642,6 +746,7 @@ export class RoomDurableObject extends DurableObject {
             `${inactivePlayer.name} was removed after 5 minutes of inactivity. The table returned to lobby for a fresh deal.`,
             now
           );
+          pruneCardBotsPendingRemoval(this.room);
         } else {
           refreshCardLobbyState(this.room, this.connectedIds(), now);
         }
@@ -717,7 +822,14 @@ export class RoomDurableObject extends DurableObject {
     if (!isCardGame(this.room)) {
       return false;
     }
-    const changed = advanceCardGameClock(this.room, this.connectedIds(), now);
+    ensureCardBotsReady(this.room);
+    let changed = advanceCardGameClock(this.room, this.connectedIds(), now);
+    if (await advanceCardBots(this.room, this.env, now)) {
+      changed = true;
+    }
+    if (pruneCardBotsPendingRemoval(this.room)) {
+      changed = true;
+    }
     if (changed) {
       await this.persist();
     }
@@ -737,6 +849,10 @@ export class RoomDurableObject extends DurableObject {
       const cardAt = nextCardAlarmAt(this.room);
       if (cardAt) {
         deadlines.push(cardAt);
+      }
+      const botAt = nextCardBotWakeAt(this.room);
+      if (botAt) {
+        deadlines.push(botAt);
       }
     }
     if (!deadlines.length) {

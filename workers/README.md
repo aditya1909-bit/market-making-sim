@@ -42,6 +42,7 @@ That serves the Worker locally on `http://127.0.0.1:8787`.
 
 The live RL bot policy is loaded from a Workers KV binding named `RL_POLICY_KV`.
 The local training export in `workers/src/rl-policy-data.js` is no longer bundled into the Worker.
+The card-market bot uses a separate binding named `CARD_RL_POLICY_KV`.
 
 Create the namespace and bind it:
 
@@ -57,3 +58,14 @@ node rl/upload-policy-to-kv.js --apply
 ```
 
 If the binding is absent or empty, bot rooms still run, but they fall back to the heuristic policy instead of the trained RL policy.
+
+For the card-market bot:
+
+```bash
+cd workers
+npx wrangler kv namespace create CARD_RL_POLICY_KV --binding CARD_RL_POLICY_KV --update-config
+cd ..
+node rl/upload-card-policy-to-kv.js --apply
+```
+
+If `CARD_RL_POLICY_KV` is absent, incompatible, or empty, card bots still run with the built-in heuristic teacher.

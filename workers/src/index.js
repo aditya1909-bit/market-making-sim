@@ -159,6 +159,38 @@ export default {
         return withCors(response);
       }
 
+      if (request.method === "POST" && url.pathname.startsWith("/api/rooms/") && url.pathname.endsWith("/card-bots")) {
+        const code = url.pathname.split("/")[3];
+        const body = await readJson(request);
+        const response = await roomStubForCode(env, code).fetch("https://room/internal/card-bots", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            playerId: body.playerId,
+            count: body.count,
+            policyVersion: body.policyVersion,
+          }),
+        });
+        return withCors(response);
+      }
+
+      if (request.method === "DELETE" && url.pathname.startsWith("/api/rooms/") && url.pathname.includes("/card-bots/")) {
+        const [, , , code, , botPlayerId] = url.pathname.split("/");
+        const body = await readJson(request);
+        const response = await roomStubForCode(env, code).fetch(`https://room/internal/card-bots/${encodeURIComponent(botPlayerId)}`, {
+          method: "DELETE",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            playerId: body.playerId || url.searchParams.get("playerId"),
+          }),
+        });
+        return withCors(response);
+      }
+
       const matchmaker = env.MATCHMAKER.get(env.MATCHMAKER.idFromName("global-matchmaker"));
 
       if (request.method === "POST" && url.pathname === "/api/matchmaking/join") {

@@ -63,6 +63,11 @@
     matchType: document.getElementById("match-type"),
     gameNumber: document.getElementById("game-number"),
     playersList: document.getElementById("players-list"),
+    cardBotPanel: document.getElementById("card-bot-panel"),
+    cardBotStatus: document.getElementById("card-bot-status"),
+    cardBotCount: document.getElementById("card-bot-count"),
+    addCardBots: document.getElementById("add-card-bots"),
+    cardBotList: document.getElementById("card-bot-list"),
     contractPrompt: document.getElementById("contract-prompt"),
     contractCaption: document.getElementById("contract-caption"),
     contractUnit: document.getElementById("contract-unit"),
@@ -140,6 +145,8 @@
     setupMessageIsError: false,
     actionMessage: "",
     actionMessageIsError: false,
+    botControlMessage: "",
+    botControlMessageIsError: false,
     queueMessage: "",
     queueMessageIsError: false,
   };
@@ -182,6 +189,15 @@
     } catch {
       // ignore storage failures
     }
+  }
+
+  function setBackendUrl(url, options = {}) {
+    const normalized = normalizeBackendUrl(url);
+    state.backendUrl = normalized;
+    if (normalized && options.persist !== false) {
+      safeStorageSet(STORAGE_KEYS.backendUrl, normalized);
+    }
+    return normalized;
   }
 
   function capWords(value) {
@@ -641,12 +657,11 @@
   }
 
   function requireBackendUrl() {
-    state.backendUrl = normalizeBackendUrl(state.backendUrl || defaultBackendUrl());
-    if (!state.backendUrl) {
+    const backendUrl = setBackendUrl(state.backendUrl || defaultBackendUrl());
+    if (!backendUrl) {
       throw new Error("Backend URL is not configured.");
     }
-    safeStorageSet(STORAGE_KEYS.backendUrl, state.backendUrl);
-    return state.backendUrl;
+    return backendUrl;
   }
 
   function requirePlayerName() {
@@ -687,14 +702,41 @@
       if (!parsed?.roomCode || !parsed?.playerId) {
         return null;
       }
-      return parsed;
+      return {
+        backendUrl: normalizeBackendUrl(parsed.backendUrl),
+        roomCode: String(parsed.roomCode),
+        roomId: parsed.roomId || null,
+        playerId: String(parsed.playerId),
+      };
     } catch {
       return null;
     }
   }
 
+  function sessionBackendUrl(session) {
+    return normalizeBackendUrl(session?.backendUrl) || defaultBackendUrl();
+  }
+
+  function applyStoredSession(session) {
+    if (!session) {
+      return null;
+    }
+    setBackendUrl(sessionBackendUrl(session));
+    state.roomCode = session.roomCode;
+    state.roomId = session.roomId || null;
+    state.playerId = session.playerId;
+    return session;
+  }
+
+  function isFatalStoredSessionError(error) {
+    return /Unknown player|Room code not found/i.test(error?.message || "");
+  }
+
   async function api(path, options = {}) {
-    const base = requireBackendUrl();
+    const base = options.baseUrl ? normalizeBackendUrl(options.baseUrl) : requireBackendUrl();
+    if (!base) {
+      throw new Error("Backend URL is not configured.");
+    }
     const response = await fetch(`${base}${path}`, {
       method: options.method || "GET",
       headers: {
@@ -732,6 +774,11 @@
     state.actionMessageIsError = Boolean(isError);
   }
 
+  function setBotControlMessage(message, isError = false) {
+    state.botControlMessage = String(message || "");
+    state.botControlMessageIsError = Boolean(isError);
+  }
+
   function setQueueStatus(message, isError = false) {
     state.queueMessage = String(message || "");
     state.queueMessageIsError = Boolean(isError);
@@ -756,6 +803,19 @@
 
   function defaultQueueMessage() {
     return selectedGameType() === "card_market" ? "Not queued. Join the next open public card table when ready." : "Not in matchmaking queue.";
+  }
+
+  function defaultBotControlMessage(roomState) {
+    if (!roomState || roomState.gameType !== "card_market" || roomState.roomVisibility !== "private_room" || !roomState.isHost) {
+      return "";
+    }
+    const maxPlayers = Number(roomState?.table?.maxPlayers || 0);
+    const playerCount = Number(roomState?.players?.length || 0);
+    const remainingSeats = Math.max(0, maxPlayers - playerCount);
+    if (remainingSeats <= 0) {
+      return "No open seats remain for additional bots.";
+    }
+    return `Add RL bots to open seats in this private card room. ${remainingSeats} seat${remainingSeats === 1 ? "" : "s"} open.`;
   }
 
   function renderStatusMessage(node, message, isError) {
@@ -816,8 +876,18 @@
       : "Create, join, or queue into a room to start playing.";
   }
 
-  function fetchRoomState(roomCode = state.roomCode, playerId = state.playerId) {
-    return api(`/api/rooms/${encodeURIComponent(roomCode)}/state?playerId=${encodeURIComponent(playerId)}`);
+  function fetchRoomState(roomCode = state.roomCode, playerId = state.playerId, backendUrl = null) {
+    return api(`/api/rooms/${encodeURIComponent(roomCode)}/state?playerId=${encodeURIComponent(playerId)}`, {
+      baseUrl: backendUrl,
+    });
+  }
+
+  function queueStatusMessage(ticket) {
+    const gameType = ticket?.gameType === "card_market" ? "card_market" : "hidden_value";
+    if (ticket?.status === "matched") {
+      return gameType === "card_market" ? `Joined public table ${ticket.roomCode}.` : `Matched into room ${ticket.roomCode}.`;
+    }
+    return gameType === "card_market" ? "Joining the next public card table..." : "Searching for opponent...";
   }
 
   function sendPresencePing(force = false) {
@@ -934,6 +1004,9 @@
     state.reconnectAttempts = 0;
     state.queueTicketId = null;
     closeSocket({ manual: true });
+    if (options.backendUrl) {
+      setBackendUrl(options.backendUrl);
+    }
     state.roomId = joinPayload.roomId;
     state.roomCode = joinPayload.roomCode;
     state.playerId = joinPayload.playerId;
@@ -1128,14 +1201,10 @@
       const name = requirePlayerName();
       const gameType = selectedGameType();
       const payload = await api("/api/matchmaking/join", { method: "POST", body: { name, clientId: state.clientId, gameType } });
-      state.queueTicketId = payload.ticketId;
+      state.queueTicketId = payload.ticketId || null;
 
       if (payload.status === "matched") {
-        setQueueStatus(
-          gameType === "card_market"
-            ? `Joined public table ${payload.roomCode}.`
-            : `Matched into room ${payload.roomCode}.`
-        );
+        setQueueStatus(queueStatusMessage(payload));
         await connectToRoom({
           roomId: payload.roomId,
           roomCode: payload.roomCode,
@@ -1145,21 +1214,20 @@
         return;
       }
 
-      setQueueStatus(gameType === "card_market" ? "Joining the next public card table..." : "Searching for opponent...");
+      setQueueStatus(queueStatusMessage(payload));
       clearQueuePolling();
       state.queuePollHandle = window.setInterval(async () => {
         try {
+          if (!state.queueTicketId) {
+            return;
+          }
           const ticket = await api(`/api/matchmaking/${encodeURIComponent(state.queueTicketId)}`);
           if (ticket.status !== "matched") {
             return;
           }
           clearQueuePolling();
           state.queueTicketId = null;
-          setQueueStatus(
-            gameType === "card_market"
-              ? `Joined public table ${ticket.roomCode}.`
-              : `Matched into room ${ticket.roomCode}.`
-          );
+          setQueueStatus(queueStatusMessage(ticket));
           await connectToRoom({
             roomId: ticket.roomId,
             roomCode: ticket.roomCode,
@@ -1186,15 +1254,48 @@
       return;
     }
     try {
-      await api(`/api/matchmaking/${encodeURIComponent(state.queueTicketId)}`, { method: "DELETE" });
+      const payload = await api(`/api/matchmaking/${encodeURIComponent(state.queueTicketId)}`, { method: "DELETE" });
+      clearQueuePolling();
+      state.queueTicketId = null;
+      if (payload.status === "matched") {
+        setQueueStatus(queueStatusMessage(payload));
+        await connectToRoom({
+          roomId: payload.roomId,
+          roomCode: payload.roomCode,
+          playerId: payload.playerId,
+          view: null,
+        });
+        return;
+      }
       setQueueStatus("Queue cancelled.");
     } catch (error) {
       setQueueStatus(error.message, true);
-    } finally {
       clearQueuePolling();
       state.queueTicketId = null;
-      render();
     }
+    render();
+  }
+
+  function clearRoomConnectionState() {
+    state.roomId = null;
+    state.roomCode = null;
+    state.playerId = null;
+    state.roomState = null;
+    setBotControlMessage("");
+  }
+
+  function setStoredSessionRestoreFailure(message) {
+    state.connectionState = "failed";
+    state.connectionDetail = message;
+    setSetupMessage(message, true);
+    render();
+  }
+
+  function clearStoredSessionState() {
+    clearSession();
+    clearRoomConnectionState();
+    resetConnectionState();
+    render();
   }
 
   function leaveRoom() {
@@ -1207,10 +1308,7 @@
       state.ws.send(JSON.stringify({ type: "leave_room" }));
     }
     closeSocket({ manual: true });
-    state.roomId = null;
-    state.roomCode = null;
-    state.playerId = null;
-    state.roomState = null;
+    clearRoomConnectionState();
     state.reloadRequired = false;
     clearSession();
     resetConnectionState();
@@ -1226,15 +1324,15 @@
     if (state.reconnecting) {
       return;
     }
+    const session = readStoredSession();
+    if (session) {
+      applyStoredSession(session);
+    }
     if (!state.roomCode || !state.playerId) {
-      const session = readStoredSession();
       if (!session) {
         setSetupMessage("No saved room session is available to reconnect.", true);
         return;
       }
-      state.roomCode = session.roomCode;
-      state.roomId = session.roomId || null;
-      state.playerId = session.playerId;
     }
     attemptReconnect();
   }
@@ -1301,6 +1399,52 @@
     }
   }
 
+  async function addCardBots() {
+    if (!state.roomCode || !state.playerId) {
+      setBotControlMessage("Join a room before adding bots.", true);
+      return;
+    }
+    try {
+      const { remainingSeats, nextValue } = clampCardBotCount(state.roomState);
+      if (remainingSeats <= 0) {
+        throw new Error("No seats are available for additional bots.");
+      }
+      const payload = await api(`/api/rooms/${encodeURIComponent(state.roomCode)}/card-bots`, {
+        method: "POST",
+        body: {
+          playerId: state.playerId,
+          count: nextValue,
+        },
+      });
+      const addedCount = Array.isArray(payload?.added) ? payload.added.length : nextValue;
+      setBotControlMessage(`Added ${addedCount} RL bot${addedCount === 1 ? "" : "s"}.`);
+      render();
+    } catch (error) {
+      setBotControlMessage(error.message, true);
+      render();
+    }
+  }
+
+  async function removeCardBot(botPlayerId) {
+    if (!state.roomCode || !state.playerId) {
+      setBotControlMessage("Join a room before removing bots.", true);
+      return;
+    }
+    try {
+      const payload = await api(`/api/rooms/${encodeURIComponent(state.roomCode)}/card-bots/${encodeURIComponent(botPlayerId)}`, {
+        method: "DELETE",
+        body: {
+          playerId: state.playerId,
+        },
+      });
+      setBotControlMessage(payload?.deferred ? "Bot marked for removal after the current round." : "Removed RL bot.");
+      render();
+    } catch (error) {
+      setBotControlMessage(error.message, true);
+      render();
+    }
+  }
+
   async function resumePreviousSession() {
     const session = readStoredSession();
     if (!session) {
@@ -1309,15 +1453,16 @@
 
     state.restoring = true;
     try {
-      const preferredBackend = normalizeBackendUrl(session.backendUrl);
-      if (preferredBackend && !safeStorageGet(STORAGE_KEYS.backendUrl)) {
-        state.backendUrl = preferredBackend;
+      applyStoredSession(session);
+      const payload = await fetchRoomState(session.roomCode, session.playerId, state.backendUrl);
+      await connectToRoom(payload, { restored: true, backendUrl: state.backendUrl });
+    } catch (error) {
+      if (isFatalStoredSessionError(error)) {
+        clearStoredSessionState();
+        setSetupMessage("Saved room session expired. Create or join a new room.", true);
+        return;
       }
-      const payload = await fetchRoomState(session.roomCode, session.playerId);
-      await connectToRoom(payload, { restored: true });
-    } catch {
-      clearSession();
-      setSetupMessage("Saved room session expired. Create or join a new room.");
+      setStoredSessionRestoreFailure("Could not restore your saved room automatically. Use Reconnect to try again.");
     } finally {
       state.restoring = false;
       render();
@@ -1358,7 +1503,10 @@
       const name = document.createElement("strong");
       const seatText = formatRoleLabel(player.role, gameType, player.seatStatus);
       const quoteText = gameType === "card_market" && player.quotingNow ? " · Quoting Now" : "";
-      name.textContent = `${player.name}${player.isBot ? " · RL Bot" : ""} · ${seatText}${quoteText}`;
+      const botText = player.isBot ? ` · ${player.botKind === "card_rl" ? "RL Bot" : "Bot"}` : "";
+      const policyText = player.isBot && player.botPolicyVersion ? ` · ${player.botPolicyVersion}` : "";
+      const pendingText = gameType === "card_market" && player.pendingRemoval ? " · Removes after round" : "";
+      name.textContent = `${player.name}${botText}${policyText} · ${seatText}${quoteText}${pendingText}`;
       const ready = document.createElement("span");
       ready.className = `status-chip${player.ready ? " ready" : ""}`;
       ready.textContent = player.ready ? "Ready" : "Not ready";
@@ -1373,6 +1521,80 @@
       row.appendChild(connected);
       li.appendChild(row);
       elements.playersList.appendChild(li);
+    });
+  }
+
+  function clampCardBotCount(roomState) {
+    const maxPlayers = Number(roomState?.table?.maxPlayers || 0);
+    const playerCount = Number(roomState?.players?.length || 0);
+    const remainingSeats = Math.max(0, maxPlayers - playerCount);
+    const parsed = Number(elements.cardBotCount.value);
+    const nextValue = remainingSeats <= 0 ? 0 : Math.max(1, Math.min(remainingSeats, Number.isFinite(parsed) ? Math.trunc(parsed) : 1));
+    elements.cardBotCount.min = remainingSeats > 0 ? "1" : "0";
+    elements.cardBotCount.max = String(Math.max(remainingSeats, 0));
+    elements.cardBotCount.value = String(nextValue);
+    elements.cardBotCount.disabled = remainingSeats <= 0;
+    return { remainingSeats, nextValue };
+  }
+
+  function renderCardBotPanel(roomState, controlsLocked) {
+    const canManageBots =
+      roomState?.gameType === "card_market" &&
+      roomState?.roomVisibility === "private_room" &&
+      roomState?.isHost === true;
+
+    elements.cardBotPanel.classList.toggle("hidden", !canManageBots);
+    if (!canManageBots) {
+      elements.cardBotList.innerHTML = "";
+      setBotControlMessage("");
+      return;
+    }
+
+    const { remainingSeats, nextValue } = clampCardBotCount(roomState);
+    const bots = (roomState?.players || []).filter((player) => player.isBot && player.botKind === "card_rl");
+    renderStatusMessage(
+      elements.cardBotStatus,
+      state.botControlMessage || defaultBotControlMessage(roomState),
+      state.botControlMessageIsError
+    );
+    elements.addCardBots.disabled = controlsLocked || !state.roomCode || !state.playerId || remainingSeats <= 0 || nextValue < 1;
+    elements.cardBotList.innerHTML = "";
+
+    if (!bots.length) {
+      const li = document.createElement("li");
+      li.textContent = "No RL bots in this room.";
+      elements.cardBotList.appendChild(li);
+      return;
+    }
+
+    bots.forEach((bot) => {
+      const li = document.createElement("li");
+      const row = document.createElement("div");
+      row.className = "player-row";
+
+      const meta = document.createElement("div");
+      meta.className = "player-meta";
+      const title = document.createElement("strong");
+      title.textContent = bot.name;
+      const detail = document.createElement("span");
+      detail.className = "body-copy subtle-copy";
+      detail.textContent = bot.pendingRemoval
+        ? `RL Bot${bot.botPolicyVersion ? ` · ${bot.botPolicyVersion}` : ""} · Removes after round`
+        : `RL Bot${bot.botPolicyVersion ? ` · ${bot.botPolicyVersion}` : ""}`;
+      meta.appendChild(title);
+      meta.appendChild(detail);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-button";
+      remove.textContent = bot.pendingRemoval ? "Removes After Round" : "Remove";
+      remove.disabled = controlsLocked || bot.pendingRemoval;
+      remove.addEventListener("click", () => removeCardBot(bot.id));
+
+      row.appendChild(meta);
+      row.appendChild(remove);
+      li.appendChild(row);
+      elements.cardBotList.appendChild(li);
     });
   }
 
@@ -1642,6 +1864,7 @@
     elements.reloadApp.classList.toggle("hidden", !controlsLocked);
 
     renderPlayers(roomState?.players || []);
+    renderCardBotPanel(roomState, controlsLocked);
     renderPositions(game?.positions || []);
     renderCardQuotes(game);
     renderHistory(game?.log || []);
@@ -1655,6 +1878,8 @@
   elements.cancelQueue.addEventListener("click", cancelQueue);
   elements.playBotMaker.addEventListener("click", () => createBotRoom("market_maker"));
   elements.playBotTaker.addEventListener("click", () => createBotRoom("market_taker"));
+  elements.addCardBots.addEventListener("click", addCardBots);
+  elements.cardBotCount.addEventListener("input", render);
   elements.readyToggle.addEventListener("click", toggleReady);
   elements.requestRematch.addEventListener("click", requestRematch);
   elements.retryConnection.addEventListener("click", retryConnection);
@@ -1697,7 +1922,7 @@
   elements.playerName.value = safeStorageGet(STORAGE_KEYS.playerName) || "";
   state.playerName = elements.playerName.value.trim();
   state.selectedGameType = safeStorageGet(STORAGE_KEYS.selectedGameType) === "card_market" ? "card_market" : "hidden_value";
-  state.backendUrl = defaultBackendUrl();
+  setBackendUrl(defaultBackendUrl());
   state.clientId = getOrCreateClientId();
   resetConnectionState();
 

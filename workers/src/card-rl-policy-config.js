@@ -1,0 +1,1 @@
+export const CARD_RL_POLICY_COMPAT_VERSION = 1;
