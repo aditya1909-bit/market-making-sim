@@ -2,9 +2,9 @@ import { createPlayer, playerFor, removePlayerFromRoom } from "./game-engine.js"
 
 export const CARD_BOT_KIND = "card_rl";
 export const CARD_BOT_DELAY_RANGES = {
-  initial: { minMs: 1_400, jitterMs: 2_400 },
-  responsive: { minMs: 1_100, jitterMs: 2_100 },
-  postAction: { minMs: 1_800, jitterMs: 3_200 },
+  initial: { minMs: 10_000, jitterMs: 6_000 },
+  responsive: { minMs: 10_000, jitterMs: 5_000 },
+  postAction: { minMs: 12_000, jitterMs: 6_000 },
 };
 
 const CARD_BOT_NAMES = [
@@ -42,7 +42,7 @@ function roomPaceMultiplier(room, now = Date.now()) {
   }
 
   const averageInterval = intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
-  return Math.min(1.22, Math.max(0.78, averageInterval / 2_500));
+  return Math.min(1.18, Math.max(1, averageInterval / 8_000));
 }
 
 export function resolveCardBotDelayMs(room, kind = "responsive", now = Date.now()) {

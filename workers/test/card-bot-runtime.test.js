@@ -10,6 +10,7 @@ import {
 } from "../src/card-bot-manager.js";
 import { advanceCardBots } from "../src/card-bot-runtime.js";
 import { buildCardPlayerView, prepareNextCardGame, startCardGame, submitCardQuote, takeCardAction } from "../src/card-engine.js";
+import { chooseCardBotDecision } from "../src/card-rl-core.js";
 import { resetRuntimeCardRlPolicyCache } from "../src/card-rl-policy-loader.js";
 import { createRoomState } from "../src/game-engine.js";
 
@@ -185,7 +186,7 @@ test("card bot reaction delay partially follows the table pace", () => {
   const now = 10_000;
 
   fastRoom.game.recentActionMoments = [now - 1_400, now - 1_050, now - 700, now - 350];
-  slowRoom.game.recentActionMoments = [now - 12_000, now - 8_000, now - 4_000, now - 500];
+  slowRoom.game.recentActionMoments = [now - 19_000, now - 9_000, now - 500];
 
   const random = Math.random;
   Math.random = () => 0.5;
@@ -194,9 +195,34 @@ test("card bot reaction delay partially follows the table pace", () => {
     const slowDelay = resolveCardBotDelayMs(slowRoom, "responsive", now);
 
     assert.ok(fastDelay < slowDelay);
-    assert.ok(fastDelay >= Math.floor(CARD_BOT_DELAY_RANGES.responsive.minMs * 0.78));
-    assert.ok(slowDelay <= Math.ceil((CARD_BOT_DELAY_RANGES.responsive.minMs + CARD_BOT_DELAY_RANGES.responsive.jitterMs) * 1.22));
+    assert.ok(fastDelay >= CARD_BOT_DELAY_RANGES.responsive.minMs);
+    assert.ok(slowDelay <= Math.ceil((CARD_BOT_DELAY_RANGES.responsive.minMs + CARD_BOT_DELAY_RANGES.responsive.jitterMs) * 1.18));
   } finally {
     Math.random = random;
   }
+});
+
+test("policy runtime prefers taking strong live quotes over refreshing its own quote", () => {
+  const room = createLobbyRoom();
+  const added = addCardBotsToRoom(room, 2, "policy-v1", 1_000);
+  const [botA, botB] = added;
+
+  startCardGame(room, [room.hostId, botA.id, botB.id], 2_000);
+  room.game.liveQuotes[botA.id] = { bid: -80, ask: -40, size: 1, quotedAt: 1_500 };
+
+  const policy = {
+    metadata: { version: "test-v1", compatibilityVersion: 1 },
+    model: {
+      compatibilityVersion: 1,
+      quoteTemplates: [{ id: "mid_1", reservationOffset: 0, spreadScale: 1, size: 1 }],
+      quoteHead: { weights: [[]], bias: [5] },
+      takeHead: { candidateWeights: [], candidateBias: 0.2, passWeights: [], passBias: -1 },
+      revealHead: { weights: [], bias: -5 },
+    },
+  };
+
+  const decision = chooseCardBotDecision(room, botB.id, policy, 5_000);
+
+  assert.equal(decision.type, "taker_action");
+  assert.equal(decision.payload?.targetPlayerId, botA.id);
 });

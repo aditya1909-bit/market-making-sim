@@ -344,9 +344,8 @@ export function heuristicCardBotDecision(room, playerId, now = Date.now()) {
   const quoteAgeRatio = base.ownQuoteAgeRatio;
   const needQuoteRefresh =
     !ownQuote ||
-    quoteAgeRatio > 0.72 ||
-    Math.abs(base.ownMidBias) > 0.08 ||
-    liveQuotes.length > 0;
+    quoteAgeRatio > 0.92 ||
+    Math.abs(base.ownMidBias) > 0.14;
 
   if (needQuoteRefresh) {
     const template =
@@ -410,7 +409,15 @@ function strongTakeThreshold(base) {
   const seatRatio = Number(base.values?.[4] || 0);
   const uncertaintyRatio = Number(base.values?.[1] || 0);
   const revealRatio = Number(base.values?.[3] || 0);
-  return 0.08 + seatRatio * 0.12 + uncertaintyRatio * 0.14 - revealRatio * 0.04;
+  const bestQuoteAgeRatio = base.quotes.length ? Math.max(...base.quotes.map((entry) => clamp(entry.ageMs / 25_000, 0, 2))) : 0;
+  return Math.max(0.03, 0.045 + seatRatio * 0.07 + uncertaintyRatio * 0.08 - revealRatio * 0.03 - bestQuoteAgeRatio * 0.02);
+}
+
+function opportunisticTakeThreshold(base) {
+  const seatRatio = Number(base.values?.[4] || 0);
+  const uncertaintyRatio = Number(base.values?.[1] || 0);
+  const bestQuoteAgeRatio = base.quotes.length ? Math.max(...base.quotes.map((entry) => clamp(entry.ageMs / 25_000, 0, 2))) : 0;
+  return Math.max(0.025, 0.035 + seatRatio * 0.05 + uncertaintyRatio * 0.05 - bestQuoteAgeRatio * 0.025);
 }
 
 function chooseQuoteFromModel(room, playerId, model, now) {
@@ -501,10 +508,15 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
   const takeChoice = chooseTakeFromModel(room, playerId, policy.model, now);
   const quoteChoice = chooseQuoteFromModel(room, playerId, policy.model, now);
   const revealChoice = chooseRevealFromModel(room, playerId, policy.model, now);
+  const preferredTakeEdge = heuristicTake?.edge ?? -Infinity;
   const shouldForceTake =
     heuristicTake &&
     heuristicTake.edge >= strongTakeThreshold(base) &&
     (takeChoice.pass || takeChoice.score >= quoteChoice.score - 0.08);
+  const shouldPreferTake =
+    heuristicTake &&
+    heuristicTake.edge >= opportunisticTakeThreshold(base) &&
+    !takeChoice.pass;
 
   if (shouldForceTake) {
     return {
@@ -517,6 +529,22 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
         source: "policy",
         reason: "forced_take_edge",
         edge: round2(heuristicTake.edge),
+      },
+    };
+  }
+
+  if (shouldPreferTake) {
+    return {
+      type: "taker_action",
+      payload: {
+        targetPlayerId: takeChoice.targetPlayerId,
+        action: takeChoice.action,
+      },
+      debug: {
+        source: "policy",
+        reason: "preferred_take_edge",
+        edge: round2(preferredTakeEdge),
+        score: round2(takeChoice.score),
       },
     };
   }

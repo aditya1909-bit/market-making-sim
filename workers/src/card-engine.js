@@ -11,6 +11,7 @@ const REVEAL_INTERVAL_MS = 60 * 1000;
 const QUOTE_TTL_MS = 25 * 1000;
 const CARD_AUTO_START_COUNTDOWN_MS = 8 * 1000;
 const SHOE_COUNT = 1;
+const QUOTE_LOG_PRICE_EPSILON = 0.25;
 
 const TARGETS = [
   {
@@ -343,6 +344,17 @@ function midpoint(quote) {
   return (Number(quote.bid) + Number(quote.ask)) / 2;
 }
 
+function quoteChangedMaterially(previousQuote, nextQuote) {
+  if (!previousQuote) {
+    return true;
+  }
+  return (
+    Number(previousQuote.size || 0) !== Number(nextQuote.size || 0) ||
+    Math.abs(Number(previousQuote.bid || 0) - Number(nextQuote.bid || 0)) >= QUOTE_LOG_PRICE_EPSILON ||
+    Math.abs(Number(previousQuote.ask || 0) - Number(nextQuote.ask || 0)) >= QUOTE_LOG_PRICE_EPSILON
+  );
+}
+
 function markForGame(room) {
   if (room.game.settlement !== null && room.game.settlement !== undefined) {
     return room.game.settlement;
@@ -607,19 +619,22 @@ export function submitCardQuote(room, playerId, payload) {
     throw new Error("You are waiting for the next round.");
   }
 
+  const previousQuote = room.game.liveQuotes?.[playerId] || null;
   const quote = validateQuote(payload);
   room.game.liveQuotes[playerId] = quote;
   room.game.lastMark = midpoint(quote) ?? room.game.lastMark ?? 0;
   recordCardActionMoment(room, quote.quotedAt);
-  room.game.lastResolution = {
-    type: "quote_submitted",
-    text: `${playerFor(room, playerId)?.name || "Player"} quoted ${quote.bid} / ${quote.ask} for ${quote.size}.`,
-  };
-  room.game.log.unshift({
-    type: "quote",
-    turn: room.game.revealedBoardCount,
-    text: room.game.lastResolution.text,
-  });
+  if (quoteChangedMaterially(previousQuote, quote)) {
+    room.game.lastResolution = {
+      type: "quote_submitted",
+      text: `${playerFor(room, playerId)?.name || "Player"} quoted ${quote.bid} / ${quote.ask} for ${quote.size}.`,
+    };
+    room.game.log.unshift({
+      type: "quote",
+      turn: room.game.revealedBoardCount,
+      text: room.game.lastResolution.text,
+    });
+  }
 }
 
 export function takeCardAction(room, playerId, payload) {

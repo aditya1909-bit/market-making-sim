@@ -145,6 +145,18 @@ test("only active seats can quote or vote to reveal in card market", () => {
   assert.throws(() => requestCardRevealVote(room, lateJoiner.id, 15_000), /waiting for the next round/i);
 });
 
+test("reposting the same card quote does not spam the tape", () => {
+  const { room, alpha } = startLiveCardRoom();
+
+  submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 });
+  submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 });
+  submitCardQuote(room, alpha.id, { bid: 2.1, ask: 4.1, size: 1 });
+
+  const quoteEntries = room.game.log.filter((entry) => entry.type === "quote");
+  assert.equal(quoteEntries.length, 1);
+  assert.match(quoteEntries[0].text, /quoted 2 \/ 4 for 1/i);
+});
+
 test("finished card rounds preserve ranking and trade tape in the next lobby view", () => {
   const { room, alpha, bravo, connectedIds } = startLiveCardRoom();
 
