@@ -603,13 +603,16 @@ export function startCardGame(room, seatIds = null, now = Date.now()) {
 function validateQuote(payload) {
   const bid = Number(payload.bid);
   const ask = Number(payload.ask);
-  const size = clamp(Number(payload.size) || 1, 1, MAX_QUOTE_SIZE);
+  const size = Number(payload.size);
 
   if (!Number.isFinite(bid) || !Number.isFinite(ask)) {
     throw new Error("Bid and ask must be numeric.");
   }
   if (ask <= bid) {
     throw new Error("Ask must be strictly greater than bid.");
+  }
+  if (!Number.isFinite(size) || !Number.isInteger(size) || size < 1 || size > MAX_QUOTE_SIZE) {
+    throw new Error(`Size must be a whole number between 1 and ${MAX_QUOTE_SIZE}.`);
   }
 
   return {

@@ -646,8 +646,8 @@
     if (ask <= bid) {
       return { valid: false, message: "Ask must be above bid." };
     }
-    if (!hasSize || !Number.isFinite(size) || size < 1 || size > 10) {
-      return { valid: false, message: "Size must be between 1 and 10." };
+    if (!hasSize || !Number.isFinite(size) || !Number.isInteger(size) || size < 1 || size > 5) {
+      return { valid: false, message: "Size must be a whole number between 1 and 5." };
     }
 
     return {

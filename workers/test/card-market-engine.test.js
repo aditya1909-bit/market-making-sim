@@ -157,6 +157,24 @@ test("reposting the same card quote does not spam the tape", () => {
   assert.match(quoteEntries[0].text, /quoted 2 \/ 4 for 1/i);
 });
 
+test("card quotes reject non-integer size", () => {
+  const { room, alpha } = startLiveCardRoom();
+
+  assert.throws(
+    () => submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1.5 }),
+    /whole number between 1 and 5/i
+  );
+});
+
+test("card quotes reject size above the server max", () => {
+  const { room, alpha } = startLiveCardRoom();
+
+  assert.throws(
+    () => submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 6 }),
+    /whole number between 1 and 5/i
+  );
+});
+
 test("finished card rounds preserve ranking and trade tape in the next lobby view", () => {
   const { room, alpha, bravo, connectedIds } = startLiveCardRoom();
   const settledTargetId = room.game.targetScorerId;
