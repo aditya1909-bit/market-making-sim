@@ -1,4 +1,4 @@
-import { requestCardRevealVote, submitCardQuote, takeCardAction } from "./card-engine.js";
+import { cardTradingOpen, requestCardRevealVote, submitCardQuote, takeCardAction } from "./card-engine.js";
 import { chooseCardBotDecision, policyVersionLabel } from "./card-rl-core.js";
 import { getRuntimeCardRlPolicy } from "./card-rl-policy-loader.js";
 import {
@@ -42,6 +42,16 @@ export async function advanceCardBots(room, env, now = Date.now()) {
     return changed;
   }
 
+  if (!cardTradingOpen(room, now)) {
+    const tradingStartsAt = Number(room.game.tradingStartsAt || now);
+    cardBotPlayers(room)
+      .filter((player) => !player.pendingRemoval && Number.isFinite(player.botNextActionAt) && player.botNextActionAt < tradingStartsAt)
+      .forEach((player) => {
+        player.botNextActionAt = tradingStartsAt;
+      });
+    return changed;
+  }
+
   const policy = await getRuntimeCardRlPolicy(env);
   const activeSeatIds = new Set(room.game.activeSeatIds || []);
 
@@ -69,7 +79,9 @@ export async function advanceCardBots(room, env, now = Date.now()) {
       }
 
       bot.botPolicyVersion = bot.botPolicyVersion || policyVersionLabel(policy);
-      scheduleCardBotPostAction(room, bot, now);
+      if (acted) {
+        scheduleCardBotPostAction(room, bot, now);
+      }
 
       if (acted) {
         changed = true;

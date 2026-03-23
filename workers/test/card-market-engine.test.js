@@ -87,6 +87,22 @@ test("joining during a live card round waits for the next deal and cannot act", 
   assert.equal(view.table.waitingCount, 1);
 });
 
+test("active card seats stay in calculation phase for the first 30 seconds", () => {
+  const { room, alpha, bravo, connectedIds } = startLiveCardRoom();
+  const calculationView = buildCardPlayerView(room, alpha.id, connectedIds, 20_000);
+  const tradingView = buildCardPlayerView(room, alpha.id, connectedIds, 45_000);
+
+  assert.equal(calculationView.cardCapabilities.canQuote, false);
+  assert.equal(calculationView.cardCapabilities.canTrade, false);
+  assert.equal(calculationView.cardCapabilities.canVoteReveal, false);
+  assert.ok((calculationView.game.msUntilTradingOpen || 0) > 0);
+
+  assert.equal(tradingView.cardCapabilities.canQuote, true);
+  assert.equal(tradingView.game.tradingOpen, true);
+
+  assert.throws(() => requestCardRevealVote(room, bravo.id, 20_000), /opens when trading opens/i);
+});
+
 test("losing an active card seat adds that hand to the table and the round can continue", () => {
   const { room, alpha, bravo, charlie } = startThreePlayerLiveCardRoom();
   const charlieCards = (room.game.privateHands[charlie.id] || []).map((card) => card.code);

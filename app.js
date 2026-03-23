@@ -69,6 +69,7 @@
     addCardBots: document.getElementById("add-card-bots"),
     cardBotList: document.getElementById("card-bot-list"),
     contractPrompt: document.getElementById("contract-prompt"),
+    contractFormula: document.getElementById("contract-formula"),
     contractCaption: document.getElementById("contract-caption"),
     contractUnit: document.getElementById("contract-unit"),
     contractRange: document.getElementById("contract-range"),
@@ -468,6 +469,10 @@
       if (roomState?.cardSeatStatus === "waiting_next_round") {
         return "This round is locked. Watch the market and wait for the next deal.";
       }
+      const msUntilTradingOpen = game?.tradingStartsAt ? Math.max(game.tradingStartsAt - Date.now(), 0) : game?.msUntilTradingOpen;
+      if (msUntilTradingOpen !== null && msUntilTradingOpen !== undefined && msUntilTradingOpen > 0) {
+        return `Calculation phase ${formatDuration(msUntilTradingOpen)}. Trading opens after that.`;
+      }
       const msRemaining = game?.endsAt ? Math.max(game.endsAt - Date.now(), 0) : game?.msRemaining;
       const msUntilNextReveal = game?.nextRevealAt ? Math.max(game.nextRevealAt - Date.now(), 0) : game?.msUntilNextReveal;
       return `Time left ${formatDuration(msRemaining)}. Next reveal ${formatDuration(msUntilNextReveal)}.`;
@@ -518,6 +523,10 @@
         return "Live rounds are seat-locked. You can observe now and join automatically once the table returns to lobby.";
       }
       if (roomState.status === "live") {
+        const msUntilTradingOpen = game?.tradingStartsAt ? Math.max(game.tradingStartsAt - Date.now(), 0) : game?.msUntilTradingOpen;
+        if (msUntilTradingOpen !== null && msUntilTradingOpen !== undefined && msUntilTradingOpen > 0) {
+          return "Use the opening calculation phase to estimate the score before the first quotes go live.";
+        }
         return "Only seated players can quote, trade, and vote reveal. Quotes expire quickly, so manage your timing.";
       }
       return "The timed card market starts once the countdown finishes.";
@@ -539,6 +548,10 @@
 
   function buildBluffSummary(role, game) {
     if (game?.mode === "card_market") {
+      const msUntilTradingOpen = game?.tradingStartsAt ? Math.max(game.tradingStartsAt - Date.now(), 0) : game?.msUntilTradingOpen;
+      if (msUntilTradingOpen !== null && msUntilTradingOpen !== undefined && msUntilTradingOpen > 0) {
+        return `Calculation phase live. ${formatDuration(msUntilTradingOpen)} until the first quote can trade.`;
+      }
       if (game?.previousSummary?.kind === "cancelled") {
         return game.previousSummary.text;
       }
@@ -602,6 +615,10 @@
 
   function buildQuoteContext(game) {
     if (game?.mode === "card_market") {
+      const msUntilTradingOpen = game?.tradingStartsAt ? Math.max(game.tradingStartsAt - Date.now(), 0) : game?.msUntilTradingOpen;
+      if (msUntilTradingOpen !== null && msUntilTradingOpen !== undefined && msUntilTradingOpen > 0) {
+        return `Calculation phase: ${formatDuration(msUntilTradingOpen)} until trading opens.`;
+      }
       if (!(game?.liveQuotes || []).length) {
         return game?.msUntilStart !== null && game?.msUntilStart !== undefined
           ? "The table is in countdown. Seats are locked once the round begins."
@@ -1800,6 +1817,13 @@
     const leadQuote = isCardGame ? game?.liveQuotes?.[0] || null : null;
     const previousCardSummary = isCardGame && roomState?.status === "lobby" ? game?.previousSummary || null : null;
     const showingPreviousCardSummary = previousCardSummary?.kind === "finished";
+    const msUntilTradingOpen = isCardGame
+      ? game?.tradingStartsAt
+        ? Math.max(game.tradingStartsAt - Date.now(), 0)
+        : game?.msUntilTradingOpen
+      : null;
+    const inCalculationPhase =
+      isCardGame && roomState?.status === "live" && msUntilTradingOpen !== null && msUntilTradingOpen !== undefined && msUntilTradingOpen > 0;
     const draft = quoteDraft();
     const canSubmitQuote = canQuote && draft.valid;
     const contractPrompt = isCardGame
@@ -1807,10 +1831,15 @@
         ? previousCardSummary?.contract?.prompt || game?.contract?.prompt || "Waiting for room"
         : game?.contract?.prompt || (hasRoom ? "Waiting for the first card-market objective." : "Waiting for room")
       : game?.contract?.prompt || (hasRoom ? "Waiting for the second player so the server can deal a fresh contract." : "Waiting for room");
+    const contractFormula = isCardGame
+      ? showingPreviousCardSummary
+        ? previousCardSummary?.target?.label || game?.target?.label || ""
+        : game?.target?.label || ""
+      : "";
     const contractUnit = isCardGame
       ? showingPreviousCardSummary
-        ? previousCardSummary?.target?.label || game?.target?.label || "-"
-        : game?.target?.label || "-"
+        ? previousCardSummary?.contract?.unitLabel || game?.unitLabel || "-"
+        : game?.unitLabel || "-"
       : game?.contract?.unitLabel || "-";
     const contractRange = isCardGame
       ? showingPreviousCardSummary
@@ -1860,8 +1889,10 @@
 
     setText(elements.contractCaption, isCardGame && showingPreviousCardSummary ? "Settled Objective" : isCardGame ? "Objective" : "Contract");
     setText(elements.contractPrompt, contractPrompt);
+    setText(elements.contractFormula, contractFormula ? `Formula: ${contractFormula}` : "");
     setText(elements.contractUnit, contractUnit);
     setText(elements.contractRange, contractRange);
+    elements.contractFormula.classList.toggle("hidden", !contractFormula);
     setText(elements.roleHeadline, buildRoleHeadline(role, roomState, game));
     setText(elements.turnPrompt, buildTurnPrompt(role, roomState, game));
     setText(
@@ -1910,6 +1941,8 @@
       isCardGame
         ? game?.msUntilStart !== null && game?.msUntilStart !== undefined
           ? `Start in: ${formatDuration(game.msUntilStart)}`
+          : inCalculationPhase
+            ? `Trading in: ${formatDuration(msUntilTradingOpen)}`
           : `Next reveal: ${formatDuration(game?.nextRevealAt ? Math.max(game.nextRevealAt - Date.now(), 0) : game?.msUntilNextReveal)}`
         : isFinished
           ? "Round settled"
@@ -1927,6 +1960,8 @@
       isCardGame
         ? game?.msUntilStart !== null && game?.msUntilStart !== undefined
           ? `${roomState?.table?.readyHumanCount || 0} of ${roomState?.table?.readyThreshold || 1} required human votes are in for the next deal.`
+          : inCalculationPhase
+            ? `Calculation phase live. Trading opens in ${formatDuration(msUntilTradingOpen)}.`
           : roomState?.status === "lobby" && game?.previousSummary?.kind === "finished"
             ? `${roomState?.table?.readyHumanCount || 0} of ${roomState?.table?.readyThreshold || 1} required human votes are in. Final standings remain visible until the next deal starts.`
             : roomState?.cardSeatStatus === "waiting_next_round" && isLive
@@ -1953,7 +1988,19 @@
     elements.positionsCard.classList.toggle("hidden", !isCardGame);
 
     elements.submitQuote.disabled = !canSubmitQuote;
-    elements.submitQuote.textContent = isCardGame ? (canQuote ? (draft.valid ? "Post Live Quote" : "Fix Quote First") : "Waiting For Next Deal") : canQuote ? (draft.valid ? "Submit Quote" : "Fix Quote First") : "Waiting For Turn";
+    elements.submitQuote.textContent = isCardGame
+      ? canQuote
+        ? draft.valid
+          ? "Post Live Quote"
+          : "Fix Quote First"
+        : inCalculationPhase
+          ? "Calculation Phase"
+          : "Waiting For Next Deal"
+      : canQuote
+        ? draft.valid
+          ? "Submit Quote"
+          : "Fix Quote First"
+        : "Waiting For Turn";
     elements.takerBuy.disabled = !canTake;
     elements.takerSell.disabled = !canTake;
     elements.takerPass.disabled = !canTake;

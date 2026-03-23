@@ -1,4 +1,6 @@
 import { CARD_RL_POLICY_COMPAT_VERSION } from "./card-rl-policy-config.js";
+import { cardTargetApproxContribution, cardTargetForId, cardTargetScore } from "./card-targets.js";
+import { cardTradingOpen } from "./card-engine.js";
 import { TAKER_ACTION } from "./protocol.js";
 
 export const CARD_QUOTE_TEMPLATES = [
@@ -18,32 +20,7 @@ export const CARD_QUOTE_TEMPLATES = [
 const MAX_QUOTE_SIZE = 5;
 const TOTAL_BOARD_CARDS = 5;
 const PRIVATE_CARDS_PER_PLAYER = 2;
-
-const TARGET_SCORERS = {
-  spades_minus_red(card) {
-    let value = 0;
-    if (card.suit === "S") {
-      value += 1;
-    }
-    if (card.color === "red") {
-      value -= 1;
-    }
-    return value;
-  },
-  black_minus_low(card) {
-    let value = 0;
-    if (card.color === "black") {
-      value += 1;
-    }
-    if (card.rankValue <= 5) {
-      value -= 1;
-    }
-    return value;
-  },
-  faces_plus_aces(card) {
-    return card.rank === "A" || card.rank === "J" || card.rank === "Q" || card.rank === "K" ? 1 : 0;
-  },
-};
+const POSTERIOR_SAMPLE_COUNT = 96;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -110,10 +87,6 @@ function buildDeck() {
   return cards;
 }
 
-function scorer(targetId) {
-  return TARGET_SCORERS[targetId] || TARGET_SCORERS.spades_minus_red;
-}
-
 function knownCardIds(room, playerId) {
   const ids = new Set();
   const privateHand = room.game.privateHands?.[playerId] || [];
@@ -129,13 +102,13 @@ function remainingDeck(room, playerId) {
 
 function countUnknownCards(room, playerId) {
   const seatCount = (room.game.activeSeatIds || []).length;
-  const totalCardsInPlay = seatCount * PRIVATE_CARDS_PER_PLAYER + TOTAL_BOARD_CARDS;
+  const totalCardsInPlay = seatCount * PRIVATE_CARDS_PER_PLAYER + (room.game.boardCards?.length || TOTAL_BOARD_CARDS);
   const knownCount = (room.game.privateHands?.[playerId] || []).length + (room.game.revealedBoardCount || 0);
   return Math.max(0, totalCardsInPlay - knownCount);
 }
 
 function cardContribution(targetId, card) {
-  return scorer(targetId)(card);
+  return cardTargetApproxContribution(targetId, card);
 }
 
 function contributionRatios(cards, targetId) {
@@ -160,29 +133,39 @@ function contributionRatios(cards, targetId) {
 }
 
 export function posteriorStats(room, playerId) {
-  const targetId = room.game.targetScorerId || room.game.target?.id || "spades_minus_red";
+  const targetId = room.game.targetScorerId || room.game.target?.id || cardTargetForId(null).id;
   const privateHand = room.game.privateHands?.[playerId] || [];
   const visibleBoard = (room.game.boardCards || []).slice(0, room.game.revealedBoardCount || 0);
   const knownCards = privateHand.concat(visibleBoard);
-  const knownScore = knownCards.reduce((sum, card) => sum + cardContribution(targetId, card), 0);
+  const knownScore = cardTargetScore(targetId, knownCards);
   const remaining = remainingDeck(room, playerId);
   const unknownCount = Math.min(countUnknownCards(room, playerId), remaining.length);
-  const values = remaining.map((card) => cardContribution(targetId, card));
-  const populationCount = values.length;
-  const populationMean = populationCount ? values.reduce((sum, value) => sum + value, 0) / populationCount : 0;
-  const populationVariance = populationCount
-    ? values.reduce((sum, value) => sum + (value - populationMean) ** 2, 0) / populationCount
-    : 0;
-  const unknownMean = unknownCount * populationMean;
-  const unknownVariance =
-    populationCount > 1 ? unknownCount * ((populationCount - unknownCount) / (populationCount - 1)) * populationVariance : 0;
   const rangeLow = Number(room.game.rangeLow ?? room.game.contract?.rangeLow ?? -10);
   const rangeHigh = Number(room.game.rangeHigh ?? room.game.contract?.rangeHigh ?? 10);
   const width = Math.max(1, rangeHigh - rangeLow);
-  const mean = knownScore + unknownMean;
-  const stdev = Math.sqrt(Math.max(unknownVariance, 0));
   const privateMix = contributionRatios(privateHand, targetId);
   const boardMix = contributionRatios(visibleBoard, targetId);
+  let mean = knownScore;
+  let stdev = 0;
+
+  if (unknownCount > 0) {
+    const outcomes = [];
+    const sampleCount = Math.min(POSTERIOR_SAMPLE_COUNT, Math.max(24, remaining.length * 2));
+    for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+      const pool = [...remaining];
+      for (let index = 0; index < unknownCount; index += 1) {
+        const pickIndex = index + Math.floor(Math.random() * (pool.length - index));
+        const current = pool[index];
+        pool[index] = pool[pickIndex];
+        pool[pickIndex] = current;
+      }
+      outcomes.push(cardTargetScore(targetId, knownCards.concat(pool.slice(0, unknownCount))));
+    }
+    mean = outcomes.reduce((sum, value) => sum + value, 0) / outcomes.length;
+    const variance = outcomes.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(1, outcomes.length);
+    stdev = Math.sqrt(Math.max(variance, 0));
+  }
+
   return {
     targetId,
     mean,
@@ -303,6 +286,16 @@ export function quoteFromTemplate(room, playerId, template, now = Date.now()) {
 }
 
 export function heuristicCardBotDecision(room, playerId, now = Date.now()) {
+  if (!cardTradingOpen(room, now)) {
+    return {
+      type: "wait",
+      payload: {},
+      debug: {
+        source: "heuristic",
+        reason: "calculation_phase",
+      },
+    };
+  }
   const base = baseFeatureVector(room, playerId, now);
   const stats = base.stats;
   const liveQuotes = base.quotes;
@@ -499,6 +492,16 @@ export function policyVersionLabel(policy) {
 }
 
 export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) {
+  if (!cardTradingOpen(room, now)) {
+    return {
+      type: "wait",
+      payload: {},
+      debug: {
+        source: isCompatibleCardPolicy(policy) ? "policy" : "heuristic",
+        reason: "calculation_phase",
+      },
+    };
+  }
   if (!isCompatibleCardPolicy(policy)) {
     return heuristicCardBotDecision(room, playerId, now);
   }

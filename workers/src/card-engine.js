@@ -1,5 +1,6 @@
 import { GAME_ROLE, ROOM_STATUS, TAKER_ACTION } from "./protocol.js";
 import { playerFor } from "./game-engine.js";
+import { cardTargetForId, cardTargetScore, chooseCardTarget } from "./card-targets.js";
 
 const BOARD_CARD_COUNT = 5;
 const PRIVATE_CARDS_PER_PLAYER = 2;
@@ -10,71 +11,9 @@ const ROUND_DURATION_MS = 5 * 60 * 1000;
 const REVEAL_INTERVAL_MS = 60 * 1000;
 const QUOTE_TTL_MS = 25 * 1000;
 const CARD_AUTO_START_COUNTDOWN_MS = 8 * 1000;
+const CARD_TRADING_DELAY_MS = 30 * 1000;
 const SHOE_COUNT = 1;
 const QUOTE_LOG_PRICE_EPSILON = 0.25;
-
-const TARGETS = [
-  {
-    id: "spades_minus_red",
-    label: "Spades count minus red count",
-    prompt: "Final score = total spades minus total red cards across every player's 2 private cards and all public table cards.",
-    unitLabel: "points",
-    rangeFor(totalCards) {
-      return { rangeLow: -totalCards, rangeHigh: totalCards };
-    },
-    score(cards) {
-      let total = 0;
-      for (const card of cards) {
-        if (card.suit === "S") {
-          total += 1;
-        }
-        if (card.color === "red") {
-          total -= 1;
-        }
-      }
-      return total;
-    },
-  },
-  {
-    id: "black_minus_low",
-    label: "Black count minus low-card count",
-    prompt: "Final score = total black cards minus total cards ranked 5 or lower across every player's 2 private cards and all public table cards.",
-    unitLabel: "points",
-    rangeFor(totalCards) {
-      return { rangeLow: -totalCards, rangeHigh: totalCards };
-    },
-    score(cards) {
-      let total = 0;
-      for (const card of cards) {
-        if (card.color === "black") {
-          total += 1;
-        }
-        if (card.rankValue <= 5) {
-          total -= 1;
-        }
-      }
-      return total;
-    },
-  },
-  {
-    id: "faces_plus_aces",
-    label: "Face cards plus aces",
-    prompt: "Final score = total aces, kings, queens, and jacks across every player's 2 private cards and all public table cards.",
-    unitLabel: "cards",
-    rangeFor(totalCards) {
-      return { rangeLow: 0, rangeHigh: totalCards };
-    },
-    score(cards) {
-      let total = 0;
-      for (const card of cards) {
-        if (card.rank === "A" || card.rank === "J" || card.rank === "Q" || card.rank === "K") {
-          total += 1;
-        }
-      }
-      return total;
-    },
-  },
-];
 
 function round2(value) {
   return Math.round(value * 100) / 100;
@@ -139,14 +78,7 @@ function buildDeck() {
 }
 
 function chooseTarget(totalCards) {
-  const target = TARGETS[Math.floor(Math.random() * TARGETS.length)];
-  return {
-    id: target.id,
-    label: target.label,
-    prompt: target.prompt,
-    unitLabel: target.unitLabel,
-    ...target.rangeFor(totalCards),
-  };
+  return chooseCardTarget(totalCards);
 }
 
 function targetForSeatCount(playerCount) {
@@ -154,7 +86,7 @@ function targetForSeatCount(playerCount) {
 }
 
 function scorerFor(targetId) {
-  return TARGETS.find((entry) => entry.id === targetId) || TARGETS[0];
+  return cardTargetForId(targetId);
 }
 
 function emptyPositions(players) {
@@ -378,6 +310,15 @@ function markForGame(room) {
   return round2(mids.reduce((sum, value) => sum + value, 0) / mids.length);
 }
 
+function tradingStartsAt(room) {
+  return Number.isFinite(room?.game?.tradingStartsAt) ? Number(room.game.tradingStartsAt) : null;
+}
+
+export function cardTradingOpen(room, now = Date.now()) {
+  const opensAt = tradingStartsAt(room);
+  return room?.status === ROOM_STATUS.LIVE && opensAt !== null && now >= opensAt;
+}
+
 function provisionalPnl(position, mark) {
   return round2((position?.cash || 0) + (position?.inventory || 0) * mark);
 }
@@ -452,6 +393,8 @@ export function createCardGamePreview(room, options = {}) {
     countdownEndsAt: null,
     previousSummary: options.previousSummary || null,
     startedAt: null,
+    tradingStartsAt: null,
+    tradingActivatedAt: null,
     endsAt: null,
     nextRevealAt: null,
     lastRevealAt: null,
@@ -592,6 +535,8 @@ export function startCardGame(room, seatIds = null, now = Date.now()) {
     countdownEndsAt: null,
     previousSummary: room.game.previousSummary || null,
     startedAt: now,
+    tradingStartsAt: now + CARD_TRADING_DELAY_MS,
+    tradingActivatedAt: null,
     endsAt: now + ROUND_DURATION_MS,
     nextRevealAt: now + REVEAL_INTERVAL_MS,
     lastRevealAt: now,
@@ -642,9 +587,13 @@ export function submitCardQuote(room, playerId, payload) {
   if (room.status !== ROOM_STATUS.LIVE) {
     throw new Error("The card market is not live.");
   }
-  pruneExpiredQuotes(room, Date.now());
+  const now = Date.now();
+  pruneExpiredQuotes(room, now);
   if (!isActiveSeat(room, playerId)) {
     throw new Error("You are waiting for the next round.");
+  }
+  if (!cardTradingOpen(room, now)) {
+    throw new Error("Trading has not opened yet. Use the calculation phase first.");
   }
 
   const previousQuote = room.game.liveQuotes?.[playerId] || null;
@@ -669,9 +618,13 @@ export function takeCardAction(room, playerId, payload) {
   if (room.status !== ROOM_STATUS.LIVE) {
     throw new Error("The card market is not live.");
   }
-  pruneExpiredQuotes(room, Date.now());
+  const now = Date.now();
+  pruneExpiredQuotes(room, now);
   if (!isActiveSeat(room, playerId)) {
     throw new Error("You are waiting for the next round.");
+  }
+  if (!cardTradingOpen(room, now)) {
+    throw new Error("Trading has not opened yet. Use the calculation phase first.");
   }
 
   const targetPlayerId = String(payload.targetPlayerId || "");
@@ -749,6 +702,9 @@ export function requestCardRevealVote(room, playerId, now = Date.now()) {
   pruneExpiredQuotes(room, now);
   if (!isActiveSeat(room, playerId)) {
     throw new Error("You are waiting for the next round.");
+  }
+  if (!cardTradingOpen(room, now)) {
+    throw new Error("Reveal voting opens when trading opens.");
   }
   if ((room.game.revealedBoardCount || 0) >= (room.game.boardCards?.length || 0)) {
     throw new Error("All board cards are already visible.");
@@ -845,6 +801,20 @@ export function advanceCardGameClock(room, connectedIds = new Set(), now = Date.
     return false;
   }
 
+  if (!room.game.tradingActivatedAt && cardTradingOpen(room, now)) {
+    room.game.tradingActivatedAt = now;
+    room.game.lastResolution = {
+      type: "trading_open",
+      text: "Calculation phase ended. Trading is now open.",
+    };
+    room.game.log.unshift({
+      type: "trading_open",
+      turn: room.game.revealedBoardCount,
+      text: room.game.lastResolution.text,
+    });
+    changed = true;
+  }
+
   if (pruneExpiredQuotes(room, now)) {
     changed = true;
   }
@@ -872,6 +842,9 @@ export function nextCardAlarmAt(room) {
     deadlines.push(room.game.countdownEndsAt);
   }
   if (room.status === ROOM_STATUS.LIVE) {
+    if (!room.game.tradingActivatedAt && room.game.tradingStartsAt) {
+      deadlines.push(room.game.tradingStartsAt);
+    }
     if (room.game.nextRevealAt) {
       deadlines.push(room.game.nextRevealAt);
     }
@@ -893,7 +866,7 @@ export function nextCardAlarmAt(room) {
 
 export function finishCardGame(room, now = Date.now()) {
   const target = scorerFor(room.game.targetScorerId);
-  const settlement = round2(target.score(allCardsInPlay(room)));
+  const settlement = round2(cardTargetScore(target.id, allCardsInPlay(room)));
   const summary = cardSummaryForRound(room, "finished", `Game finished. Final settlement ${settlement}.`, settlement, now);
   const podium = summary.ranking
     .slice(0, 3)
@@ -927,14 +900,17 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
   const connectedHumanCount = connectedHumanPlayers(room, connectedIds).length;
   const readyHumanCount = readyConnectedHumanPlayers(room, connectedIds).length;
   const readyThreshold = nextRoundHumanReadyThreshold(room, connectedIds);
-  const canQuote = room.status === ROOM_STATUS.LIVE && activeIdSet.has(playerId);
+  const tradingOpen = cardTradingOpen(room, now);
+  const canQuote = room.status === ROOM_STATUS.LIVE && activeIdSet.has(playerId) && tradingOpen;
   const canTrade =
     room.status === ROOM_STATUS.LIVE &&
     activeIdSet.has(playerId) &&
+    tradingOpen &&
     activeIds.some((activePlayerId) => activePlayerId !== playerId && liveQuotes[activePlayerId]);
   const canVoteReveal =
     room.status === ROOM_STATUS.LIVE &&
     activeIdSet.has(playerId) &&
+    tradingOpen &&
     (room.game.revealedBoardCount || 0) < (room.game.boardCards?.length || 0) &&
     !revealVotes[playerId];
 
@@ -1035,6 +1011,8 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
       revealVotesNeeded: activeIds.length,
       revealRequestedByYou: Boolean(revealVotes[playerId]),
       startedAt: room.game.startedAt,
+      tradingStartsAt: room.game.tradingStartsAt,
+      tradingOpen,
       endsAt: room.game.endsAt,
       nextRevealAt: room.game.nextRevealAt,
       countdownStartedAt: room.game.countdownStartedAt,
@@ -1042,6 +1020,8 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
       msRemaining: room.game.endsAt ? Math.max(room.game.endsAt - now, 0) : null,
       msUntilNextReveal:
         room.status === ROOM_STATUS.LIVE && room.game.nextRevealAt ? Math.max(room.game.nextRevealAt - now, 0) : null,
+      msUntilTradingOpen:
+        room.status === ROOM_STATUS.LIVE && room.game.tradingStartsAt ? Math.max(room.game.tradingStartsAt - now, 0) : null,
       msUntilStart:
         room.status === ROOM_STATUS.LOBBY && room.game.countdownEndsAt ? Math.max(room.game.countdownEndsAt - now, 0) : null,
       settlement: room.game.settlement,

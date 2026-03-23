@@ -81,9 +81,9 @@ test("card bots fall back to heuristic actions when no deployed policy is presen
   const [bot] = addCardBotsToRoom(room, 1, "heuristic", 1_000);
 
   startCardGame(room, [room.hostId, bot.id], 2_000);
-  bot.botNextActionAt = 2_000;
+  bot.botNextActionAt = 33_000;
 
-  const changed = await advanceCardBots(room, {}, 2_000);
+  const changed = await advanceCardBots(room, {}, 33_000);
 
   assert.equal(changed, true);
   assert.ok(room.game.liveQuotes[bot.id] || room.game.revealVotes[bot.id]);
@@ -96,7 +96,7 @@ test("humans can trade against RL bot quotes", () => {
   startCardGame(room, [room.hostId, bot.id], 2_000);
   submitCardQuote(room, bot.id, { bid: 1, ask: 2, size: 1 });
 
-  const view = buildCardPlayerView(room, room.hostId, new Set(), 2_500);
+  const view = buildCardPlayerView(room, room.hostId, new Set(), 35_000);
   assert.equal(view.game.liveQuotes.length, 1);
   assert.equal(view.game.liveQuotes[0].playerId, bot.id);
   assert.equal(view.game.liveQuotes[0].canTrade, true);
@@ -113,8 +113,8 @@ test("card bots can trade with each other using the deployed policy runtime", as
   const [botA, botB] = added;
 
   startCardGame(room, [room.hostId, botA.id, botB.id], 2_000);
-  botA.botNextActionAt = 2_500;
-  botB.botNextActionAt = 4_000;
+  botA.botNextActionAt = 33_000;
+  botB.botNextActionAt = 35_000;
 
   const env = {
     CARD_RL_POLICY_KV: {
@@ -135,11 +135,11 @@ test("card bots can trade with each other using the deployed policy runtime", as
     },
   };
 
-  const quoted = await advanceCardBots(room, env, 2_500);
+  const quoted = await advanceCardBots(room, env, 33_000);
   assert.equal(quoted, true);
   assert.ok(room.game.liveQuotes[botA.id]);
 
-  const traded = await advanceCardBots(room, env, 4_000);
+  const traded = await advanceCardBots(room, env, 35_000);
   assert.equal(traded, true);
   const botInventories = [room.game.positions[botA.id].inventory, room.game.positions[botB.id].inventory];
   assert.ok(botInventories.some((value) => value !== 0));
@@ -152,7 +152,7 @@ test("acting card bots receive a longer stochastic cooldown", async () => {
   const [bot] = addCardBotsToRoom(room, 1, "policy-v1", 1_000);
 
   startCardGame(room, [room.hostId, bot.id], 2_000);
-  bot.botNextActionAt = 2_500;
+  bot.botNextActionAt = 33_000;
 
   const env = {
     CARD_RL_POLICY_KV: {
@@ -173,9 +173,9 @@ test("acting card bots receive a longer stochastic cooldown", async () => {
     },
   };
 
-  await advanceCardBots(room, env, 2_500);
+  await advanceCardBots(room, env, 33_000);
 
-  const delay = Number(bot.botNextActionAt) - 2_500;
+  const delay = Number(bot.botNextActionAt) - 33_000;
   assert.ok(delay >= CARD_BOT_DELAY_RANGES.postAction.minMs);
   assert.ok(delay < CARD_BOT_DELAY_RANGES.postAction.minMs + CARD_BOT_DELAY_RANGES.postAction.jitterMs);
 });
@@ -208,7 +208,7 @@ test("policy runtime prefers taking strong live quotes over refreshing its own q
   const [botA, botB] = added;
 
   startCardGame(room, [room.hostId, botA.id, botB.id], 2_000);
-  room.game.liveQuotes[botA.id] = { bid: -80, ask: -40, size: 1, quotedAt: 1_500 };
+  room.game.liveQuotes[botA.id] = { bid: -80, ask: -40, size: 1, quotedAt: 32_000 };
 
   const policy = {
     metadata: { version: "test-v1", compatibilityVersion: 1 },
@@ -221,7 +221,7 @@ test("policy runtime prefers taking strong live quotes over refreshing its own q
     },
   };
 
-  const decision = chooseCardBotDecision(room, botB.id, policy, 5_000);
+  const decision = chooseCardBotDecision(room, botB.id, policy, 35_000);
 
   assert.equal(decision.type, "taker_action");
   assert.equal(decision.payload?.targetPlayerId, botA.id);
