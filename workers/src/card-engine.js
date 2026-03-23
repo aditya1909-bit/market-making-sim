@@ -690,6 +690,7 @@ export function takeCardAction(room, playerId, payload) {
     throw new Error("Unknown responder action.");
   }
 
+  delete room.game.liveQuotes[targetPlayerId];
   room.game.lastMark = tradePrice;
   recordCardActionMoment(room, Date.now());
   room.game.lastResolution = {

@@ -1,11 +1,72 @@
 import { GAME_ACTOR, GAME_ROLE, ROOM_STATUS, TAKER_ACTION } from "./protocol.js";
 
+const WIDE_SPREAD_THRESHOLD = 0.18;
+const TIGHT_SPREAD_THRESHOLD = 0.04;
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
 function round2(value) {
   return Math.round(value * 100) / 100;
+}
+
+function settlementDetailsForContract(contract) {
+  if (!contract) {
+    return null;
+  }
+  return {
+    value: contract.hiddenValue,
+    answerRationale: contract.answerRationale || null,
+    sourceLabel: contract.sourceLabel || null,
+    sourceUrl: contract.sourceUrl || null,
+  };
+}
+
+function hiddenRangeWidth(contract) {
+  return Math.max(1, Number(contract?.rangeHigh || 0) - Number(contract?.rangeLow || 0));
+}
+
+function quoteSpread(quote) {
+  return Math.max(0, Number(quote?.ask || 0) - Number(quote?.bid || 0));
+}
+
+function quoteSpreadRatio(quote, contract) {
+  return clamp(quoteSpread(quote) / hiddenRangeWidth(contract), 0, 2);
+}
+
+function tradeRebatesForQuote(quote, contract) {
+  const tightness = clamp(1 - quoteSpreadRatio(quote, contract) / 0.12, 0, 1);
+  const sizeWeight = clamp(Number(quote?.size || 1), 1, 4);
+  return {
+    maker: round2(0.01 + 0.015 * tightness + 0.004 * sizeWeight),
+    taker: round2(0.008 + 0.012 * tightness + 0.003 * sizeWeight),
+  };
+}
+
+function makerWideSpreadPenaltyForQuote(quote, contract, streak) {
+  const spreadRatio = quoteSpreadRatio(quote, contract);
+  if (spreadRatio < WIDE_SPREAD_THRESHOLD) {
+    return 0;
+  }
+  const widthWeight = 1 + Math.max(0, spreadRatio - WIDE_SPREAD_THRESHOLD) * 3;
+  return round2((0.03 + Math.max(0, streak - 1) * 0.02) * widthWeight);
+}
+
+function takerTightSpreadPenaltyForQuote(quote, contract, streak) {
+  const spreadRatio = quoteSpreadRatio(quote, contract);
+  if (spreadRatio > TIGHT_SPREAD_THRESHOLD) {
+    return 0;
+  }
+  const tightnessWeight = 1 + Math.max(0, TIGHT_SPREAD_THRESHOLD - spreadRatio) * 8;
+  return round2((0.02 + Math.max(0, streak - 1) * 0.015) * tightnessWeight);
+}
+
+function resetHiddenIncentiveState(game) {
+  game.incentives = {
+    makerWideSpreadPassStreak: 0,
+    takerTightSpreadPassStreak: 0,
+  };
 }
 
 export function playerFor(room, playerId) {
@@ -38,7 +99,7 @@ export function createPlayer(name, options = {}) {
 }
 
 export function createGameState(contract = null) {
-  return {
+  const game = {
     contract,
     status: ROOM_STATUS.LOBBY,
     turn: 0,
@@ -53,6 +114,8 @@ export function createGameState(contract = null) {
     taker: { cash: 0, inventory: 0 },
     log: [],
   };
+  resetHiddenIncentiveState(game);
+  return game;
 }
 
 function baseRoom(code, options = {}) {
@@ -195,6 +258,9 @@ export function removePlayerFromRoom(room, playerId) {
 export function markPlayerActive(room, playerId, now = Date.now()) {
   const player = playerFor(room, playerId);
   if (!player || player.isBot) {
+    return false;
+  }
+  if (Number.isFinite(player.lastActiveAt) && now - player.lastActiveAt < 30_000) {
     return false;
   }
   player.lastActiveAt = now;
@@ -386,6 +452,10 @@ export function takeAction(room, playerId, payload) {
   const qty = quote.size;
   let tradePrice = null;
   let text = "";
+  let makerPenalty = 0;
+  let takerPenalty = 0;
+  let makerRebate = 0;
+  let takerRebate = 0;
 
   if (action === TAKER_ACTION.BUY) {
     tradePrice = quote.ask;
@@ -393,16 +463,45 @@ export function takeAction(room, playerId, payload) {
     room.game.maker.inventory -= qty;
     room.game.taker.cash -= tradePrice * qty;
     room.game.taker.inventory += qty;
-    text = `${takerName} buys ${qty} at ${tradePrice}.`;
+    ({ maker: makerRebate, taker: takerRebate } = tradeRebatesForQuote(quote, room.game.contract));
+    room.game.maker.cash += makerRebate;
+    room.game.taker.cash += takerRebate;
+    resetHiddenIncentiveState(room.game);
+    text = `${takerName} buys ${qty} at ${tradePrice}. Maker rebate ${makerRebate}. Taker rebate ${takerRebate}.`;
   } else if (action === TAKER_ACTION.SELL) {
     tradePrice = quote.bid;
     room.game.maker.cash -= tradePrice * qty;
     room.game.maker.inventory += qty;
     room.game.taker.cash += tradePrice * qty;
     room.game.taker.inventory -= qty;
-    text = `${takerName} sells ${qty} at ${tradePrice}.`;
+    ({ maker: makerRebate, taker: takerRebate } = tradeRebatesForQuote(quote, room.game.contract));
+    room.game.maker.cash += makerRebate;
+    room.game.taker.cash += takerRebate;
+    resetHiddenIncentiveState(room.game);
+    text = `${takerName} sells ${qty} at ${tradePrice}. Maker rebate ${makerRebate}. Taker rebate ${takerRebate}.`;
   } else if (action === TAKER_ACTION.PASS) {
-    text = `${takerName} passes.`;
+    const spreadRatio = quoteSpreadRatio(quote, room.game.contract);
+    if (spreadRatio >= WIDE_SPREAD_THRESHOLD) {
+      room.game.incentives.makerWideSpreadPassStreak += 1;
+      room.game.incentives.takerTightSpreadPassStreak = 0;
+      makerPenalty = makerWideSpreadPenaltyForQuote(quote, room.game.contract, room.game.incentives.makerWideSpreadPassStreak);
+      room.game.maker.cash -= makerPenalty;
+    } else if (spreadRatio <= TIGHT_SPREAD_THRESHOLD) {
+      room.game.incentives.takerTightSpreadPassStreak += 1;
+      room.game.incentives.makerWideSpreadPassStreak = 0;
+      takerPenalty = takerTightSpreadPenaltyForQuote(quote, room.game.contract, room.game.incentives.takerTightSpreadPassStreak);
+      room.game.taker.cash -= takerPenalty;
+    } else {
+      resetHiddenIncentiveState(room.game);
+    }
+    const penaltyBits = [];
+    if (makerPenalty > 0) {
+      penaltyBits.push(`Maker wide-spread penalty ${makerPenalty}`);
+    }
+    if (takerPenalty > 0) {
+      penaltyBits.push(`Taker tight-spread refusal penalty ${takerPenalty}`);
+    }
+    text = `${takerName} passes.${penaltyBits.length ? ` ${penaltyBits.join(". ")}.` : ""}`;
   } else {
     throw new Error("Unknown taker action.");
   }
@@ -517,6 +616,7 @@ export function buildPlayerView(room, playerId, connectedIds = new Set()) {
       maker: room.game.maker,
       taker: room.game.taker,
       settlement: isFinished ? room.game.contract.hiddenValue : null,
+      settlementDetails: isFinished ? settlementDetailsForContract(room.game.contract) : null,
       makerPnl: isFinished ? round2(room.game.maker.cash + room.game.maker.inventory * room.game.contract.hiddenValue) : null,
       takerPnl: isFinished ? round2(room.game.taker.cash + room.game.taker.inventory * room.game.contract.hiddenValue) : null,
       log: room.game.log.slice(0, 16),

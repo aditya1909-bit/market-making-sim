@@ -173,6 +173,16 @@ test("finished card rounds preserve ranking and trade tape in the next lobby vie
   assert.equal(view.game.positions.length, 0);
 });
 
+test("card quotes are consumed after one fill so the same market cannot be spammed", () => {
+  const { room, alpha, bravo } = startLiveCardRoom();
+
+  submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 1 });
+  takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
+
+  assert.equal(room.game.liveQuotes[alpha.id], undefined);
+  assert.throws(() => takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" }), /no longer live/i);
+});
+
 test("bots cannot start the next card countdown without enough human opt-in", () => {
   const now = 20_000;
   const room = createRoomState("CARD2", "Alpha", {

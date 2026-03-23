@@ -116,6 +116,10 @@
     oppCash: document.getElementById("opp-cash"),
     oppInventory: document.getElementById("opp-inventory"),
     settlementValue: document.getElementById("settlement-value"),
+    settlementDetailsCard: document.getElementById("settlement-details-card"),
+    settlementRationale: document.getElementById("settlement-rationale"),
+    settlementSource: document.getElementById("settlement-source"),
+    settlementSourceLink: document.getElementById("settlement-source-link"),
     historyList: document.getElementById("history-list"),
   };
 
@@ -150,6 +154,7 @@
     cardBotCountDraft: "1",
     queueMessage: "",
     queueMessageIsError: false,
+    pendingCardTrade: null,
   };
 
   function defaultBackendUrl() {
@@ -910,7 +915,7 @@
       return;
     }
     const now = Date.now();
-    if (!force && now - state.lastActivityPingAt < 15000) {
+    if (!force && now - state.lastActivityPingAt < 60000) {
       return;
     }
     if (!state.ws || state.ws.readyState !== 1) {
@@ -1079,6 +1084,7 @@
         state.roomState = message.payload;
         state.roomId = message.payload.roomId;
         state.roomCode = message.payload.roomCode;
+        state.pendingCardTrade = null;
         persistSession();
         if (state.connectionState !== "connected") {
           state.connectionState = "connected";
@@ -1094,7 +1100,9 @@
         return;
       }
       if (message.type === "error") {
+        state.pendingCardTrade = null;
         setActionMessage(message.error || "Server error.", true);
+        render();
       }
     });
 
@@ -1296,6 +1304,7 @@
     state.roomCode = null;
     state.playerId = null;
     state.roomState = null;
+    state.pendingCardTrade = null;
     setBotControlMessage("");
   }
 
@@ -1319,6 +1328,7 @@
     state.reconnecting = false;
     state.reconnectAttempts = 0;
     state.queueTicketId = null;
+    state.pendingCardTrade = null;
     if (state.ws && state.ws.readyState === 1) {
       state.ws.send(JSON.stringify({ type: "leave_room" }));
     }
@@ -1400,9 +1410,16 @@
 
   function takeCardQuote(targetPlayerId, action) {
     try {
+      if (state.pendingCardTrade) {
+        return;
+      }
+      state.pendingCardTrade = { targetPlayerId, action };
+      render();
       sendMessage("taker_action", { payload: { action, targetPlayerId } });
     } catch (error) {
+      state.pendingCardTrade = null;
       setActionMessage(error.message, true);
+      render();
     }
   }
 
@@ -1497,6 +1514,36 @@
       return null;
     }
     return sideState.cash + sideState.inventory * mark;
+  }
+
+  function renderSettlementDetails(game, isCardGame) {
+    const details = !isCardGame ? game?.settlementDetails || null : null;
+    const hasDetails = Boolean(details?.answerRationale);
+
+    elements.settlementDetailsCard.classList.toggle("hidden", !hasDetails);
+    if (!hasDetails) {
+      setText(elements.settlementRationale, "Settlement rationale will appear here once the round finishes.");
+      elements.settlementSource.classList.add("hidden");
+      elements.settlementSourceLink.removeAttribute("href");
+      setText(elements.settlementSourceLink, "-");
+      return;
+    }
+
+    setText(elements.settlementRationale, details.answerRationale);
+    if (details.sourceLabel) {
+      setText(elements.settlementSourceLink, details.sourceLabel);
+      if (details.sourceUrl) {
+        elements.settlementSourceLink.href = details.sourceUrl;
+        elements.settlementSource.classList.remove("hidden");
+      } else {
+        elements.settlementSourceLink.removeAttribute("href");
+        elements.settlementSource.classList.remove("hidden");
+      }
+    } else {
+      elements.settlementSource.classList.add("hidden");
+      elements.settlementSourceLink.removeAttribute("href");
+      setText(elements.settlementSourceLink, "-");
+    }
   }
 
   function renderPlayers(players) {
@@ -1684,6 +1731,8 @@
   function renderCardQuotes(game) {
     elements.cardQuotesList.innerHTML = "";
     const quotes = game?.liveQuotes || [];
+    const pendingCardTrade = state.pendingCardTrade;
+    const tradePending = Boolean(pendingCardTrade);
     if (!quotes.length) {
       const li = document.createElement("li");
       li.textContent = "No live quotes yet.";
@@ -1700,17 +1749,21 @@
       if (quote.canTrade && state.roomState?.status === "live") {
         const actions = document.createElement("div");
         actions.className = "action-row top-gap";
+        const buyPending = pendingCardTrade?.targetPlayerId === quote.playerId && pendingCardTrade?.action === "buy";
+        const sellPending = pendingCardTrade?.targetPlayerId === quote.playerId && pendingCardTrade?.action === "sell";
 
         const buy = document.createElement("button");
         buy.className = "primary-button";
         buy.type = "button";
-        buy.textContent = "Buy Ask";
+        buy.disabled = tradePending;
+        buy.textContent = buyPending ? "Buying..." : "Buy Ask";
         buy.addEventListener("click", () => takeCardQuote(quote.playerId, "buy"));
 
         const sell = document.createElement("button");
         sell.className = "secondary-button";
         sell.type = "button";
-        sell.textContent = "Sell Bid";
+        sell.disabled = tradePending;
+        sell.textContent = sellPending ? "Selling..." : "Sell Bid";
         sell.addEventListener("click", () => takeCardQuote(quote.playerId, "sell"));
 
         actions.appendChild(buy);
@@ -1876,6 +1929,7 @@
     setText(elements.oppCash, format(opponent?.cash || 0));
     setText(elements.oppInventory, String(opponent?.inventory || 0));
     setText(elements.settlementValue, game?.settlement === null || game?.settlement === undefined ? "hidden" : format(game.settlement));
+    renderSettlementDetails(game, isCardGame);
 
     elements.quoteCard.classList.toggle("hidden", isCardGame ? !isLive : role !== "market_maker" || !isLive);
     elements.takerCard.classList.toggle("hidden", isCardGame || role !== "market_taker" || !isLive);

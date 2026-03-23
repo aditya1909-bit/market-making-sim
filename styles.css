@@ -266,6 +266,23 @@ h2 {
   border-radius: 22px;
 }
 
+.settlement-details {
+  margin-top: 16px;
+  padding: 16px 18px;
+}
+
+.settlement-details p {
+  margin: 0;
+}
+
+.settlement-details .body-copy {
+  margin-top: 8px;
+}
+
+.settlement-details .mini-label.hidden {
+  display: none;
+}
+
 .field-card,
 .quote-field {
   display: block;

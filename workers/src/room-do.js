@@ -101,6 +101,8 @@ export class RoomDurableObject extends DurableObject {
     this.ctx = ctx;
     this.env = env;
     this.room = null;
+    this.lastScheduledAlarmAt = null;
+    this.lastBroadcastPayloadByPlayerId = new Map();
     this.ready = this.ctx.blockConcurrencyWhile(async () => {
       this.room = (await this.ctx.storage.get("room")) || null;
     });
@@ -425,8 +427,10 @@ export class RoomDurableObject extends DurableObject {
 
     server.serializeAttachment({ playerId });
     this.ctx.acceptWebSocket(server);
-    markPlayerActive(this.room, playerId);
-    await this.persist();
+    const activityChanged = markPlayerActive(this.room, playerId);
+    if (activityChanged) {
+      await this.persist();
+    }
     await this.scheduleRoomAlarm();
     this.broadcastRoom();
 
@@ -447,9 +451,19 @@ export class RoomDurableObject extends DurableObject {
 
     let activityChanged = false;
     try {
+      const parsed = JSON.parse(toText(message));
+      if (parsed.type === CLIENT_EVENTS.PING) {
+        activityChanged = markPlayerActive(this.room, playerId);
+        if (activityChanged) {
+          await this.persist();
+          await this.scheduleRoomAlarm();
+        }
+        this.send(ws, { type: SERVER_EVENTS.PONG, at: Date.now() });
+        return;
+      }
+
       await this.syncCardGameState();
       activityChanged = markPlayerActive(this.room, playerId);
-      const parsed = JSON.parse(toText(message));
       switch (parsed.type) {
         case CLIENT_EVENTS.READY:
           setReady(this.room, playerId, parsed.payload?.ready ?? parsed.ready);
@@ -559,13 +573,6 @@ export class RoomDurableObject extends DurableObject {
             this.broadcastRoom();
           }
           return;
-        case CLIENT_EVENTS.PING:
-          if (activityChanged) {
-            await this.persist();
-          }
-          await this.scheduleRoomAlarm();
-          this.send(ws, { type: SERVER_EVENTS.PONG, at: Date.now() });
-          return;
         default:
           throw new Error(`Unknown client event: ${parsed.type}`);
       }
@@ -582,7 +589,6 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
-    await this.syncCardGameState();
     await this.scheduleRoomAlarm();
     this.broadcastRoom();
   }
@@ -591,9 +597,7 @@ export class RoomDurableObject extends DurableObject {
     if (!this.room) {
       return;
     }
-    await this.syncCardGameState();
     await this.scheduleRoomAlarm();
-    this.broadcastRoom();
   }
 
   async alarm() {
@@ -655,6 +659,15 @@ export class RoomDurableObject extends DurableObject {
     );
     cardBotConnectedIds(this.room).forEach((playerId) => ids.add(playerId));
     return ids;
+  }
+
+  connectedHumanIds() {
+    return new Set(
+      this.ctx
+        .getWebSockets()
+        .map((socket) => socket.deserializeAttachment()?.playerId)
+        .filter((playerId) => playerId && playerFor(this.room, playerId) && !playerFor(this.room, playerId)?.isBot)
+    );
   }
 
   closeSocketsForPlayer(playerId, code = 1000, reason = "Connection closed") {
@@ -803,12 +816,18 @@ export class RoomDurableObject extends DurableObject {
         }
         continue;
       }
-      this.send(socket, {
+      const payload = {
         type: SERVER_EVENTS.ROOM_STATE,
         payload: isCardGame(this.room)
           ? buildCardPlayerView(this.room, playerId, connectedIds)
           : buildPlayerView(this.room, playerId, connectedIds),
-      });
+      };
+      const encoded = JSON.stringify(payload);
+      if (this.lastBroadcastPayloadByPlayerId.get(playerId) === encoded) {
+        continue;
+      }
+      this.lastBroadcastPayloadByPlayerId.set(playerId, encoded);
+      this.send(socket, encoded);
     }
   }
 
@@ -826,7 +845,7 @@ export class RoomDurableObject extends DurableObject {
     }
     ensureCardBotsReady(this.room);
     let changed = advanceCardGameClock(this.room, this.connectedIds(), now);
-    if (await advanceCardBots(this.room, this.env, now)) {
+    if (this.connectedHumanIds().size > 0 && (await advanceCardBots(this.room, this.env, now))) {
       changed = true;
     }
     if (pruneCardBotsPendingRemoval(this.room)) {
@@ -865,6 +884,11 @@ export class RoomDurableObject extends DurableObject {
 
   async scheduleRoomAlarm() {
     const nextAt = this.nextAlarmAt();
+    const normalizedNextAt = Number.isFinite(nextAt) ? Number(nextAt) : null;
+    if (normalizedNextAt === this.lastScheduledAlarmAt) {
+      return;
+    }
+    this.lastScheduledAlarmAt = normalizedNextAt;
     if (nextAt) {
       await this.ctx.storage.setAlarm(nextAt);
       return;
@@ -874,7 +898,7 @@ export class RoomDurableObject extends DurableObject {
 
   send(socket, payload) {
     try {
-      socket.send(JSON.stringify(payload));
+      socket.send(typeof payload === "string" ? payload : JSON.stringify(payload));
     } catch {
       // no-op
     }

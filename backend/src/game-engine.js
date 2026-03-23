@@ -8,6 +8,18 @@ function round2(value) {
   return Math.round(value * 100) / 100;
 }
 
+function settlementDetailsForContract(contract) {
+  if (!contract) {
+    return null;
+  }
+  return {
+    value: contract.hiddenValue,
+    answerRationale: contract.answerRationale || null,
+    sourceLabel: contract.sourceLabel || null,
+    sourceUrl: contract.sourceUrl || null,
+  };
+}
+
 function roleForPlayer(room, playerId) {
   if (room.makerId === playerId) {
     return GAME_ROLE.MAKER;
@@ -211,6 +223,7 @@ export function buildPlayerView(room, playerId) {
       maker: room.game.maker,
       taker: room.game.taker,
       settlement: isFinished ? room.game.contract.hiddenValue : null,
+      settlementDetails: isFinished ? settlementDetailsForContract(room.game.contract) : null,
       makerPnl: isFinished ? round2(room.game.maker.cash + room.game.maker.inventory * room.game.contract.hiddenValue) : null,
       takerPnl: isFinished ? round2(room.game.taker.cash + room.game.taker.inventory * room.game.contract.hiddenValue) : null,
       log: room.game.log.slice(0, 12),
