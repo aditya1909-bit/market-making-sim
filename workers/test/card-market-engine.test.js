@@ -159,6 +159,11 @@ test("reposting the same card quote does not spam the tape", () => {
 
 test("finished card rounds preserve ranking and trade tape in the next lobby view", () => {
   const { room, alpha, bravo, connectedIds } = startLiveCardRoom();
+  const settledTargetId = room.game.targetScorerId;
+  const settledPrompt = room.game.prompt;
+  const settledLabel = room.game.target?.label;
+  const settledRangeLow = room.game.rangeLow;
+  const settledRangeHigh = room.game.rangeHigh;
 
   submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 1 });
   takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
@@ -168,17 +173,31 @@ test("finished card rounds preserve ranking and trade tape in the next lobby vie
 
   assert.equal(view.status, "lobby");
   assert.equal(view.game.previousSummary?.kind, "finished");
+  assert.equal(view.game.previousSummary?.target?.id, settledTargetId);
+  assert.equal(view.game.previousSummary?.target?.label, settledLabel);
+  assert.equal(view.game.previousSummary?.contract?.prompt, settledPrompt);
+  assert.equal(view.game.previousSummary?.contract?.rangeLow, settledRangeLow);
+  assert.equal(view.game.previousSummary?.contract?.rangeHigh, settledRangeHigh);
+  assert.equal(typeof view.game.previousSummary?.settlement, "number");
   assert.ok((view.game.previousSummary?.ranking || []).length >= 2);
   assert.ok((view.game.previousSummary?.log || []).some((entry) => /buys 1 at 2/i.test(entry.text)));
   assert.equal(view.game.positions.length, 0);
 });
 
-test("card quotes are consumed after one fill so the same market cannot be spammed", () => {
+test("card quotes fill one unit at a time and disappear only when fully taken", () => {
   const { room, alpha, bravo } = startLiveCardRoom();
 
-  submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 1 });
+  submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 2 });
   takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
 
+  assert.equal(room.game.positions[bravo.id].inventory, 1);
+  assert.equal(room.game.positions[alpha.id].inventory, -1);
+  assert.equal(room.game.liveQuotes[alpha.id]?.size, 1);
+
+  takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
+
+  assert.equal(room.game.positions[bravo.id].inventory, 2);
+  assert.equal(room.game.positions[alpha.id].inventory, -2);
   assert.equal(room.game.liveQuotes[alpha.id], undefined);
   assert.throws(() => takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" }), /no longer live/i);
 });

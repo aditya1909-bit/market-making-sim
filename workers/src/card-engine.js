@@ -16,8 +16,8 @@ const QUOTE_LOG_PRICE_EPSILON = 0.25;
 const TARGETS = [
   {
     id: "spades_minus_red",
-    label: "Spades minus red cards",
-    prompt: "Trade the final value of spades minus red cards across every private hand and all revealed board cards.",
+    label: "Spades count minus red count",
+    prompt: "Final score = total spades minus total red cards across every player's 2 private cards and all 5 board cards.",
     unitLabel: "points",
     rangeFor(totalCards) {
       return { rangeLow: -totalCards, rangeHigh: totalCards };
@@ -37,8 +37,8 @@ const TARGETS = [
   },
   {
     id: "black_minus_low",
-    label: "Black cards minus low cards",
-    prompt: "Trade the final value of black cards minus cards ranked five or lower across every private hand and all revealed board cards.",
+    label: "Black count minus low-card count",
+    prompt: "Final score = total black cards minus total cards ranked 5 or lower across every player's 2 private cards and all 5 board cards.",
     unitLabel: "points",
     rangeFor(totalCards) {
       return { rangeLow: -totalCards, rangeHigh: totalCards };
@@ -59,7 +59,7 @@ const TARGETS = [
   {
     id: "faces_plus_aces",
     label: "Face cards plus aces",
-    prompt: "Trade the final count of face cards and aces across every private hand and all revealed board cards.",
+    prompt: "Final score = total aces, kings, queens, and jacks across every player's 2 private cards and all 5 board cards.",
     unitLabel: "cards",
     rangeFor(totalCards) {
       return { rangeLow: 0, rangeHigh: totalCards };
@@ -270,6 +270,8 @@ function makeSummary(kind, text, options = {}) {
     kind,
     text,
     settlement: options.settlement ?? null,
+    target: options.target || null,
+    contract: options.contract || null,
     activeSeatCount: options.activeSeatCount ?? 0,
     positions: options.positions || [],
     ranking: options.ranking || options.positions || [],
@@ -295,6 +297,14 @@ function cardSummaryForRound(room, kind, text, settlement = null, completedAt = 
   const ranking = [...positions].sort((a, b) => Number(b.pnl || 0) - Number(a.pnl || 0) || a.name.localeCompare(b.name));
   return makeSummary(kind, text, {
     settlement,
+    target: room.game.target || null,
+    contract: {
+      prompt: room.game.prompt,
+      unitLabel: room.game.unitLabel,
+      rangeLow: room.game.rangeLow,
+      rangeHigh: room.game.rangeHigh,
+      maxTurns: room.game.maxTurns,
+    },
     activeSeatCount: activeSeatIds(room).length,
     completedAt,
     positions,
@@ -663,11 +673,12 @@ export function takeCardAction(room, playerId, payload) {
   }
 
   const action = payload.action;
-  const qty = quote.size;
+  const qty = 1;
   const quoteOwner = playerFor(room, targetPlayerId);
   const taker = playerFor(room, playerId);
   const makerPosition = room.game.positions[targetPlayerId];
   const takerPosition = room.game.positions[playerId];
+  const remainingSize = Math.max(0, Number(quote.size || 0) - qty);
 
   let tradePrice = null;
   let text = "";
@@ -690,19 +701,26 @@ export function takeCardAction(room, playerId, payload) {
     throw new Error("Unknown responder action.");
   }
 
-  delete room.game.liveQuotes[targetPlayerId];
+  if (remainingSize > 0) {
+    room.game.liveQuotes[targetPlayerId] = {
+      ...quote,
+      size: remainingSize,
+    };
+  } else {
+    delete room.game.liveQuotes[targetPlayerId];
+  }
   room.game.lastMark = tradePrice;
   recordCardActionMoment(room, Date.now());
   room.game.lastResolution = {
     type: "trade",
     action,
     mark: tradePrice,
-    text,
+    text: remainingSize > 0 ? `${text} ${remainingSize} left on the quote.` : text,
   };
   room.game.log.unshift({
     type: action,
     turn: room.game.revealedBoardCount,
-    text,
+    text: remainingSize > 0 ? `${text} ${remainingSize} left on the quote.` : text,
   });
 }
 

@@ -1743,7 +1743,7 @@
     quotes.forEach((quote) => {
       const li = document.createElement("li");
       const summary = document.createElement("div");
-      summary.textContent = `${quote.playerName}: ${format(quote.bid)} / ${format(quote.ask)} x ${quote.size} · ${formatDuration(quote.msUntilExpiry)} left`;
+      summary.textContent = `${quote.playerName}: ${format(quote.bid)} / ${format(quote.ask)} x ${quote.size} remaining · ${formatDuration(quote.msUntilExpiry)} left`;
       li.appendChild(summary);
 
       if (quote.canTrade && state.roomState?.status === "live") {
@@ -1756,14 +1756,14 @@
         buy.className = "primary-button";
         buy.type = "button";
         buy.disabled = tradePending;
-        buy.textContent = buyPending ? "Buying..." : "Buy Ask";
+        buy.textContent = buyPending ? "Buying 1..." : "Buy 1 @ Ask";
         buy.addEventListener("click", () => takeCardQuote(quote.playerId, "buy"));
 
         const sell = document.createElement("button");
         sell.className = "secondary-button";
         sell.type = "button";
         sell.disabled = tradePending;
-        sell.textContent = sellPending ? "Selling..." : "Sell Bid";
+        sell.textContent = sellPending ? "Selling 1..." : "Sell 1 @ Bid";
         sell.addEventListener("click", () => takeCardQuote(quote.playerId, "sell"));
 
         actions.appendChild(buy);
@@ -1798,12 +1798,24 @@
     const boardFullyRevealed = isCardGame ? (game?.boardCards?.length || 0) >= (game?.boardRevealTotal || 0) : false;
     const canVoteReveal = isCardGame ? Boolean(roomState?.cardCapabilities?.canVoteReveal) : false;
     const leadQuote = isCardGame ? game?.liveQuotes?.[0] || null : null;
+    const previousCardSummary = isCardGame && roomState?.status === "lobby" ? game?.previousSummary || null : null;
+    const showingPreviousCardSummary = previousCardSummary?.kind === "finished";
     const draft = quoteDraft();
     const canSubmitQuote = canQuote && draft.valid;
-    const contractPrompt = game?.contract?.prompt || (hasRoom ? "Waiting for the second player so the server can deal a fresh contract." : "Waiting for room");
-    const contractUnit = isCardGame ? game?.target?.label || "-" : game?.contract?.unitLabel || "-";
+    const contractPrompt = isCardGame
+      ? showingPreviousCardSummary
+        ? previousCardSummary?.contract?.prompt || game?.contract?.prompt || "Waiting for room"
+        : game?.contract?.prompt || (hasRoom ? "Waiting for the first card-market objective." : "Waiting for room")
+      : game?.contract?.prompt || (hasRoom ? "Waiting for the second player so the server can deal a fresh contract." : "Waiting for room");
+    const contractUnit = isCardGame
+      ? showingPreviousCardSummary
+        ? previousCardSummary?.target?.label || game?.target?.label || "-"
+        : game?.target?.label || "-"
+      : game?.contract?.unitLabel || "-";
     const contractRange = isCardGame
-      ? `Board shown: ${game?.boardCards?.length || 0} / ${game?.boardRevealTotal || 0}. Private hands stay fixed while the table reveals one new card at a time.`
+      ? showingPreviousCardSummary
+        ? `Settled range: ${format(previousCardSummary?.contract?.rangeLow)} to ${format(previousCardSummary?.contract?.rangeHigh)} ${previousCardSummary?.contract?.unitLabel || ""}`.trim()
+        : `Board shown: ${game?.boardCards?.length || 0} / ${game?.boardRevealTotal || 0}. Private hands stay fixed while the table reveals one new card at a time.`
       : game?.contract
         ? `Working range: ${format(game.contract.rangeLow)} to ${format(game.contract.rangeHigh)} ${game.contract.unitLabel}`
         : "The server will load a fresh contract once two players are seated.";
@@ -1846,7 +1858,7 @@
     );
     setText(elements.gameNumber, String(roomState?.gameNumber || 0));
 
-    setText(elements.contractCaption, isCardGame ? "Objective" : "Contract");
+    setText(elements.contractCaption, isCardGame && showingPreviousCardSummary ? "Settled Objective" : isCardGame ? "Objective" : "Contract");
     setText(elements.contractPrompt, contractPrompt);
     setText(elements.contractUnit, contractUnit);
     setText(elements.contractRange, contractRange);
@@ -1928,7 +1940,8 @@
     setText(elements.youPnl, game ? format(provisionalPnl(you, game)) : "-");
     setText(elements.oppCash, format(opponent?.cash || 0));
     setText(elements.oppInventory, String(opponent?.inventory || 0));
-    setText(elements.settlementValue, game?.settlement === null || game?.settlement === undefined ? "hidden" : format(game.settlement));
+    const displayedSettlement = isCardGame && showingPreviousCardSummary ? previousCardSummary?.settlement : game?.settlement;
+    setText(elements.settlementValue, displayedSettlement === null || displayedSettlement === undefined ? "hidden" : format(displayedSettlement));
     renderSettlementDetails(game, isCardGame);
 
     elements.quoteCard.classList.toggle("hidden", isCardGame ? !isLive : role !== "market_maker" || !isLive);
