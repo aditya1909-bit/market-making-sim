@@ -17,7 +17,7 @@ const TARGETS = [
   {
     id: "spades_minus_red",
     label: "Spades count minus red count",
-    prompt: "Final score = total spades minus total red cards across every player's 2 private cards and all 5 board cards.",
+    prompt: "Final score = total spades minus total red cards across every player's 2 private cards and all public table cards.",
     unitLabel: "points",
     rangeFor(totalCards) {
       return { rangeLow: -totalCards, rangeHigh: totalCards };
@@ -38,7 +38,7 @@ const TARGETS = [
   {
     id: "black_minus_low",
     label: "Black count minus low-card count",
-    prompt: "Final score = total black cards minus total cards ranked 5 or lower across every player's 2 private cards and all 5 board cards.",
+    prompt: "Final score = total black cards minus total cards ranked 5 or lower across every player's 2 private cards and all public table cards.",
     unitLabel: "points",
     rangeFor(totalCards) {
       return { rangeLow: -totalCards, rangeHigh: totalCards };
@@ -59,7 +59,7 @@ const TARGETS = [
   {
     id: "faces_plus_aces",
     label: "Face cards plus aces",
-    prompt: "Final score = total aces, kings, queens, and jacks across every player's 2 private cards and all 5 board cards.",
+    prompt: "Final score = total aces, kings, queens, and jacks across every player's 2 private cards and all public table cards.",
     unitLabel: "cards",
     rangeFor(totalCards) {
       return { rangeLow: 0, rangeHigh: totalCards };
@@ -406,6 +406,21 @@ function revealNextBoardCard(room, now, reason) {
     room.game.nextRevealAt = room.game.endsAt;
   }
   return true;
+}
+
+function addCardsToTable(room, cards = []) {
+  if (!cards.length) {
+    return 0;
+  }
+
+  const insertAt = clamp(room.game.revealedBoardCount || 0, 0, room.game.boardCards?.length || 0);
+  room.game.boardCards.splice(insertAt, 0, ...cards);
+  room.game.revealedBoardCount = Math.min((room.game.revealedBoardCount || 0) + cards.length, room.game.boardCards.length);
+  room.game.maxTurns = room.game.boardCards.length;
+  if ((room.game.revealedBoardCount || 0) >= room.game.boardCards.length) {
+    room.game.nextRevealAt = room.game.endsAt;
+  }
+  return cards.length;
 }
 
 export function createCardGamePreview(room, options = {}) {
@@ -771,6 +786,41 @@ export function cancelCardRound(room, reason, now = Date.now()) {
       },
     ],
   });
+}
+
+export function handleActiveCardPlayerDeparture(room, playerId, now = Date.now()) {
+  if (room.status !== ROOM_STATUS.LIVE || !isActiveSeat(room, playerId)) {
+    return { revealedCardCount: 0, finished: false };
+  }
+
+  const departingName = playerFor(room, playerId)?.name || "Player";
+  const departingCards = [...(room.game.privateHands?.[playerId] || [])];
+  const revealedCardCount = addCardsToTable(room, departingCards);
+
+  delete room.game.privateHands[playerId];
+  delete room.game.positions[playerId];
+  delete room.game.liveQuotes[playerId];
+  delete room.game.revealVotes[playerId];
+  room.game.activeSeatIds = activeSeatIds(room).filter((activePlayerId) => activePlayerId !== playerId);
+  room.game.lastResolution = {
+    type: "player_left",
+    text:
+      revealedCardCount > 0
+        ? `${departingName} left the round. Their ${revealedCardCount} private card${revealedCardCount === 1 ? "" : "s"} were added to the table.`
+        : `${departingName} left the round.`,
+  };
+  room.game.log.unshift({
+    type: "player_left",
+    turn: room.game.revealedBoardCount,
+    text: room.game.lastResolution.text,
+  });
+
+  const finished = activeSeatIds(room).length < CARD_MIN_PLAYERS;
+  if (finished) {
+    finishCardGame(room, now);
+  }
+
+  return { revealedCardCount, finished };
 }
 
 export function advanceCardGameClock(room, connectedIds = new Set(), now = Date.now()) {

@@ -13,6 +13,7 @@ import {
   advanceCardGameClock,
   buildCardPlayerView,
   cancelCardRound,
+  handleActiveCardPlayerDeparture,
   maybeStartCardGame,
   nextCardAlarmAt,
   prepareNextCardGame,
@@ -707,14 +708,18 @@ export class RoomDurableObject extends DurableObject {
     }
 
     if (isCardGame(this.room)) {
+      const now = Date.now();
       const activeCardSeat = this.room.status === "live" && this.room.game.activeSeatIds?.includes(playerId);
+      const departureOutcome = activeCardSeat ? handleActiveCardPlayerDeparture(this.room, playerId, now) : null;
       removePlayerFromRoom(this.room, playerId);
       this.closeSocketsForPlayer(playerId, 1000, "Left room");
-      if (activeCardSeat) {
-        cancelCardRound(this.room, `${departing.name} left during the round. The table returned to lobby for a fresh deal.`);
+      if (activeCardSeat && departureOutcome?.finished) {
         pruneCardBotsPendingRemoval(this.room);
+        refreshCardLobbyState(this.room, this.connectedIds(), now);
+      } else if (activeCardSeat) {
+        // Round stays live; the departed player's private cards were already moved onto the table.
       } else {
-        refreshCardLobbyState(this.room, this.connectedIds(), Date.now());
+        refreshCardLobbyState(this.room, this.connectedIds(), now);
       }
       return;
     }
@@ -753,15 +758,14 @@ export class RoomDurableObject extends DurableObject {
 
       if (isCardGame(this.room)) {
         const activeCardSeat = this.room.status === "live" && this.room.game.activeSeatIds?.includes(playerId);
+        const departureOutcome = activeCardSeat ? handleActiveCardPlayerDeparture(this.room, playerId, now) : null;
         removePlayerFromRoom(this.room, playerId);
         this.closeSocketsForPlayer(playerId, INACTIVITY_CLOSE_CODE, INACTIVITY_CLOSE_REASON);
-        if (activeCardSeat) {
-          cancelCardRound(
-            this.room,
-            `${inactivePlayer.name} was removed after 5 minutes of inactivity. The table returned to lobby for a fresh deal.`,
-            now
-          );
+        if (activeCardSeat && departureOutcome?.finished) {
           pruneCardBotsPendingRemoval(this.room);
+          refreshCardLobbyState(this.room, this.connectedIds(), now);
+        } else if (activeCardSeat) {
+          // Round stays live; the departed player's private cards were already moved onto the table.
         } else {
           refreshCardLobbyState(this.room, this.connectedIds(), now);
         }

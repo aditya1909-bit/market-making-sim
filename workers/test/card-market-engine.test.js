@@ -7,6 +7,7 @@ import {
   buildCardPlayerView,
   cancelCardRound,
   finishCardGame,
+  handleActiveCardPlayerDeparture,
   maybeStartCardGame,
   prepareNextCardGame,
   refreshCardLobbyCountdown,
@@ -35,6 +36,18 @@ function startLiveCardRoom(now = 1_000) {
   refreshCardLobbyCountdown(room, connectedIds, now);
   maybeStartCardGame(room, connectedIds, room.game.countdownEndsAt);
   return { room, alpha, bravo, connectedIds };
+}
+
+function startThreePlayerLiveCardRoom(now = 1_000) {
+  const { room, alpha, bravo } = createCardRoom();
+  const charlie = addPlayerToRoom(room, "Charlie");
+  alpha.ready = true;
+  bravo.ready = true;
+  charlie.ready = true;
+  const connectedIds = new Set([alpha.id, bravo.id, charlie.id]);
+  refreshCardLobbyCountdown(room, connectedIds, now);
+  maybeStartCardGame(room, connectedIds, room.game.countdownEndsAt);
+  return { room, alpha, bravo, charlie, connectedIds };
 }
 
 test("card market keeps the same preview target when the countdown starts the round", () => {
@@ -74,17 +87,47 @@ test("joining during a live card round waits for the next deal and cannot act", 
   assert.equal(view.table.waitingCount, 1);
 });
 
-test("losing an active card seat cancels the round and returns the table to lobby", () => {
-  const { room, bravo } = startLiveCardRoom();
+test("losing an active card seat adds that hand to the table and the round can continue", () => {
+  const { room, alpha, bravo, charlie } = startThreePlayerLiveCardRoom();
+  const charlieCards = (room.game.privateHands[charlie.id] || []).map((card) => card.code);
+  const revealedBefore = room.game.revealedBoardCount;
+  const boardBefore = room.game.boardCards.length;
 
+  const outcome = handleActiveCardPlayerDeparture(room, charlie.id, 20_000);
+  removePlayerFromRoom(room, charlie.id);
+
+  assert.deepEqual(outcome, { revealedCardCount: 2, finished: false });
+  assert.equal(room.status, "live");
+  assert.deepEqual([...room.game.activeSeatIds].sort(), [alpha.id, bravo.id].sort());
+  assert.equal(room.players.length, 2);
+  assert.equal(room.game.privateHands[charlie.id], undefined);
+  assert.equal(room.game.revealedBoardCount, revealedBefore + 2);
+  assert.equal(room.game.boardCards.length, boardBefore + 2);
+  assert.deepEqual(
+    room.game.boardCards.slice(0, room.game.revealedBoardCount).slice(-2).map((card) => card.code),
+    charlieCards
+  );
+  assert.match(room.game.lastResolution?.text || "", /added to the table/i);
+});
+
+test("losing an active card seat in a two-player round settles early instead of cancelling", () => {
+  const { room, bravo, connectedIds } = startLiveCardRoom();
+
+  const outcome = handleActiveCardPlayerDeparture(room, bravo.id, 20_000);
   removePlayerFromRoom(room, bravo.id);
-  cancelCardRound(room, "Bravo left the room. The round was cancelled.", 20_000);
 
+  assert.deepEqual(outcome, { revealedCardCount: 2, finished: true });
   assert.equal(room.players.length, 1);
   assert.equal(room.status, "lobby");
-  assert.deepEqual(room.game.activeSeatIds, []);
-  assert.equal(room.game.previousSummary?.kind, "cancelled");
-  assert.match(room.game.previousSummary?.text || "", /cancelled/i);
+  assert.equal(room.game.previousSummary?.kind, "finished");
+  assert.match(
+    (room.game.previousSummary?.log || []).map((entry) => entry.text).join(" "),
+    /added to the table/i
+  );
+
+  const view = buildCardPlayerView(room, room.hostId, connectedIds, 20_100);
+  assert.equal(view.status, "lobby");
+  assert.equal(view.game.previousSummary?.kind, "finished");
 });
 
 test("a waiting-next-round player can leave without cancelling the live card round", () => {

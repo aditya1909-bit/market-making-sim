@@ -323,6 +323,18 @@ h2 {
   align-items: stretch;
 }
 
+.taker-card .action-row,
+.quote-trade-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.taker-card .action-row > button,
+.quote-trade-row > button {
+  flex: 1 1 160px;
+}
+
 .nav-controls {
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -744,6 +756,11 @@ body.card-theme .mode-toggle.mode-toggle-active {
   .status-inline {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .taker-card .action-row,
+  .quote-trade-row {
+    flex-direction: row;
   }
 
   .split-callouts,

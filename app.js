@@ -1748,7 +1748,7 @@
 
       if (quote.canTrade && state.roomState?.status === "live") {
         const actions = document.createElement("div");
-        actions.className = "action-row top-gap";
+        actions.className = "action-row quote-trade-row top-gap";
         const buyPending = pendingCardTrade?.targetPlayerId === quote.playerId && pendingCardTrade?.action === "buy";
         const sellPending = pendingCardTrade?.targetPlayerId === quote.playerId && pendingCardTrade?.action === "sell";
 
