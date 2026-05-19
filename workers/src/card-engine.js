@@ -602,6 +602,9 @@ export function submitCardQuote(room, playerId, payload) {
     throw new Error("Your current quote is locked until it trades or expires.");
   }
   const quote = validateQuote(payload);
+  if (quote.bid < room.game.rangeLow || quote.ask > room.game.rangeHigh) {
+    throw new Error(`Quote must stay inside the objective range ${room.game.rangeLow} to ${room.game.rangeHigh}.`);
+  }
   room.game.liveQuotes[playerId] = quote;
   room.game.lastMark = midpoint(quote) ?? room.game.lastMark ?? 0;
   recordCardActionMoment(room, quote.quotedAt);

@@ -1,0 +1,5 @@
+matchup,games,maker_pnl_per_game,taker_pnl_per_game,maker_win_rate,taker_win_rate,draw_rate,avg_spread,buys_per_game,sells_per_game,passes_per_game
+Fallback maker vs fallback taker,36,378930.474,-378930.474,0.5,0.5,0.0,60054.77,1.83,0.0,6.5
+RL maker vs fallback taker,36,395285.336,-395285.336,0.5,0.5,0.0,61455.979,2.5,0.17,5.67
+Fallback maker vs RL taker,36,222982.798,-222982.798,0.75,0.25,0.0,88128.754,3.58,2.92,1.83
+RL maker vs RL taker,36,122284.533,-122284.533,0.5,0.5,0.0,84430.337,3.42,2.75,2.17

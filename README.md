@@ -1,19 +1,72 @@
 # market-making-sim
 
-A multiplayer hidden-value market-making game with authoritative server state, private room codes, random matchmaking, reconnect handling, and a server-side RL bot.
-
-Frontend runs as a static site. Live game state runs on Cloudflare Workers + Durable Objects. Local RL training exports the policy the live bot uses.
+A realtime market-making game and RL benchmark platform built to show production software engineering, quant modeling, and ML evaluation in one project.
 
 Live demo: [GitHub Pages](https://aditya1909-bit.github.io/market-making-sim/)  
 Live backend: [Cloudflare Worker](https://market-making-sim-backend.adityasdutta.workers.dev)
 
-## Why This Is Interesting
+![Realtime quant game architecture](docs/assets/architecture.png)
 
-- It is not a toy frontend. Room state, hidden settlement value, matchmaking, and rematch flow are all authoritative on the backend.
-- It uses Durable Objects in the right place: one room object per live match, plus a dedicated matchmaking object.
-- The solo mode is not scripted in the browser. It uses a server-side RL policy exported from local self-play training.
-- Card Market now has a separate seat-level bot path with local Python training and Worker-side JS inference.
-- The game format matches market-making interview dynamics more closely than a normal order-book sim: one maker, one taker, one hidden value, repeated quote/response rounds.
+## Thesis
+
+This project turns market-making interview games into a deployed multiplayer system: players quote and trade hidden-value contracts, card-market tables run with live timers and reveal votes, and bots are evaluated with reproducible holdout benchmarks before they are described as production-ready.
+
+The engineering work is deliberately split the way a real realtime product would be: a static frontend, Cloudflare Workers for routing, Durable Objects for authoritative room state, WebSockets for live play, exported policy registries for bot inference, and reproducible local training/evaluation scripts.
+
+## Results
+
+Generated with:
+
+```bash
+python3 scripts/portfolio_benchmark.py --mode quick
+python3 scripts/generate_portfolio_graphics.py
+```
+
+Current quick benchmark artifacts are committed under `results/portfolio/`. The quick profile uses `200` hidden-value holdout scenarios x `2` variants and `120` card-market episodes per seat count. Full mode is available for longer runs.
+
+| Evidence | Result | Interpretation |
+| --- | ---: | --- |
+| Worker backend tests | `54/54` passing | Durable Object room flow, bot runtime, card engine, matchmaking, and validation paths are covered. |
+| Card RL unit tests | `16/16` passing | Python simulator, features, model helpers, heuristics, and evaluator contracts are covered. |
+| Hidden-value RL maker uplift | `+16,354.862` pnl/game | Learned maker improves over fallback maker on holdout. |
+| Hidden-value RL taker uplift | `+155,947.676` pnl/game | Learned taker materially reduces the fallback taker's loss profile on holdout. |
+| Card RL linear policy vs bootstrap | `+0.822` to `+21.816` pnl by seat count | Learned card policy beats bootstrap across the tested seat counts. |
+| Card RL live gate | `research benchmark` | Role-balance gate still flags low taker activity, so the balanced heuristic remains the safer live default. |
+
+![Hidden-value bot uplift](docs/assets/bot-uplift.png)
+
+![Card-market learned policy behavior](docs/assets/card-behavior.png)
+
+![Card-market role-balance gate](docs/assets/role-balance.png)
+
+![Quality gates and evidence](docs/assets/quality-gates.png)
+
+## Engineering Depth
+
+- Authoritative multiplayer state with one Cloudflare Durable Object per room.
+- Separate Durable Object matchmaking queue with cancellation and same-game ticket reuse logic.
+- WebSocket room updates with reconnect handling, stored player ids, host controls, rematches, and role swaps.
+- Server-side validation for quote ranges, sizes, active seats, reveal votes, countdowns, stale quotes, and player departures.
+- Bot-room APIs that preserve legacy `policyVersion` compatibility while adding human-readable bot profiles.
+- Card-market runtime with stochastic bot cooldowns, delayed bot action scheduling, and live fallback policies.
+- Frontend states for host, seated player, waiting player, reconnecting player, active round, finished round, and mobile layouts.
+
+## ML And Quant Depth
+
+Hidden-value mode is a compact market-making environment: one maker, one taker, a private settlement value, repeated quotes, fill/pass decisions, and final mark-to-value PnL. The live bot path uses exported policy tables with sanity checks and heuristic fallbacks.
+
+Card Market is a higher-dimensional benchmark: multiple seats, private cards, public hand state, quote/take/reveal/wait actions, inventory, markout, missed-take diagnostics, and role-balance evaluation. The learned `linear-v2` policy is useful evidence of ML iteration, but the benchmark correctly keeps it out of the live-default claim until taker activity and role parity clear the gate.
+
+The benchmark pipeline saves both raw logs and structured outputs:
+
+```text
+results/portfolio/summary.json
+results/portfolio/hidden_value_eval.csv
+results/portfolio/card_rl_eval.csv
+results/portfolio/card_behavior.csv
+results/portfolio/role_balance.csv
+results/portfolio/raw_logs/
+```
 
 ## Architecture
 
@@ -22,151 +75,90 @@ flowchart LR
     A["Static frontend<br/>index.html / app.js / styles.css"] -->|HTTP + WebSocket| B["Cloudflare Worker"]
     B --> C["Room Durable Object<br/>authoritative game state"]
     B --> D["Matchmaker Durable Object<br/>queue + pairing"]
-    C --> E["Game engine<br/>maker/taker turn loop"]
-    C --> F["RL bot runtime<br/>policy lookup + fallbacks"]
-    G["Local self-play trainer"] --> H["rl-policy-data.js"]
-    H --> F
+    C --> E["Hidden-value engine<br/>maker/taker quote loop"]
+    C --> F["Card-market engine<br/>timers, seats, reveal votes"]
+    C --> G["Bot runtime<br/>balanced profiles + policy fallbacks"]
+    H["Local RL / benchmark scripts"] --> I["policy registry + portfolio results"]
+    I --> G
 ```
 
-## Engineering Highlights
+## How To Reproduce
 
-- Authoritative multiplayer state with one Durable Object per room
-- Private room codes and random matchmaking
-- Browser refresh reconnect using stored room code + player id
-- Rematch flow with automatic role swap
-- Hidden-value settlement model so neither client can inspect the answer early
-- Shared `10,000`-scenario pool across live play and RL training
-- Hierarchical taker policy with `take`, `pass`, and `probe` modes
-- Local parallel self-play trainer with progress, ETA, and policy export
-
-## Gameplay Model
-
-Each match is a hidden scalar contract.
-
-- One player is the `market_maker`
-- One player is the `market_taker`
-- Maker submits `bid / ask / size`
-- Taker responds with `buy / sell / pass`
-- After a fixed number of turns, both sides settle against the hidden true value
-
-This structure is closer to interview-style market games than to a continuous limit order book.
-
-## Latest RL Snapshot
-
-Latest local holdout benchmark from the current policy:
-
-- fallback maker vs fallback taker: maker `177.261`, taker `-177.261`
-- RL maker vs fallback taker: maker `414.849`
-- fallback maker vs RL taker: taker `-93.692`
-- maker uplift vs fallback baseline: `+237.588`
-- taker uplift vs fallback baseline: `+83.570`
-
-Interpretation:
-
-- the learned maker is materially better than the fallback maker
-- the learned taker is also better than the fallback taker
-- the environment is still somewhat maker-favored, which is the next area to improve
-
-## Repo Layout
-
-```text
-index.html             # Static client shell
-styles.css             # Frontend styling
-app.js                 # Frontend state, room flow, WebSocket client
-asset-data.js          # Older browser-only prototype data
-
-workers/
-  src/
-    index.js           # Worker entrypoint and routing
-    room-do.js         # One Durable Object per room
-    matchmaker-do.js   # Matchmaking queue Durable Object
-    game-engine.js     # Authoritative turn logic
-    bot-policy.js      # Live RL bot runtime
-    rl-core.js         # Shared RL state/action helpers
-    rl-policy-data.js  # Exported policy used in production
-    contracts.js       # Hidden-value contract generator
-    protocol.js        # Shared protocol enums and message names
-  wrangler.jsonc
-  package.json
-
-rl/
-  train-self-play.js   # Parallel self-play trainer
-  train-shard.js       # Worker-thread shard runner
-  train-lib.js         # Training and export helpers
-  evaluate-policy.js   # Benchmark script
-  upload-card-policy-to-kv.js # Upload exported card policy
-  README.md
-
-card_rl/
-  simulator.py         # Faithful card-market simulator
-  features.py          # Exact posterior features
-  heuristic.py         # Quote/take/reveal teacher
-  train.py             # Warm start + PPO-style self-play
-  export_policy.py     # JS policy export
-
-backend/               # Older Node prototype path, retained as reference
-```
-
-## Local Development
-
-Clone the repo:
-
-```bash
-git clone https://github.com/aditya1909-bit/market-making-sim.git
-cd market-making-sim
-```
-
-Run the Worker backend:
+Install Worker dependencies:
 
 ```bash
 cd workers
 npm install
-npm run dev
 ```
 
-In another terminal, serve the frontend:
-
-```bash
-cd market-making-sim
-python3 -m http.server 8000
-```
-
-Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).  
-On localhost the client defaults to `http://127.0.0.1:8787`.
-
-## RL Training
-
-Train a new policy:
-
-```bash
-node rl/train-self-play.js --episodes 1000000 --workers 8 --min-samples 20 --progress-every 50000
-```
-
-Evaluate it:
-
-```bash
-node rl/evaluate-policy.js --scenarios 1000 --games-per-scenario 2 --split holdout
-node rl/evaluate-policy.js --scenarios 1000 --games-per-scenario 2 --split all
-```
-
-Deploy the updated policy:
+Run the app locally:
 
 ```bash
 cd workers
-npm run deploy
+npm run dev
 ```
 
-## Frontend + Backend Split
+In another terminal:
 
-- Frontend: static hosting, currently deployed via GitHub Pages
-- Backend: Cloudflare Worker + Durable Objects
+```bash
+python3 -m http.server 8000
+```
 
-This split keeps the UI simple to host while preserving authoritative game state and hidden settlement logic.
+Then open [http://127.0.0.1:8000](http://127.0.0.1:8000). On localhost, the client defaults to `http://127.0.0.1:8787`.
 
-## Future Work
+Run the verification suite:
 
-- Reduce remaining maker-side structural advantage in the environment
-- Add screenshots or a short gameplay GIF to improve first impression
-- Add post-game analytics or replay review
-- Add bot difficulty / policy version selection
-- Add time controls and optional rated matchmaking
+```bash
+cd workers && npm test
+python3 -m unittest discover card_rl/tests
+node rl/evaluate-policy.js --scenarios 1000 --games-per-scenario 2 --split holdout
+python3 -m card_rl.evaluate --episodes 3000 --compare-bootstrap
+```
+
+Regenerate portfolio artifacts:
+
+```bash
+python3 scripts/portfolio_benchmark.py --mode quick
+python3 scripts/generate_portfolio_graphics.py
+```
+
+Longer benchmark:
+
+```bash
+python3 scripts/portfolio_benchmark.py --mode full
+python3 scripts/generate_portfolio_graphics.py
+```
+
+Full mode defaults to `1000` hidden-value holdout scenarios, `3000` card-market episodes, and up to `11` card RL workers on this machine.
+
+## Repo Layout
+
+```text
+index.html, app.js, styles.css
+  Static frontend and live room UI.
+
+workers/src/
+  Cloudflare Worker entrypoint, Durable Objects, game engines, bot runtimes, protocol types, policy loaders.
+
+rl/
+  Hidden-value self-play, evaluation, policy compaction, and KV upload helpers.
+
+card_rl/
+  Python simulator, exact posterior features, heuristic teacher, training, export, and evaluation.
+
+scripts/
+  Portfolio benchmark runner and graphics generator.
+
+results/portfolio/
+  Structured benchmark outputs and raw logs.
+
+docs/assets/
+  Generated architecture, benchmark, behavior, and quality-gate graphics.
+```
+
+## What I Would Improve Next
+
+- Run a long card-market training sweep and only promote a learned policy after it clears take-rate, missed-take, markout, and parity gates.
+- Add browser smoke tests for the live UI across mobile and desktop after each bot or room-state change.
+- Add confidence intervals to more card-market comparisons and export a single benchmark HTML report.
+- Add replay review for post-game quote quality, fills, role advantage, and bot decision rationale.

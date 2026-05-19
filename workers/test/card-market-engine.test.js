@@ -50,6 +50,17 @@ function startThreePlayerLiveCardRoom(now = 1_000) {
   return { room, alpha, bravo, charlie, connectedIds };
 }
 
+function validQuote(room, size = 1, offset = 0) {
+  const low = Number(room.game.rangeLow);
+  const high = Number(room.game.rangeHigh);
+  const width = Math.max(1, high - low);
+  const mid = (low + high) / 2 + offset * width;
+  const halfSpread = Math.max(0.05, width * 0.04);
+  const bid = Math.max(low, Math.min(high - 0.01, Number((mid - halfSpread).toFixed(2))));
+  const ask = Math.max(bid + 0.01, Math.min(high, Number((mid + halfSpread).toFixed(2))));
+  return { bid, ask, size };
+}
+
 test("card market keeps the same preview target when the countdown starts the round", () => {
   const now = 5_000;
   const { room, alpha, bravo } = createCardRoom();
@@ -200,16 +211,18 @@ test("only active seats can quote or vote to reveal in card market", () => {
   const { room, alpha } = startLiveCardRoom();
   const lateJoiner = addPlayerToRoom(room, "Charlie");
 
-  submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 });
+  submitCardQuote(room, alpha.id, validQuote(room, 1));
   assert.throws(() => requestCardRevealVote(room, lateJoiner.id, 15_000), /waiting for the next round/i);
 });
 
 test("card quotes lock until they trade or expire", () => {
   const { room, alpha } = startLiveCardRoom();
 
-  submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 });
-  assert.throws(() => submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 }), /locked until it trades or expires/i);
-  assert.throws(() => submitCardQuote(room, alpha.id, { bid: 2.1, ask: 4.1, size: 1 }), /locked until it trades or expires/i);
+  const quote = validQuote(room, 1);
+  const replacementQuote = validQuote(room, 1, 0.1);
+  submitCardQuote(room, alpha.id, quote);
+  assert.throws(() => submitCardQuote(room, alpha.id, quote), /locked until it trades or expires/i);
+  assert.throws(() => submitCardQuote(room, alpha.id, replacementQuote), /locked until it trades or expires/i);
 });
 
 test("card quotes reject non-integer size", () => {
@@ -230,6 +243,19 @@ test("card quotes reject size above the server max", () => {
   );
 });
 
+test("card quotes must stay inside the displayed objective range", () => {
+  const { room, alpha } = startLiveCardRoom();
+
+  assert.throws(
+    () => submitCardQuote(room, alpha.id, { bid: room.game.rangeLow - 1, ask: room.game.rangeLow + 1, size: 1 }),
+    /inside the objective range/i
+  );
+  assert.throws(
+    () => submitCardQuote(room, alpha.id, { bid: room.game.rangeHigh - 1, ask: room.game.rangeHigh + 1, size: 1 }),
+    /inside the objective range/i
+  );
+});
+
 test("finished card rounds preserve ranking and trade tape in the next lobby view", () => {
   const { room, alpha, bravo, connectedIds } = startLiveCardRoom();
   const settledTargetId = room.game.targetScorerId;
@@ -238,7 +264,8 @@ test("finished card rounds preserve ranking and trade tape in the next lobby vie
   const settledRangeLow = room.game.rangeLow;
   const settledRangeHigh = room.game.rangeHigh;
 
-  submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 1 });
+  const quote = validQuote(room, 1);
+  submitCardQuote(room, alpha.id, quote);
   takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
   finishCardGame(room, 30_000);
 
@@ -253,14 +280,14 @@ test("finished card rounds preserve ranking and trade tape in the next lobby vie
   assert.equal(view.game.previousSummary?.contract?.rangeHigh, settledRangeHigh);
   assert.equal(typeof view.game.previousSummary?.settlement, "number");
   assert.ok((view.game.previousSummary?.ranking || []).length >= 2);
-  assert.ok((view.game.previousSummary?.log || []).some((entry) => /buys 1 at 2/i.test(entry.text)));
+  assert.ok((view.game.previousSummary?.log || []).some((entry) => entry.text.includes(`buys 1 at ${quote.ask}`)));
   assert.equal(view.game.positions.length, 0);
 });
 
 test("card quotes fill one unit at a time and disappear only when fully taken", () => {
   const { room, alpha, bravo } = startLiveCardRoom();
 
-  submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 2 });
+  submitCardQuote(room, alpha.id, validQuote(room, 2));
   takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
 
   assert.equal(room.game.positions[bravo.id].inventory, 1);
@@ -278,12 +305,13 @@ test("card quotes fill one unit at a time and disappear only when fully taken", 
 test("partially filled quotes can be replaced before expiry", () => {
   const { room, alpha, bravo } = startLiveCardRoom();
 
-  submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 2 });
+  submitCardQuote(room, alpha.id, validQuote(room, 2));
   takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
 
-  submitCardQuote(room, alpha.id, { bid: 1.5, ask: 2.5, size: 1 });
-  assert.equal(room.game.liveQuotes[alpha.id]?.bid, 1.5);
-  assert.equal(room.game.liveQuotes[alpha.id]?.ask, 2.5);
+  const replacement = validQuote(room, 1, 0.1);
+  submitCardQuote(room, alpha.id, replacement);
+  assert.equal(room.game.liveQuotes[alpha.id]?.bid, replacement.bid);
+  assert.equal(room.game.liveQuotes[alpha.id]?.ask, replacement.ask);
   assert.equal(room.game.liveQuotes[alpha.id]?.size, 1);
   assert.equal(room.game.liveQuotes[alpha.id]?.initialSize, 1);
 });

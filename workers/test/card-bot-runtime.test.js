@@ -158,7 +158,7 @@ test("humans can trade against RL bot quotes", () => {
   const [bot] = addCardBotsToRoom(room, 1, { version: "linear-v2", family: "linear" }, 1_000);
 
   startCardGame(room, [room.hostId, bot.id], 2_000);
-  submitCardQuote(room, bot.id, { bid: 1, ask: 2, size: 1 });
+  submitCardQuote(room, bot.id, { bid: 0, ask: 1, size: 1 });
 
   const view = buildCardPlayerView(room, room.hostId, new Set(), 35_000);
   assert.equal(view.game.liveQuotes.length, 1);

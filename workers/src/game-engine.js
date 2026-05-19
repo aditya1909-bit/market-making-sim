@@ -5,6 +5,7 @@ const TIGHT_SPREAD_THRESHOLD = 0.035;
 const FILL_INCENTIVE_RATE = 0.0003;
 const MAKER_PASS_PENALTY_RATE = 0.0012;
 const TAKER_PASS_PENALTY_RATE = 0.00045;
+const HIDDEN_MAX_QUOTE_SIZE = 5;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -428,13 +429,19 @@ export function submitQuote(room, playerId, payload) {
 
   const bid = Number(payload.bid);
   const ask = Number(payload.ask);
-  const size = clamp(Number(payload.size) || 1, 1, 10);
+  const size = Number(payload.size);
 
   if (!Number.isFinite(bid) || !Number.isFinite(ask)) {
     throw new Error("Bid and ask must be numeric.");
   }
   if (ask <= bid) {
     throw new Error("Ask must be strictly greater than bid.");
+  }
+  if (bid < room.game.contract.rangeLow || ask > room.game.contract.rangeHigh) {
+    throw new Error(`Quote must stay inside the contract range ${room.game.contract.rangeLow} to ${room.game.contract.rangeHigh}.`);
+  }
+  if (!Number.isFinite(size) || !Number.isInteger(size) || size < 1 || size > HIDDEN_MAX_QUOTE_SIZE) {
+    throw new Error(`Size must be a whole number between 1 and ${HIDDEN_MAX_QUOTE_SIZE}.`);
   }
 
   room.game.currentQuote = { bid: round2(bid), ask: round2(ask), size };

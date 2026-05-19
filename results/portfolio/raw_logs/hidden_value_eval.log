@@ -1,0 +1,53 @@
+Evaluating holdout split over 200 scenarios x 2 variants from pool 27
+
+Fallback maker vs fallback taker
+  games: 36
+  maker pnl/game: 378930.474
+  taker pnl/game: -378930.474
+  maker win rate: 50.0%
+  taker win rate: 50.0%
+  draw rate: 0.0%
+  avg spread: 60054.770
+  buys/game: 1.83
+  sells/game: 0.00
+  passes/game: 6.50
+
+RL maker vs fallback taker
+  games: 36
+  maker pnl/game: 395285.336
+  taker pnl/game: -395285.336
+  maker win rate: 50.0%
+  taker win rate: 50.0%
+  draw rate: 0.0%
+  avg spread: 61455.979
+  buys/game: 2.50
+  sells/game: 0.17
+  passes/game: 5.67
+
+Fallback maker vs RL taker
+  games: 36
+  maker pnl/game: 222982.798
+  taker pnl/game: -222982.798
+  maker win rate: 75.0%
+  taker win rate: 25.0%
+  draw rate: 0.0%
+  avg spread: 88128.754
+  buys/game: 3.58
+  sells/game: 2.92
+  passes/game: 1.83
+
+RL maker vs RL taker
+  games: 36
+  maker pnl/game: 122284.533
+  taker pnl/game: -122284.533
+  maker win rate: 50.0%
+  taker win rate: 50.0%
+  draw rate: 0.0%
+  avg spread: 84430.337
+  buys/game: 3.42
+  sells/game: 2.75
+  passes/game: 2.17
+
+Edge versus fallback baseline
+  maker uplift: 16354.862
+  taker uplift: 155947.676

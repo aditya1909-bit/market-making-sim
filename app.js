@@ -381,8 +381,8 @@
     setText(
       elements.heroText,
       isCardGame
-        ? "Join the next public card table or build a private room. Ready players get seated into each round, late joins wait for the next deal, and the board reveals over time."
-        : "Create a private room, join by code, or queue into a random match. The maker quotes a market, the taker chooses buy, sell, or pass, and settlement stays hidden until the round ends."
+        ? "Each seated player gets two private cards. Quote inside the objective range, trade one unit at a time, and adapt as the shared board reveals."
+        : "The maker posts a two-sided quote inside the shown range. The taker can buy, sell, or pass, and settlement stays hidden until the final turn."
     );
     setText(
       elements.modeDescription,
@@ -391,15 +391,15 @@
           ? `${currentLabel} is the current room mode. You can switch this selector at any time; it only changes what you create, join, or queue into after leaving the room.`
           : `Current room: ${currentLabel}. Next selected mode: ${selectedLabel}. Leave this room when you want to create, join, or queue into the selected mode instead.`
         : isCardGame
-          ? "Card Market is now a real table mode: public lobbies, private rooms, active-round seating, auto-start countdowns, and persistent tables."
-          : "Hidden Value is the current polished mode: a fast 1v1 market-making game with private settlement, reconnect support, and authoritative multiplayer state."
+          ? "Card Market is a timed table game: ready players are seated, everyone has private cards, quotes expire quickly, and the shared board reveals on a clock."
+          : "Hidden Value is a fast 1v1 market game: makers earn by quoting useful markets, takers earn by trading mispriced quotes, and very wide or ignored tight markets are penalized."
     );
     setText(elements.queueTitle, isCardGame ? "Join the next public card table" : "Queue into the next game");
     setText(elements.botTitle, "Play the trained model");
     setText(elements.cardInfoTitle, "How this game runs");
-    setText(elements.cardInfoPrivate, "Each player starts with 2 private cards from a standard 52-card deck. Your hand stays fixed for the full round.");
-    setText(elements.cardInfoTrading, "Only seated players for the current deal can quote, trade, and vote reveal. Players who join late wait for the next round.");
-    setText(elements.cardInfoTiming, "As soon as at least 2 connected players are ready, an 8 second countdown starts. If a seated player leaves mid-round, the table resets to lobby and redeals.");
+    setText(elements.cardInfoPrivate, "Each seated player gets 2 private cards from a standard 52-card deck. Your hand stays fixed and is part of the final score.");
+    setText(elements.cardInfoTrading, "Post bid / ask quotes inside the objective range. Other seated players can buy your ask or sell your bid one unit at a time until the quote is filled.");
+    setText(elements.cardInfoTiming, "Ready players lock in after an 8 second countdown. Trading opens after a 30 second calculation phase, and board cards reveal about every 60 seconds.");
     elements.profileCard.classList.remove("hidden");
     elements.privateRoomCard.classList.remove("hidden");
     elements.randomMatchCard.classList.remove("hidden");
@@ -440,7 +440,7 @@
   function buildRoleHeadline(role, roomState, game) {
     if (roomState?.gameType === "card_market") {
       if (roomState?.status === "live" && roomState?.cardSeatStatus === "active_round") {
-        return "You are seated in the live round. Quote carefully and trade the board as it reveals.";
+        return "You are seated in the live round. Use your private cards to price the objective, then quote or trade as the board reveals.";
       }
       if (roomState?.status === "live") {
         return "You joined after the deal started. Watch this round and you will be eligible for the next one.";
@@ -450,10 +450,10 @@
         : "You are in a private card room. Ready players will be seated into the next deal.";
     }
     if (role === "market_maker") {
-      return "You set the market and decide how much edge to show.";
+      return "You set the bid and ask. Keep quotes inside the range, useful enough to trade, and not so wide that passes cost you.";
     }
     if (role === "market_taker") {
-      return "You decide whether to buy, sell, or wait.";
+      return "You decide whether the maker's quote is cheap, rich, or fair enough to pass.";
     }
     if (roomState?.players?.length === 1) {
       return "You have the room. Share the code and wait for the second seat.";
@@ -509,7 +509,7 @@
     }
     if (role === "market_maker") {
       return game.activeActor === "maker"
-        ? "Post your next two-sided market."
+        ? "Post a bid below ask inside the shown range."
         : "Waiting for the taker to respond.";
     }
     if (role === "market_taker") {
@@ -541,9 +541,9 @@
       if (roomState.status === "live") {
         const msUntilTradingOpen = game?.tradingStartsAt ? Math.max(game.tradingStartsAt - Date.now(), 0) : game?.msUntilTradingOpen;
         if (msUntilTradingOpen !== null && msUntilTradingOpen !== undefined && msUntilTradingOpen > 0) {
-          return "Use the opening calculation phase to estimate the score before the first quotes go live.";
+          return "Use the opening calculation phase to estimate the objective from your private cards before quotes go live.";
         }
-        return "Only seated players can quote, trade, and vote reveal. Quotes expire quickly, so manage your timing.";
+        return "Only seated players can quote, trade, and vote reveal. Quotes must stay inside the range and expire quickly.";
       }
       return "The timed card market starts once the countdown finishes.";
     }
@@ -554,10 +554,10 @@
       return "Mark ready once you are set. The server starts the round automatically when both players are ready.";
     }
     if (role === "market_maker") {
-      return "Quote both sides and manage your inventory.";
+      return "Quote both sides inside the range. Wide quotes can be penalized when the taker passes.";
     }
     if (role === "market_taker") {
-      return "Trade only when the market looks off.";
+      return "Buy when ask looks cheap, sell when bid looks rich, and pass when the quote is fair or too wide.";
     }
     return "This game only becomes active once you are assigned maker or taker.";
   }
@@ -669,6 +669,18 @@
     const hasBid = elements.bidInput.value !== "";
     const hasAsk = elements.askInput.value !== "";
     const hasSize = elements.sizeInput.value !== "";
+    const roomState = state.roomState;
+    const game = roomState?.game || null;
+    const range =
+      roomState?.gameType === "card_market"
+        ? {
+            low: Number(game?.contract?.rangeLow ?? game?.rangeLow),
+            high: Number(game?.contract?.rangeHigh ?? game?.rangeHigh),
+          }
+        : {
+            low: Number(game?.contract?.rangeLow),
+            high: Number(game?.contract?.rangeHigh),
+          };
 
     if (!hasBid || !hasAsk) {
       return { valid: false, message: "Enter both bid and ask." };
@@ -679,6 +691,9 @@
     if (ask <= bid) {
       return { valid: false, message: "Ask must be above bid." };
     }
+    if (Number.isFinite(range.low) && Number.isFinite(range.high) && (bid < range.low || ask > range.high)) {
+      return { valid: false, message: `Keep bid and ask inside the shown range: ${format(range.low)} to ${format(range.high)}.` };
+    }
     if (!hasSize || !Number.isFinite(size) || !Number.isInteger(size) || size < 1 || size > 5) {
       return { valid: false, message: "Size must be a whole number between 1 and 5." };
     }
@@ -688,7 +703,7 @@
       bid,
       ask,
       size,
-      message: "Quote is ready to send.",
+      message: Number.isFinite(range.low) && Number.isFinite(range.high) ? `Quote is valid inside ${format(range.low)} to ${format(range.high)}.` : "Quote is ready to send.",
     };
   }
 

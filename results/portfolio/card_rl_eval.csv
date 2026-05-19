@@ -1,0 +1,41 @@
+policy,seats,mean_pnl,ci95,stdev,avg_abs_inventory
+linear-v2,2,0.147,0.648,3.622,1.125
+linear-v2,4,-0.153,0.887,4.955,0.883
+linear-v2,6,-1.435,1.214,6.785,0.942
+linear-v2,8,-2.353,1.217,6.8,0.758
+linear-v2,10,-2.89,1.194,6.674,0.583
+neural-v1,2,-0.929,0.595,3.325,1.25
+neural-v1,4,-6.34,1.114,6.224,1.017
+neural-v1,6,-13.456,2.502,13.983,1.083
+neural-v1,8,-20.727,2.778,15.525,1.283
+neural-v1,10,-28.717,3.65,20.402,1.325
+Bootstrap,2,-0.675,0.522,2.918,1.283
+Bootstrap,4,-6.927,1.319,7.374,1.15
+Bootstrap,6,-13.845,2.268,12.675,1.033
+Bootstrap,8,-16.967,2.29,12.797,1.317
+Bootstrap,10,-24.706,3.53,19.73,1.2
+Neural Bootstrap,2,-0.708,0.609,3.402,1.442
+Neural Bootstrap,4,-7.017,1.323,7.394,1.108
+Neural Bootstrap,6,-13.574,1.871,10.455,1.292
+Neural Bootstrap,8,-21.274,3.479,19.443,1.183
+Neural Bootstrap,10,-28.706,4.361,24.376,1.05
+Wait Baseline,2,0.0,0.0,0.0,0.0
+Wait Baseline,4,0.0,0.0,0.0,0.0
+Wait Baseline,6,0.0,0.0,0.0,0.0
+Wait Baseline,8,0.0,0.0,0.0,0.0
+Wait Baseline,10,0.0,0.0,0.0,0.0
+Balanced Baseline,2,0.253,0.615,3.439,0.742
+Balanced Baseline,4,-0.055,1.032,5.765,0.433
+Balanced Baseline,6,-1.629,1.647,9.203,0.767
+Balanced Baseline,8,-0.337,1.444,8.072,0.7
+Balanced Baseline,10,-0.808,1.513,8.454,0.433
+Public Maker Baseline,2,-0.06,0.09,0.504,0.233
+Public Maker Baseline,4,0.416,0.201,1.123,0.133
+Public Maker Baseline,6,0.406,0.223,1.248,0.167
+Public Maker Baseline,8,0.396,0.166,0.927,0.125
+Public Maker Baseline,10,0.061,0.139,0.776,0.083
+Heuristic,2,-0.154,0.482,2.696,0.967
+Heuristic,4,0.426,0.976,5.454,0.342
+Heuristic,6,0.095,1.537,8.592,0.392
+Heuristic,8,-0.98,1.694,9.47,0.617
+Heuristic,10,0.016,1.477,8.256,0.483

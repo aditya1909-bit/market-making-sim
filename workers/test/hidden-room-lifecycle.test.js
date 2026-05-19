@@ -133,6 +133,14 @@ test("accepted hidden-value trades pay maker rebate and taker fee from the share
   assert.match(room.game.log[0].text, /Taker fee 0.06/i);
 });
 
+test("hidden-value quotes must stay inside the displayed range and max size", () => {
+  const { room } = createFixedContractRoom();
+
+  assert.throws(() => submitQuote(room, room.makerId, { bid: -1, ask: 51, size: 1 }), /inside the contract range/i);
+  assert.throws(() => submitQuote(room, room.makerId, { bid: 49, ask: 101, size: 1 }), /inside the contract range/i);
+  assert.throws(() => submitQuote(room, room.makerId, { bid: 49, ask: 51, size: 6 }), /whole number between 1 and 5/i);
+});
+
 test("passing on a very tight hidden-value quote penalizes the taker at the shared rate", () => {
   const { room } = createFixedContractRoom();
 
