@@ -579,6 +579,7 @@ function validateQuote(payload) {
     bid: round2(bid),
     ask: round2(ask),
     size,
+    initialSize: size,
     quotedAt: Date.now(),
   };
 }
@@ -597,6 +598,9 @@ export function submitCardQuote(room, playerId, payload) {
   }
 
   const previousQuote = room.game.liveQuotes?.[playerId] || null;
+  if (previousQuote && Number(previousQuote.size || 0) >= Number(previousQuote.initialSize || previousQuote.size || 0)) {
+    throw new Error("Your current quote is locked until it trades or expires.");
+  }
   const quote = validateQuote(payload);
   room.game.liveQuotes[playerId] = quote;
   room.game.lastMark = midpoint(quote) ?? room.game.lastMark ?? 0;
@@ -959,6 +963,9 @@ export function buildCardPlayerView(room, playerId, connectedIds = new Set(), no
       connected: entry.isBot || connectedIds.has(entry.id),
       isBot: entry.isBot,
       botKind: entry.botKind || null,
+      botProfile: entry.botProfile || null,
+      botDisplayName: entry.botDisplayName || null,
+      botPolicyFamily: entry.botPolicyFamily || null,
       botPolicyVersion: entry.botPolicyVersion || null,
       pendingRemoval: Boolean(entry.pendingRemoval),
     })),

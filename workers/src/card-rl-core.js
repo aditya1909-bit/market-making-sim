@@ -3,19 +3,35 @@ import { cardTargetApproxContribution, cardTargetForId, cardTargetScore } from "
 import { cardTradingOpen } from "./card-engine.js";
 import { TAKER_ACTION } from "./protocol.js";
 
-export const CARD_QUOTE_TEMPLATES = [
-  { id: "noop", reservationOffset: 0, spreadScale: 0, size: 0, noop: true },
-  { id: "tight_buy_1", reservationOffset: -0.03, spreadScale: 0.7, size: 1 },
-  { id: "tight_sell_1", reservationOffset: 0.03, spreadScale: 0.7, size: 1 },
-  { id: "mid_1", reservationOffset: 0, spreadScale: 1.0, size: 1 },
-  { id: "mid_2", reservationOffset: 0, spreadScale: 1.15, size: 2 },
-  { id: "wide_1", reservationOffset: 0, spreadScale: 1.45, size: 1 },
-  { id: "wide_2", reservationOffset: 0, spreadScale: 1.55, size: 2 },
-  { id: "buy_skew_2", reservationOffset: -0.08, spreadScale: 1.0, size: 2 },
-  { id: "sell_skew_2", reservationOffset: 0.08, spreadScale: 1.0, size: 2 },
-  { id: "panic_buy_3", reservationOffset: -0.14, spreadScale: 1.7, size: 3 },
-  { id: "panic_sell_3", reservationOffset: 0.14, spreadScale: 1.7, size: 3 },
-];
+function buildQuoteTemplates() {
+  const templates = [{ id: "noop", reservationOffset: 0, spreadScale: 0, size: 0, noop: true }];
+  [-0.18, -0.12, -0.08, -0.04, 0, 0.04, 0.08, 0.12, 0.18].forEach((reservationOffset) => {
+    [
+      [0.75, 1],
+      [1.0, 1],
+      [1.15, 2],
+      [1.45, 2],
+    ].forEach(([spreadScale, size]) => {
+      const side = reservationOffset < -0.005 ? "buy" : reservationOffset > 0.005 ? "sell" : "mid";
+      const offsetLabel = String(Math.round(Math.abs(reservationOffset) * 100)).padStart(2, "0");
+      const spreadLabel = String(Math.round(spreadScale * 100)).padStart(3, "0");
+      templates.push({
+        id: `${side}_${offsetLabel}_${spreadLabel}_${size}`,
+        reservationOffset,
+        spreadScale,
+        size,
+      });
+    });
+  });
+  templates.push({ id: "panic_buy_3", reservationOffset: -0.24, spreadScale: 1.8, size: 3 });
+  templates.push({ id: "panic_sell_3", reservationOffset: 0.24, spreadScale: 1.8, size: 3 });
+  templates.push({ id: "inventory_buy_4", reservationOffset: -0.3, spreadScale: 1.9, size: 4 });
+  templates.push({ id: "inventory_sell_4", reservationOffset: 0.3, spreadScale: 1.9, size: 4 });
+  return templates;
+}
+
+export const CARD_QUOTE_TEMPLATES = buildQuoteTemplates();
+export const CARD_INTENT_LABELS = ["take", "quote", "reveal", "wait"];
 
 const MAX_QUOTE_SIZE = 5;
 const TOTAL_BOARD_CARDS = 5;
@@ -32,6 +48,10 @@ function round2(value) {
 
 function sigmoid(value) {
   return 1 / (1 + Math.exp(-value));
+}
+
+function tanh(value) {
+  return Math.tanh(value);
 }
 
 function dot(weights, values) {
@@ -182,6 +202,49 @@ export function posteriorStats(room, playerId) {
   };
 }
 
+export function publicPosteriorStats(room) {
+  const targetId = room.game.targetScorerId || room.game.target?.id || cardTargetForId(null).id;
+  const visibleBoard = (room.game.boardCards || []).slice(0, room.game.revealedBoardCount || 0);
+  const knownScore = cardTargetScore(targetId, visibleBoard);
+  const excluded = new Set(visibleBoard.map((card) => card.id));
+  const remaining = buildDeck().filter((card) => !excluded.has(card.id));
+  const seatCount = (room.game.activeSeatIds || []).length;
+  const totalCardsInPlay = seatCount * PRIVATE_CARDS_PER_PLAYER + (room.game.boardCards?.length || TOTAL_BOARD_CARDS);
+  const unknownCount = Math.max(0, totalCardsInPlay - (room.game.revealedBoardCount || 0));
+  const rangeLow = Number(room.game.rangeLow ?? room.game.contract?.rangeLow ?? -10);
+  const rangeHigh = Number(room.game.rangeHigh ?? room.game.contract?.rangeHigh ?? 10);
+  const width = Math.max(1, rangeHigh - rangeLow);
+  const boardMix = contributionRatios(visibleBoard, targetId);
+  let mean = knownScore;
+  let stdev = 0;
+
+  if (unknownCount > 0 && remaining.length) {
+    const values = remaining.map((card) => cardTargetScore(targetId, [card]));
+    const populationMean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const populationVariance = values.reduce((sum, value) => sum + (value - populationMean) ** 2, 0) / Math.max(1, values.length);
+    mean = knownScore + unknownCount * populationMean;
+    stdev = Math.sqrt(
+      Math.max(
+        0,
+        values.length > 1 ? unknownCount * ((values.length - unknownCount) / (values.length - 1)) * populationVariance : 0
+      )
+    );
+  }
+
+  return {
+    targetId,
+    mean,
+    stdev,
+    width,
+    rangeLow,
+    rangeHigh,
+    knownScore,
+    unknownCount,
+    boardPositiveRatio: boardMix.positive,
+    boardNegativeRatio: boardMix.negative,
+  };
+}
+
 function normalizeInventory(value) {
   return clamp(Number(value || 0) / 8, -1.5, 1.5);
 }
@@ -201,6 +264,7 @@ export function liveQuoteEntries(room, playerId, now = Date.now()) {
 
 export function baseFeatureVector(room, playerId, now = Date.now()) {
   const stats = posteriorStats(room, playerId);
+  const publicStats = publicPosteriorStats(room);
   const position = room.game.positions?.[playerId] || { cash: 0, inventory: 0 };
   const quotes = liveQuoteEntries(room, playerId, now);
   const rangeMid = (stats.rangeLow + stats.rangeHigh) / 2;
@@ -209,12 +273,22 @@ export function baseFeatureVector(room, playerId, now = Date.now()) {
   const ownSpread = ownQuote ? Number(ownQuote.ask) - Number(ownQuote.bid) : 0;
   const bestBid = quotes.length ? Math.max(...quotes.map((entry) => Number(entry.quote.bid))) : rangeMid;
   const bestAsk = quotes.length ? Math.min(...quotes.map((entry) => Number(entry.quote.ask))) : rangeMid;
-  const lastMark = Number(room.game.lastMark ?? rangeMid);
+  const bestQuoteAge = quotes.length ? Math.max(...quotes.map((entry) => entry.ageMs / 25_000)) : 0;
+  const hasPublicMark =
+    quotes.length > 0 ||
+    Boolean(ownQuote) ||
+    (room.game.log || []).some((entry) => entry?.type === "quote" || entry?.type === "buy" || entry?.type === "sell");
+  const lastMark = hasPublicMark ? Number(room.game.lastMark ?? rangeMid) : rangeMid;
+  const privateScore = cardTargetScore(stats.targetId, room.game.privateHands?.[playerId] || []);
+  const visibleBoard = (room.game.boardCards || []).slice(0, room.game.revealedBoardCount || 0);
+  const boardScore = cardTargetScore(stats.targetId, visibleBoard);
   return {
     stats,
+    publicStats,
     position,
     quotes,
     ownQuote,
+    lastMark,
     values: [
       clamp((stats.mean - rangeMid) / stats.width, -1.5, 1.5),
       clamp(stats.stdev / stats.width, 0, 1.5),
@@ -231,8 +305,18 @@ export function baseFeatureVector(room, playerId, now = Date.now()) {
       clamp(stats.boardPositiveRatio, 0, 2),
       clamp(stats.boardNegativeRatio, 0, 2),
       clamp(stats.unknownCount / Math.max(1, (room.game.activeSeatIds || []).length * PRIVATE_CARDS_PER_PLAYER + TOTAL_BOARD_CARDS), 0, 1),
+      clamp(stats.knownScore / stats.width, -2, 2),
+      clamp(privateScore / stats.width, -2, 2),
+      clamp(boardScore / stats.width, -2, 2),
+      clamp((stats.mean - bestBid) / stats.width, -2, 2),
+      clamp((bestAsk - stats.mean) / stats.width, -2, 2),
+      !quotes.length || stats.mean >= bestBid ? 1 : 0,
+      !quotes.length || stats.mean <= bestAsk ? 1 : 0,
+      clamp(bestQuoteAge, 0, 2),
     ],
     ownQuoteAgeRatio: ownQuote ? clamp((now - Number(ownQuote.quotedAt || now)) / 25_000, 0, 2) : 0,
+    ownQuoteRefreshAllowed:
+      !ownQuote || Number(ownQuote.size || 0) < Number(ownQuote.initialSize || ownQuote.size || 0),
     ownMidBias: ownMid === null ? 0 : clamp((ownMid - stats.mean) / stats.width, -1.5, 1.5),
   };
 }
@@ -260,24 +344,48 @@ function takeCandidateFeatures(baseState, entry) {
   ];
 }
 
-export function quoteFromTemplate(room, playerId, template, now = Date.now()) {
+export function quoteFromTemplate(room, playerId, template, now = Date.now(), options = {}) {
   if (!template || template.noop) {
     return null;
   }
   const base = baseFeatureVector(room, playerId, now);
-  const stats = base.stats;
+  if (base.ownQuote && !base.ownQuoteRefreshAllowed) {
+    return null;
+  }
+  const stats = base.publicStats;
   const inventory = Number(base.position.inventory || 0);
-  const reservation = stats.mean + Number(template.reservationOffset || 0) * stats.width - inventory * stats.width * 0.025;
-  const baseHalfSpread = Math.max(0.35, stats.stdev * (0.8 + Number(template.spreadScale || 1) * 0.65));
+  const rangeMid = (stats.rangeLow + stats.rangeHigh) / 2;
+  const bestBid = base.quotes.length ? Math.max(...base.quotes.map((entry) => Number(entry.quote.bid))) : rangeMid;
+  const bestAsk = base.quotes.length ? Math.min(...base.quotes.map((entry) => Number(entry.quote.ask))) : rangeMid;
+  let publicFair = stats.mean;
+  if (base.quotes.length) {
+    publicFair = publicFair * 0.88 + ((bestBid + bestAsk) / 2) * 0.12;
+  }
+  if (base.quotes.length || Math.abs(base.lastMark - rangeMid) > 0.01) {
+    publicFair = publicFair * 0.9 + base.lastMark * 0.1;
+  }
+  const privateSkewScale = clamp(Number(options.privateSkewScale ?? 0.5), 0, 1);
+  const privateSkew = clamp(base.stats.mean - stats.mean, -0.16 * stats.width, 0.16 * stats.width) * privateSkewScale;
+  const reservation =
+    publicFair + privateSkew + Number(template.reservationOffset || 0) * stats.width * 0.68 - inventory * stats.width * 0.04;
+  const baseHalfSpread = Math.max(0.18, stats.stdev * (0.45 + Number(template.spreadScale || 1) * 0.38));
   const competitionSpread = base.quotes.length
-    ? Math.max(
-        0.2,
-        Math.min(...base.quotes.map((entry) => Number(entry.quote.ask) - Number(entry.quote.bid))) * 0.45
-      )
-    : 0.5;
+    ? Math.max(0.08, Math.min(...base.quotes.map((entry) => Number(entry.quote.ask) - Number(entry.quote.bid))) * 0.3)
+    : 0.28;
   const halfSpread = Math.max(baseHalfSpread, competitionSpread);
-  const bid = clamp(round2(reservation - halfSpread), stats.rangeLow, stats.rangeHigh - 0.01);
-  const ask = clamp(round2(Math.max(reservation + halfSpread, bid + 0.01)), bid + 0.01, stats.rangeHigh);
+  let bid = clamp(round2(reservation - halfSpread), stats.rangeLow, stats.rangeHigh - 0.01);
+  let ask = clamp(round2(Math.max(reservation + halfSpread, bid + 0.01)), bid + 0.01, stats.rangeHigh);
+  const competitive = Number(template.spreadScale || 1) <= 1.15 && Math.abs(Number(template.reservationOffset || 0)) <= 0.12;
+  if (competitive && base.quotes.length) {
+    const bestBid = Math.max(...base.quotes.map((entry) => Number(entry.quote.bid)));
+    const bestAsk = Math.min(...base.quotes.map((entry) => Number(entry.quote.ask)));
+    if (reservation >= bestBid) {
+      bid = Math.min(ask - 0.01, Math.max(bid, round2(bestBid + 0.01)));
+    }
+    if (reservation <= bestAsk) {
+      ask = Math.max(bid + 0.01, Math.min(ask, round2(bestAsk - 0.01)));
+    }
+  }
   return {
     bid,
     ask,
@@ -301,10 +409,11 @@ export function heuristicCardBotDecision(room, playerId, now = Date.now()) {
   const liveQuotes = base.quotes;
   const revealProgress = room.game.revealedBoardCount || 0;
   const boardTotal = room.game.boardCards?.length || TOTAL_BOARD_CARDS;
+  const seatRatio = clamp((room.game.activeSeatIds?.length || 0) / 10, 0, 1);
   const revealReady =
     revealProgress < boardTotal &&
     !room.game.revealVotes?.[playerId] &&
-    (base.values[1] < 0.11 || liveQuotes.length === 0 || revealProgress >= boardTotal - 1);
+    (seatRatio >= 0.8 ? revealProgress >= boardTotal - 1 || (liveQuotes.length === 0 && !base.ownQuote) : liveQuotes.length === 0 || revealProgress >= boardTotal - 1);
 
   let bestTake = null;
   liveQuotes.forEach((entry) => {
@@ -317,7 +426,10 @@ export function heuristicCardBotDecision(room, playerId, now = Date.now()) {
     }
   });
 
-  const quoteThreshold = 0.04 + clamp(base.values[1] * 0.2, 0, 0.12);
+  const quoteThreshold =
+    0.012 +
+    clamp((base.stats.stdev / base.stats.width) * 0.03, 0, 0.06) -
+    clamp((room.game.activeSeatIds?.length || 0) / 10, 0, 1) * 0.006;
   if (bestTake && bestTake.edge > quoteThreshold) {
     return {
       type: "taker_action",
@@ -337,23 +449,34 @@ export function heuristicCardBotDecision(room, playerId, now = Date.now()) {
   const quoteAgeRatio = base.ownQuoteAgeRatio;
   const needQuoteRefresh =
     !ownQuote ||
-    quoteAgeRatio > 0.92 ||
-    Math.abs(base.ownMidBias) > 0.14;
+    (base.ownQuoteRefreshAllowed && (quoteAgeRatio > 0.55 || Math.abs(base.ownMidBias) > 0.05));
 
   if (needQuoteRefresh) {
+    const privateBias = clamp((base.stats.mean - base.publicStats.mean) / base.stats.width, -0.35, 0.35);
+    const skewScale = 0.35 + seatRatio * 0.45;
     const template =
       Math.abs(base.values[2]) > 0.55
         ? base.values[2] > 0
-          ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "buy_skew_2")
-          : CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "sell_skew_2")
-        : base.values[1] > 0.18
-          ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "wide_2")
-          : liveQuotes.length > 2
-            ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "mid_2")
-            : CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "mid_1");
+          ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "buy_18_100_1")
+          : CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "sell_18_100_1")
+        : privateBias >= 0.12
+          ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "sell_18_075_1")
+          : privateBias >= 0.06
+            ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "sell_12_075_1")
+            : privateBias <= -0.12
+              ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "buy_18_075_1")
+              : privateBias <= -0.06
+                ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "buy_12_075_1")
+                : seatRatio >= 0.8
+                  ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "mid_00_075_1")
+                  : base.values[1] > 0.18
+                  ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "mid_00_115_2")
+                  : liveQuotes.length > 2
+                    ? CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "mid_00_075_1")
+                    : CARD_QUOTE_TEMPLATES.find((entry) => entry.id === "mid_00_100_1");
     return {
       type: "submit_quote",
-      payload: quoteFromTemplate(room, playerId, template, now),
+      payload: quoteFromTemplate(room, playerId, template, now, { privateSkewScale: skewScale }),
       debug: {
         source: "heuristic",
         reason: "quote_refresh",
@@ -403,26 +526,58 @@ function strongTakeThreshold(base) {
   const uncertaintyRatio = Number(base.values?.[1] || 0);
   const revealRatio = Number(base.values?.[3] || 0);
   const bestQuoteAgeRatio = base.quotes.length ? Math.max(...base.quotes.map((entry) => clamp(entry.ageMs / 25_000, 0, 2))) : 0;
-  return Math.max(0.03, 0.045 + seatRatio * 0.07 + uncertaintyRatio * 0.08 - revealRatio * 0.03 - bestQuoteAgeRatio * 0.02);
+  return Math.max(0.002, 0.008 + seatRatio * 0.002 + uncertaintyRatio * 0.014 - revealRatio * 0.006 - bestQuoteAgeRatio * 0.02);
 }
 
 function opportunisticTakeThreshold(base) {
   const seatRatio = Number(base.values?.[4] || 0);
   const uncertaintyRatio = Number(base.values?.[1] || 0);
   const bestQuoteAgeRatio = base.quotes.length ? Math.max(...base.quotes.map((entry) => clamp(entry.ageMs / 25_000, 0, 2))) : 0;
-  return Math.max(0.025, 0.035 + seatRatio * 0.05 + uncertaintyRatio * 0.05 - bestQuoteAgeRatio * 0.025);
+  return Math.max(0.0, 0.003 + seatRatio * 0.001 + uncertaintyRatio * 0.008 - bestQuoteAgeRatio * 0.02);
 }
 
-function chooseQuoteFromModel(room, playerId, model, now) {
-  const base = baseFeatureVector(room, playerId, now);
+function encodeNeuralBase(model, base) {
+  const hiddenSize = Number(model?.hiddenSize || model?.trunk?.weights?.length || 0);
+  const hidden = [];
+  const preactivations = [];
+  for (let index = 0; index < hiddenSize; index += 1) {
+    const weights = model?.trunk?.weights?.[index] || [];
+    const bias = Number(model?.trunk?.bias?.[index] || 0);
+    const preactivation = dot(weights, base.values) + bias;
+    preactivations.push(preactivation);
+    hidden.push(tanh(preactivation));
+  }
+  return { hidden, preactivations };
+}
+
+function chooseIntentFromModel(base, model, encoded = null) {
+  const labels = model?.intentHead?.labels || CARD_INTENT_LABELS;
+  const input = model?.modelType === "neural_mlp" ? encoded?.hidden || [] : base.values;
+  const logits = (model?.intentHead?.weights || []).map((weights, index) => dot(weights, input) + Number(model?.intentHead?.bias?.[index] || 0));
+  if (!logits.length) {
+    return { intent: "quote", score: 0 };
+  }
+  const bestIndex = logits.reduce((best, value, index, all) => (value > all[best] ? index : best), 0);
+  return {
+    intent: labels[bestIndex] || CARD_INTENT_LABELS[bestIndex] || "quote",
+    score: logits[bestIndex],
+  };
+}
+
+function chooseQuoteFromModel(room, playerId, model, now, base = null, encoded = null) {
+  const resolvedBase = base || baseFeatureVector(room, playerId, now);
   const templates = Array.isArray(model?.quoteTemplates) && model.quoteTemplates.length ? model.quoteTemplates : CARD_QUOTE_TEMPLATES;
   let bestTemplate = templates[0];
   let bestScore = -Infinity;
   templates.forEach((template, index) => {
-    const features = quoteTemplateFeatures(base, template);
-    const weights = model?.quoteHead?.weights?.[index] || [];
+    const features = quoteTemplateFeatures(resolvedBase, template);
     const bias = Number(model?.quoteHead?.bias?.[index] || 0);
-    const score = dot(weights, features) + bias;
+    const score =
+      model?.modelType === "neural_mlp"
+        ? dot(model?.quoteHead?.stateWeights?.[index] || [], encoded?.hidden || []) +
+          dot(model?.quoteHead?.templateWeights?.[index] || [], features.slice(resolvedBase.values.length)) +
+          bias
+        : dot(model?.quoteHead?.weights?.[index] || [], features) + bias;
     if (score > bestScore) {
       bestScore = score;
       bestTemplate = template;
@@ -435,10 +590,11 @@ function chooseQuoteFromModel(room, playerId, model, now) {
   };
 }
 
-function chooseTakeFromModel(room, playerId, model, now) {
-  const base = baseFeatureVector(room, playerId, now);
+function chooseTakeFromModel(room, playerId, model, now, base = null, encoded = null) {
+  const resolvedBase = base || baseFeatureVector(room, playerId, now);
   const entries = liveQuoteEntries(room, playerId, now);
-  const passScore = dot(model?.takeHead?.passWeights || [], base.values) + Number(model?.takeHead?.passBias || 0);
+  const passInput = model?.modelType === "neural_mlp" ? encoded?.hidden || [] : resolvedBase.values;
+  const passScore = dot(model?.takeHead?.passWeights || [], passInput) + Number(model?.takeHead?.passBias || 0);
   let best = {
     targetPlayerId: null,
     action: null,
@@ -447,16 +603,21 @@ function chooseTakeFromModel(room, playerId, model, now) {
   };
 
   entries.forEach((entry) => {
-    const features = takeCandidateFeatures(base, entry);
-    const score = dot(model?.takeHead?.candidateWeights || [], features) + Number(model?.takeHead?.candidateBias || 0);
-    const buyEdge = (base.stats.mean - Number(entry.quote.ask)) / base.stats.width;
-    const sellEdge = (Number(entry.quote.bid) - base.stats.mean) / base.stats.width;
+    const features = takeCandidateFeatures(resolvedBase, entry);
+    const candidateScore =
+      model?.modelType === "neural_mlp"
+        ? dot(model?.takeHead?.candidateStateWeights || [], encoded?.hidden || []) +
+          dot(model?.takeHead?.candidateExtraWeights || [], features.slice(resolvedBase.values.length)) +
+          Number(model?.takeHead?.candidateBias || 0)
+        : dot(model?.takeHead?.candidateWeights || [], features) + Number(model?.takeHead?.candidateBias || 0);
+    const buyEdge = (resolvedBase.stats.mean - Number(entry.quote.ask)) / resolvedBase.stats.width;
+    const sellEdge = (Number(entry.quote.bid) - resolvedBase.stats.mean) / resolvedBase.stats.width;
     const action = buyEdge >= sellEdge ? TAKER_ACTION.BUY : TAKER_ACTION.SELL;
-    if (score > best.score) {
+    if (candidateScore > best.score) {
       best = {
         targetPlayerId: entry.targetPlayerId,
         action,
-        score,
+        score: candidateScore,
         pass: false,
       };
     }
@@ -465,9 +626,10 @@ function chooseTakeFromModel(room, playerId, model, now) {
   return best;
 }
 
-function chooseRevealFromModel(room, playerId, model, now) {
-  const base = baseFeatureVector(room, playerId, now);
-  const probability = sigmoid(dot(model?.revealHead?.weights || [], base.values) + Number(model?.revealHead?.bias || 0));
+function chooseRevealFromModel(room, playerId, model, now, base = null, encoded = null) {
+  const resolvedBase = base || baseFeatureVector(room, playerId, now);
+  const input = model?.modelType === "neural_mlp" ? encoded?.hidden || [] : resolvedBase.values;
+  const probability = sigmoid(dot(model?.revealHead?.weights || [], input) + Number(model?.revealHead?.bias || 0));
   return {
     probability,
     vote: probability >= 0.5,
@@ -477,12 +639,15 @@ function chooseRevealFromModel(room, playerId, model, now) {
 export function isCompatibleCardPolicy(policy) {
   return (
     Boolean(policy?.model) &&
-    Number(policy?.metadata?.compatibilityVersion || policy?.model?.compatibilityVersion || 0) === CARD_RL_POLICY_COMPAT_VERSION
+    Number(policy?.compatibilityVersion || policy?.metadata?.compatibilityVersion || policy?.model?.compatibilityVersion || 0) ===
+      CARD_RL_POLICY_COMPAT_VERSION
   );
 }
 
 export function policyVersionLabel(policy) {
   return (
+    policy?.id ||
+    policy?.version ||
     policy?.metadata?.version ||
     policy?.metadata?.policyVersion ||
     policy?.metadata?.generatedAt ||
@@ -507,19 +672,21 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
   }
 
   const base = baseFeatureVector(room, playerId, now);
+  const encoded = policy?.model?.modelType === "neural_mlp" ? encodeNeuralBase(policy.model, base) : null;
   const heuristicTake = strongestTakeOpportunity(base);
-  const takeChoice = chooseTakeFromModel(room, playerId, policy.model, now);
-  const quoteChoice = chooseQuoteFromModel(room, playerId, policy.model, now);
-  const revealChoice = chooseRevealFromModel(room, playerId, policy.model, now);
+  const intentChoice = chooseIntentFromModel(base, policy.model, encoded);
+  const takeChoice = chooseTakeFromModel(room, playerId, policy.model, now, base, encoded);
+  const quoteChoice = chooseQuoteFromModel(room, playerId, policy.model, now, base, encoded);
+  const revealChoice = chooseRevealFromModel(room, playerId, policy.model, now, base, encoded);
   const preferredTakeEdge = heuristicTake?.edge ?? -Infinity;
   const shouldForceTake =
     heuristicTake &&
     heuristicTake.edge >= strongTakeThreshold(base) &&
-    (takeChoice.pass || takeChoice.score >= quoteChoice.score - 0.08);
+    (takeChoice.pass || takeChoice.score >= quoteChoice.score - 0.16);
   const shouldPreferTake =
     heuristicTake &&
     heuristicTake.edge >= opportunisticTakeThreshold(base) &&
-    !takeChoice.pass;
+    (!takeChoice.pass || intentChoice.intent === "take");
 
   if (shouldForceTake) {
     return {
@@ -552,7 +719,7 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
     };
   }
 
-  if (!takeChoice.pass && takeChoice.score >= quoteChoice.score && takeChoice.score >= (revealChoice.vote ? revealChoice.probability : -Infinity)) {
+  if (intentChoice.intent === "take" && !takeChoice.pass) {
     return {
       type: "taker_action",
       payload: {
@@ -561,13 +728,13 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
       },
       debug: {
         source: "policy",
-        reason: "take",
+        reason: "intent_take",
         score: round2(takeChoice.score),
       },
     };
   }
 
-  if (quoteChoice.payload) {
+  if (intentChoice.intent === "quote" && quoteChoice.payload) {
     return {
       type: "submit_quote",
       payload: quoteChoice.payload,
@@ -580,13 +747,53 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
     };
   }
 
-  if (revealChoice.vote && !room.game.revealVotes?.[playerId]) {
+  if (intentChoice.intent === "reveal" && revealChoice.vote && !room.game.revealVotes?.[playerId]) {
     return {
       type: "request_next_reveal",
       payload: {},
       debug: {
         source: "policy",
         reason: "reveal",
+        probability: round2(revealChoice.probability),
+      },
+    };
+  }
+
+  if (!takeChoice.pass && takeChoice.score >= quoteChoice.score + 0.02) {
+    return {
+      type: "taker_action",
+      payload: {
+        targetPlayerId: takeChoice.targetPlayerId,
+        action: takeChoice.action,
+      },
+      debug: {
+        source: "policy",
+        reason: "fallback_take",
+        score: round2(takeChoice.score),
+      },
+    };
+  }
+
+  if (quoteChoice.payload) {
+    return {
+      type: "submit_quote",
+      payload: quoteChoice.payload,
+      debug: {
+        source: "policy",
+        reason: "fallback_quote",
+        templateId: quoteChoice.template?.id || "unknown",
+        score: round2(quoteChoice.score),
+      },
+    };
+  }
+
+  if (revealChoice.vote && !room.game.revealVotes?.[playerId]) {
+    return {
+      type: "request_next_reveal",
+      payload: {},
+      debug: {
+        source: "policy",
+        reason: "fallback_reveal",
         probability: round2(revealChoice.probability),
       },
     };

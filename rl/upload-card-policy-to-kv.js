@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { CARD_RL_POLICY } from "../workers/src/card-rl-policy-data.js";
+import { CARD_RL_POLICY_REGISTRY } from "../workers/src/card-rl-policy-registry-data.js";
 import { CARD_RL_POLICY_KV_BINDING, CARD_RL_POLICY_KV_KEYS } from "../workers/src/card-rl-policy-kv.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,12 +56,17 @@ function buildEntries(outputDir) {
     {
       key: CARD_RL_POLICY_KV_KEYS.metadata,
       file: path.join(outputDir, "card-policy-metadata.json"),
-      value: CARD_RL_POLICY.metadata,
+      value: CARD_RL_POLICY_REGISTRY.metadata,
+    },
+    {
+      key: CARD_RL_POLICY_KV_KEYS.registry,
+      file: path.join(outputDir, "card-policy-registry.json"),
+      value: CARD_RL_POLICY_REGISTRY,
     },
     {
       key: CARD_RL_POLICY_KV_KEYS.model,
       file: path.join(outputDir, "card-policy-model.json"),
-      value: CARD_RL_POLICY.model,
+      value: CARD_RL_POLICY_REGISTRY.policies?.[CARD_RL_POLICY_REGISTRY.metadata?.defaultPolicyIds?.linear]?.model || null,
     },
   ];
 }

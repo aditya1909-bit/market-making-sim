@@ -66,6 +66,7 @@
     cardBotPanel: document.getElementById("card-bot-panel"),
     cardBotStatus: document.getElementById("card-bot-status"),
     cardBotCount: document.getElementById("card-bot-count"),
+    cardBotProfile: document.getElementById("card-bot-profile"),
     addCardBots: document.getElementById("add-card-bots"),
     cardBotList: document.getElementById("card-bot-list"),
     contractPrompt: document.getElementById("contract-prompt"),
@@ -87,6 +88,7 @@
     askInput: document.getElementById("ask-input"),
     sizeInput: document.getElementById("size-input"),
     submitQuote: document.getElementById("submit-quote"),
+    quoteValidation: document.getElementById("quote-validation"),
     takerQuoteBid: document.getElementById("taker-quote-bid"),
     takerQuoteAsk: document.getElementById("taker-quote-ask"),
     takerQuoteSize: document.getElementById("taker-quote-size"),
@@ -153,6 +155,7 @@
     botControlMessage: "",
     botControlMessageIsError: false,
     cardBotCountDraft: "1",
+    cardBotProfileDraft: "balanced",
     queueMessage: "",
     queueMessageIsError: false,
     pendingCardTrade: null,
@@ -248,6 +251,19 @@
       }
     }
     return capWords(role);
+  }
+
+  function botDisplayLabel(player) {
+    if (!player?.isBot) {
+      return "";
+    }
+    if (player.botDisplayName) {
+      return player.botDisplayName;
+    }
+    if (player.botProfile === "balanced") {
+      return "Balanced Bot";
+    }
+    return player.botKind === "card_rl" ? "Balanced Bot" : "Bot";
   }
 
   function suitSymbol(card) {
@@ -1200,7 +1216,7 @@
     }
     try {
       const name = requirePlayerName();
-      const payload = await api("/api/bot-rooms", { method: "POST", body: { name, humanRole } });
+      const payload = await api("/api/bot-rooms", { method: "POST", body: { name, humanRole, botProfile: "balanced" } });
       setActionMessage(`Started bot room ${payload.roomCode}.`);
       await connectToRoom(payload);
     } catch (error) {
@@ -1463,6 +1479,7 @@
         body: {
           playerId: state.playerId,
           count: nextValue,
+          botProfile: state.cardBotProfileDraft || "balanced",
         },
       });
       const addedCount = Array.isArray(payload?.added) ? payload.added.length : nextValue;
@@ -1583,10 +1600,9 @@
       const name = document.createElement("strong");
       const seatText = formatRoleLabel(player.role, gameType, player.seatStatus);
       const quoteText = gameType === "card_market" && player.quotingNow ? " · Quoting Now" : "";
-      const botText = player.isBot ? ` · ${player.botKind === "card_rl" ? "RL Bot" : "Bot"}` : "";
-      const policyText = player.isBot && player.botPolicyVersion ? ` · ${player.botPolicyVersion}` : "";
+      const botText = player.isBot ? ` · ${botDisplayLabel(player)}` : "";
       const pendingText = gameType === "card_market" && player.pendingRemoval ? " · Removes after round" : "";
-      name.textContent = `${player.name}${botText}${policyText} · ${seatText}${quoteText}${pendingText}`;
+      name.textContent = `${player.name}${botText} · ${seatText}${quoteText}${pendingText}`;
       const ready = document.createElement("span");
       ready.className = `status-chip${player.ready ? " ready" : ""}`;
       ready.textContent = player.ready ? "Ready" : "Not ready";
@@ -1641,6 +1657,8 @@
 
     const { remainingSeats, nextValue, hasValidDraft } = clampCardBotCount(roomState);
     const bots = (roomState?.players || []).filter((player) => player.isBot && player.botKind === "card_rl");
+    elements.cardBotProfile.value = state.cardBotProfileDraft || "balanced";
+    elements.cardBotProfile.disabled = controlsLocked || remainingSeats <= 0;
     renderStatusMessage(
       elements.cardBotStatus,
       state.botControlMessage || defaultBotControlMessage(roomState),
@@ -1668,8 +1686,8 @@
       const detail = document.createElement("span");
       detail.className = "body-copy subtle-copy";
       detail.textContent = bot.pendingRemoval
-        ? `RL Bot${bot.botPolicyVersion ? ` · ${bot.botPolicyVersion}` : ""} · Removes after round`
-        : `RL Bot${bot.botPolicyVersion ? ` · ${bot.botPolicyVersion}` : ""}`;
+        ? `${botDisplayLabel(bot)} · Removes after round`
+        : botDisplayLabel(bot);
       meta.appendChild(title);
       meta.appendChild(detail);
 
@@ -2001,6 +2019,11 @@
           ? "Submit Quote"
           : "Fix Quote First"
         : "Waiting For Turn";
+    renderStatusMessage(
+      elements.quoteValidation,
+      canQuote ? draft.message : isCardGame && inCalculationPhase ? "Trading opens after the calculation phase." : "Quote controls unlock when it is your turn.",
+      canQuote && !draft.valid
+    );
     elements.takerBuy.disabled = !canTake;
     elements.takerSell.disabled = !canTake;
     elements.takerPass.disabled = !canTake;
@@ -2062,6 +2085,10 @@
     const roomState = state.roomState;
     const { remainingSeats, nextValue } = clampCardBotCount(roomState);
     state.cardBotCountDraft = remainingSeats <= 0 ? "0" : String(nextValue);
+    render();
+  });
+  elements.cardBotProfile.addEventListener("change", () => {
+    state.cardBotProfileDraft = elements.cardBotProfile.value || "balanced";
     render();
   });
   elements.readyToggle.addEventListener("click", toggleReady);

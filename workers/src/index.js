@@ -75,7 +75,7 @@ async function createPrivateRoom(env, name, gameType = "hidden_value") {
   throw new Error("Could not allocate a room code.");
 }
 
-async function createBotRoom(env, name, humanRole) {
+async function createBotRoom(env, name, humanRole, botProfile = "balanced") {
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const code = randomCode();
     const response = await roomStubForCode(env, code).fetch("https://room/internal/create-bot", {
@@ -83,7 +83,7 @@ async function createBotRoom(env, name, humanRole) {
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({ name, code, humanRole }),
+      body: JSON.stringify({ name, code, humanRole, botProfile }),
     });
 
     if (response.status === 409) {
@@ -132,7 +132,7 @@ export default {
 
       if (request.method === "POST" && url.pathname === "/api/bot-rooms") {
         const body = await readJson(request);
-        return json(await createBotRoom(env, body.name, body.humanRole), 201);
+        return json(await createBotRoom(env, body.name, body.humanRole, body.botProfile || "balanced"), 201);
       }
 
       if (request.method === "GET" && url.pathname.startsWith("/api/rooms/") && url.pathname.endsWith("/state")) {
@@ -171,6 +171,7 @@ export default {
             playerId: body.playerId,
             count: body.count,
             policyVersion: body.policyVersion,
+            botProfile: body.botProfile || "balanced",
           }),
         });
         return withCors(response);

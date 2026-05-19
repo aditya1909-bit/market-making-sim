@@ -21,6 +21,14 @@ BASE_FEATURE_NAMES = [
     "board_positive",
     "board_negative",
     "unknown_ratio",
+    "known_score_ratio",
+    "private_score_ratio",
+    "board_score_ratio",
+    "distance_to_best_bid",
+    "distance_to_best_ask",
+    "would_improve_bid",
+    "would_improve_ask",
+    "best_quote_age",
 ]
 
 QUOTE_FEATURE_NAMES = BASE_FEATURE_NAMES + ["template_reservation_offset", "template_spread_scale", "template_size"]
@@ -43,8 +51,17 @@ def _known_cards(state: Dict, player_id: str) -> List[Dict]:
     return private_hand + board_cards
 
 
+def _public_known_cards(state: Dict) -> List[Dict]:
+    return state["board_cards"][: state["revealed_board_count"]]
+
+
 def _remaining_deck(state: Dict, player_id: str) -> List[Dict]:
     known_ids = {card["id"] for card in _known_cards(state, player_id)}
+    return [card.__dict__ for card in build_deck() if card.id not in known_ids]
+
+
+def _public_remaining_deck(state: Dict) -> List[Dict]:
+    known_ids = {card["id"] for card in _public_known_cards(state)}
     return [card.__dict__ for card in build_deck() if card.id not in known_ids]
 
 
@@ -53,6 +70,12 @@ def _unknown_card_count(state: Dict, player_id: str) -> int:
     total_cards = seat_count * PRIVATE_CARDS_PER_PLAYER + BOARD_CARD_COUNT
     known_count = len(state["private_hands"].get(player_id, [])) + state["revealed_board_count"]
     return max(0, total_cards - known_count)
+
+
+def _public_unknown_card_count(state: Dict) -> int:
+    seat_count = len(state["active_seat_ids"])
+    total_cards = seat_count * PRIVATE_CARDS_PER_PLAYER + BOARD_CARD_COUNT
+    return max(0, total_cards - state["revealed_board_count"])
 
 
 def _contribution_ratios(cards: List[Dict], target_id: str) -> tuple[float, float]:
@@ -124,6 +147,42 @@ def posterior_stats(state: Dict, player_id: str) -> Dict:
     }
 
 
+def public_posterior_stats(state: Dict) -> Dict:
+    target_id = state.get("target_scorer_id") or state.get("target", {}).get("id") or "spades_minus_red"
+    visible_board = _public_known_cards(state)
+    known_score = sum(score_card(target_id, _dict_to_card(card)) for card in visible_board)
+    remaining = _public_remaining_deck(state)
+    unknown_count = min(_public_unknown_card_count(state), len(remaining))
+    values = [score_card(target_id, _dict_to_card(card)) for card in remaining]
+    population_count = len(values)
+    population_mean = sum(values) / population_count if population_count else 0.0
+    population_variance = (
+        sum((value - population_mean) ** 2 for value in values) / population_count if population_count else 0.0
+    )
+    unknown_mean = unknown_count * population_mean
+    unknown_variance = (
+        unknown_count * ((population_count - unknown_count) / (population_count - 1)) * population_variance
+        if population_count > 1
+        else 0.0
+    )
+    range_low = float(state["range_low"])
+    range_high = float(state["range_high"])
+    width = max(1.0, range_high - range_low)
+    board_positive, board_negative = _contribution_ratios(visible_board, target_id)
+    return {
+        "target_id": target_id,
+        "mean": known_score + unknown_mean,
+        "stdev": sqrt(max(unknown_variance, 0.0)),
+        "width": width,
+        "range_low": range_low,
+        "range_high": range_high,
+        "known_score": known_score,
+        "unknown_count": unknown_count,
+        "board_positive_ratio": board_positive,
+        "board_negative_ratio": board_negative,
+    }
+
+
 def live_quote_entries(state: Dict, player_id: str, now_step: int = 0) -> List[Dict]:
     positions = state["positions"]
     entries = []
@@ -142,8 +201,15 @@ def live_quote_entries(state: Dict, player_id: str, now_step: int = 0) -> List[D
     return entries
 
 
+def quote_refresh_allowed(quote: Dict | None) -> bool:
+    if not quote:
+        return True
+    return int(quote.get("size", 0)) < int(quote.get("initial_size", quote.get("size", 0)))
+
+
 def base_feature_vector(state: Dict, player_id: str, now_step: int = 0) -> Dict:
     stats = posterior_stats(state, player_id)
+    public_stats = public_posterior_stats(state)
     position = state["positions"].get(player_id, {"cash": 0.0, "inventory": 0})
     quotes = live_quote_entries(state, player_id, now_step)
     range_mid = (stats["range_low"] + stats["range_high"]) / 2.0
@@ -151,7 +217,12 @@ def base_feature_vector(state: Dict, player_id: str, now_step: int = 0) -> Dict:
     own_spread = float(own_quote["ask"]) - float(own_quote["bid"]) if own_quote else 0.0
     best_bid = max((float(entry["quote"]["bid"]) for entry in quotes), default=range_mid)
     best_ask = min((float(entry["quote"]["ask"]) for entry in quotes), default=range_mid)
-    last_mark = float(state.get("last_mark", range_mid))
+    best_quote_age = max((float(entry["age"]) for entry in quotes), default=0.0)
+    has_public_mark = bool(quotes) or bool(own_quote) or any(entry.get("type") in {"quote", "trade"} for entry in state.get("log", []))
+    last_mark = float(state.get("last_mark", range_mid)) if has_public_mark else range_mid
+    private_score = sum(score_card(stats["target_id"], _dict_to_card(card)) for card in state["private_hands"].get(player_id, []))
+    visible_board = state["board_cards"][: state["revealed_board_count"]]
+    board_score = sum(score_card(stats["target_id"], _dict_to_card(card)) for card in visible_board)
     values = [
         clamp((stats["mean"] - range_mid) / stats["width"], -1.5, 1.5),
         clamp(stats["stdev"] / stats["width"], 0.0, 1.5),
@@ -172,17 +243,28 @@ def base_feature_vector(state: Dict, player_id: str, now_step: int = 0) -> Dict:
             0.0,
             1.0,
         ),
+        clamp(stats["known_score"] / stats["width"], -2.0, 2.0),
+        clamp(private_score / stats["width"], -2.0, 2.0),
+        clamp(board_score / stats["width"], -2.0, 2.0),
+        clamp((stats["mean"] - best_bid) / stats["width"], -2.0, 2.0),
+        clamp((best_ask - stats["mean"]) / stats["width"], -2.0, 2.0),
+        1.0 if not quotes or stats["mean"] >= best_bid else 0.0,
+        1.0 if not quotes or stats["mean"] <= best_ask else 0.0,
+        clamp(best_quote_age / 2.0, 0.0, 2.0),
     ]
     own_mid = midpoint(own_quote)
     return {
         "stats": stats,
+        "public_stats": public_stats,
         "position": position,
         "quotes": quotes,
         "own_quote": own_quote,
+        "last_mark": last_mark,
         "values": values,
         "own_quote_age_ratio": clamp((now_step - int(own_quote.get("quoted_at_step", now_step))) / 2.0, 0.0, 2.0)
         if own_quote
         else 0.0,
+        "own_quote_refresh_allowed": quote_refresh_allowed(own_quote),
         "own_mid_bias": clamp((own_mid - stats["mean"]) / stats["width"], -1.5, 1.5) if own_mid is not None else 0.0,
     }
 

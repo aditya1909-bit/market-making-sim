@@ -5,6 +5,7 @@ import { sampleContract } from "../src/contracts.js";
 import {
   addPlayerToRoom,
   buildPlayerView,
+  createBotRoomState,
   createRoomState,
   finishGame,
   handleHiddenPlayerDeparture,
@@ -17,6 +18,7 @@ import {
   submitQuote,
   takeAction,
 } from "../src/game-engine.js";
+import { botDecision } from "../src/bot-policy.js";
 
 function createTwoPlayerRoom() {
   const room = createRoomState("TEST1", "Alpha");
@@ -119,46 +121,46 @@ test("normal rematch flow still works after a completed round", () => {
   assert.ok(room.game.contract);
 });
 
-test("accepted hidden-value trades pay weighted rebates to maker and taker", () => {
+test("accepted hidden-value trades pay maker rebate and taker fee from the shared rate schedule", () => {
   const { room } = createFixedContractRoom();
 
   submitQuote(room, room.makerId, { bid: 49, ask: 51, size: 2 });
   takeAction(room, room.takerId, { action: "buy" });
 
-  assert.equal(room.game.maker.cash, 102.03);
-  assert.equal(room.game.taker.cash, -101.98);
-  assert.match(room.game.log[0].text, /Maker rebate 0.03/i);
-  assert.match(room.game.log[0].text, /Taker rebate 0.02/i);
+  assert.equal(room.game.maker.cash, 102.06);
+  assert.equal(room.game.taker.cash, -102.06);
+  assert.match(room.game.log[0].text, /Maker rebate 0.06/i);
+  assert.match(room.game.log[0].text, /Taker fee 0.06/i);
 });
 
-test("passing on a very tight hidden-value quote penalizes the taker and escalates on repeats", () => {
+test("passing on a very tight hidden-value quote penalizes the taker at the shared rate", () => {
   const { room } = createFixedContractRoom();
 
   submitQuote(room, room.makerId, { bid: 49, ask: 51, size: 1 });
   takeAction(room, room.takerId, { action: "pass" });
-  assert.equal(room.game.taker.cash, -0.02);
-  assert.match(room.game.log[0].text, /tight-spread refusal penalty 0.02/i);
+  assert.equal(room.game.taker.cash, -0.05);
+  assert.match(room.game.log[0].text, /tight-spread refusal penalty 0.05/i);
 
   submitQuote(room, room.makerId, { bid: 49, ask: 51, size: 1 });
   takeAction(room, room.takerId, { action: "pass" });
 
-  assert.equal(room.game.taker.cash, -0.06);
-  assert.match(room.game.log[0].text, /tight-spread refusal penalty 0.04/i);
+  assert.equal(room.game.taker.cash, -0.1);
+  assert.match(room.game.log[0].text, /tight-spread refusal penalty 0.05/i);
 });
 
-test("passing on a very wide hidden-value quote penalizes the maker and escalates on repeats", () => {
+test("passing on a very wide hidden-value quote penalizes the maker at the shared rate", () => {
   const { room } = createFixedContractRoom();
 
   submitQuote(room, room.makerId, { bid: 35, ask: 65, size: 1 });
   takeAction(room, room.takerId, { action: "pass" });
-  assert.equal(room.game.maker.cash, -0.04);
-  assert.match(room.game.log[0].text, /Maker wide-spread penalty 0.04/i);
+  assert.equal(room.game.maker.cash, -0.12);
+  assert.match(room.game.log[0].text, /Maker wide-spread penalty 0.12/i);
 
   submitQuote(room, room.makerId, { bid: 35, ask: 65, size: 1 });
   takeAction(room, room.takerId, { action: "pass" });
 
-  assert.equal(Number(room.game.maker.cash.toFixed(2)), -0.11);
-  assert.match(room.game.log[0].text, /Maker wide-spread penalty 0.07/i);
+  assert.equal(Number(room.game.maker.cash.toFixed(2)), -0.24);
+  assert.match(room.game.log[0].text, /Maker wide-spread penalty 0.12/i);
 });
 
 test("hidden-value trade resets both penalty streaks", () => {
@@ -171,8 +173,22 @@ test("hidden-value trade resets both penalty streaks", () => {
   submitQuote(room, room.makerId, { bid: 35, ask: 65, size: 1 });
   takeAction(room, room.takerId, { action: "pass" });
 
-  assert.equal(room.game.maker.cash, 50.95);
-  assert.match(room.game.log[0].text, /Maker wide-spread penalty 0.04/i);
+  assert.equal(Number(room.game.maker.cash.toFixed(2)), 50.79);
+  assert.match(room.game.log[0].text, /Maker wide-spread penalty 0.12/i);
+});
+
+test("balanced hidden-value bot metadata defaults and maker quotes stay bounded", async () => {
+  const room = createBotRoomState("BOTV", "Human", "market_taker", "rl");
+  prepareNextGame(room, fixedContract(), { autoStart: true });
+  room.bot.privateEstimate = 95;
+
+  const decision = await botDecision(room, room.bot.playerId, {});
+
+  assert.equal(room.bot.profile, "balanced");
+  assert.equal(room.players.find((player) => player.id === room.bot.playerId)?.botDisplayName, "Balanced Bot");
+  assert.equal(decision.type, "submit_quote");
+  assert.ok(decision.payload.ask - decision.payload.bid <= 7);
+  assert.ok(decision.payload.size <= 2);
 });
 
 test("inactivity helpers identify and clear stale players", () => {

@@ -67,7 +67,7 @@ The taker also uses short quote memory and mode selection before choosing a buy/
 ## Card-Market RL
 
 The card-market bot is trained locally from the Python package in [`card_rl/`](/Users/adityadutta/Developer/market-making-sim/card_rl/).
-That trainer exports a compact linear policy module to `workers/src/card-rl-policy-data.js`, and the live Worker reads the deployed model from a KV namespace bound as `CARD_RL_POLICY_KV`.
+That trainer exports a dual-family registry module to `workers/src/card-rl-policy-registry-data.js`, and the live Worker reads the deployed registry from a KV namespace bound as `CARD_RL_POLICY_KV`.
 
 Upload the current card policy:
 

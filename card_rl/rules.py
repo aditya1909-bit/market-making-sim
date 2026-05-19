@@ -93,16 +93,34 @@ def score_cards(target_id: str, cards: List[Card]) -> int:
     return sum(score_card(target_id, card) for card in cards)
 
 
-QUOTE_TEMPLATES = [
-    {"id": "noop", "reservationOffset": 0.0, "spreadScale": 0.0, "size": 0, "noop": True},
-    {"id": "tight_buy_1", "reservationOffset": -0.03, "spreadScale": 0.7, "size": 1},
-    {"id": "tight_sell_1", "reservationOffset": 0.03, "spreadScale": 0.7, "size": 1},
-    {"id": "mid_1", "reservationOffset": 0.0, "spreadScale": 1.0, "size": 1},
-    {"id": "mid_2", "reservationOffset": 0.0, "spreadScale": 1.15, "size": 2},
-    {"id": "wide_1", "reservationOffset": 0.0, "spreadScale": 1.45, "size": 1},
-    {"id": "wide_2", "reservationOffset": 0.0, "spreadScale": 1.55, "size": 2},
-    {"id": "buy_skew_2", "reservationOffset": -0.08, "spreadScale": 1.0, "size": 2},
-    {"id": "sell_skew_2", "reservationOffset": 0.08, "spreadScale": 1.0, "size": 2},
-    {"id": "panic_buy_3", "reservationOffset": -0.14, "spreadScale": 1.7, "size": 3},
-    {"id": "panic_sell_3", "reservationOffset": 0.14, "spreadScale": 1.7, "size": 3},
-]
+def build_quote_templates() -> List[Dict]:
+    templates = [{"id": "noop", "reservationOffset": 0.0, "spreadScale": 0.0, "size": 0, "noop": True}]
+    for reservation_offset in (-0.18, -0.12, -0.08, -0.04, 0.0, 0.04, 0.08, 0.12, 0.18):
+        for spread_scale, size in ((0.75, 1), (1.0, 1), (1.15, 2), (1.45, 2)):
+            side = "mid"
+            if reservation_offset < -0.005:
+                side = "buy"
+            elif reservation_offset > 0.005:
+                side = "sell"
+            offset_label = str(int(abs(reservation_offset) * 100)).rjust(2, "0")
+            spread_label = str(int(round(spread_scale * 100))).rjust(3, "0")
+            templates.append(
+                {
+                    "id": f"{side}_{offset_label}_{spread_label}_{size}",
+                    "reservationOffset": float(reservation_offset),
+                    "spreadScale": float(spread_scale),
+                    "size": int(size),
+                }
+            )
+    templates.extend(
+        [
+            {"id": "panic_buy_3", "reservationOffset": -0.24, "spreadScale": 1.8, "size": 3},
+            {"id": "panic_sell_3", "reservationOffset": 0.24, "spreadScale": 1.8, "size": 3},
+            {"id": "inventory_buy_4", "reservationOffset": -0.3, "spreadScale": 1.9, "size": 4},
+            {"id": "inventory_sell_4", "reservationOffset": 0.3, "spreadScale": 1.9, "size": 4},
+        ]
+    )
+    return templates
+
+
+QUOTE_TEMPLATES = build_quote_templates()

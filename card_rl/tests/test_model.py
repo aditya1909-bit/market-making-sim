@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from card_rl.export_policy import export_js_module
-from card_rl.model import bootstrap_policy
+from card_rl.model import bootstrap_neural_policy, bootstrap_policy
 from card_rl.simulator import CardMarketSimulator
 
 
@@ -18,13 +18,15 @@ class ModelInferenceTests(unittest.TestCase):
         self.assertIn(action["type"], {"submit_quote", "taker_action", "request_next_reveal", "wait"})
 
     def test_export_writes_js_module(self) -> None:
-        policy = bootstrap_policy()
+        linear_policy = bootstrap_policy()
+        neural_policy = bootstrap_neural_policy()
         with tempfile.TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "card-policy.js"
-            export_js_module(policy, output, version="unit-test")
+            export_js_module(linear_policy, neural_policy, output, linear_version="linear-unit", neural_version="neural-unit")
             text = output.read_text(encoding="utf-8")
-            self.assertIn("export const CARD_RL_POLICY =", text)
-            self.assertIn('"version": "unit-test"', text)
+            self.assertIn("export const CARD_RL_POLICY_REGISTRY =", text)
+            self.assertIn('"linear-unit"', text)
+            self.assertIn('"neural-unit"', text)
 
     def test_accumulated_gradients_match_direct_updates(self) -> None:
         simulator = CardMarketSimulator(seed=5)

@@ -22,6 +22,78 @@ function botRole(room, botPlayerId) {
   return room.makerId === botPlayerId ? GAME_ROLE.MAKER : GAME_ROLE.TAKER;
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function round2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function botProfile(room) {
+  return room.bot?.profile || "balanced";
+}
+
+function actionHistory(room) {
+  return Array.isArray(room?.game?.actionHistory) ? room.game.actionHistory : [];
+}
+
+function recentPassStreak(room) {
+  const history = actionHistory(room);
+  let streak = 0;
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index] !== "pass") {
+      break;
+    }
+    streak += 1;
+  }
+  return streak;
+}
+
+function sanitizeMakerQuote(room, quote) {
+  if (botProfile(room) !== "balanced" || !quote || !room.game.contract) {
+    return quote;
+  }
+
+  const contract = room.game.contract;
+  const width = Math.max(1, contract.rangeHigh - contract.rangeLow);
+  const mid = (Number(quote.bid) + Number(quote.ask)) / 2;
+  const passStreak = recentPassStreak(room);
+  const maxSpread = width * (passStreak >= 2 ? 0.045 : 0.07);
+  const minSpread = width * 0.018;
+  const rawSpread = Math.max(minSpread, Math.min(maxSpread, Number(quote.ask) - Number(quote.bid)));
+  const halfSpread = rawSpread / 2;
+  const bid = clamp(round2(mid - halfSpread), contract.rangeLow, contract.rangeHigh - 0.01);
+  const ask = clamp(round2(Math.max(mid + halfSpread, bid + 0.01)), bid + 0.01, contract.rangeHigh);
+
+  return {
+    bid,
+    ask,
+    size: clamp(Number(quote.size || 1), 1, passStreak >= 2 ? 1 : 2),
+  };
+}
+
+function guardrailTakerAction(room, estimate, action, fallbackAction) {
+  if (botProfile(room) !== "balanced" || !room.game.currentQuote || !room.game.contract) {
+    return action;
+  }
+  const quote = room.game.currentQuote;
+  const width = Math.max(1, room.game.contract.rangeHigh - room.game.contract.rangeLow);
+  const buyEdge = (estimate - quote.ask) / width;
+  const sellEdge = (quote.bid - estimate) / width;
+  const bestEdge = Math.max(buyEdge, sellEdge);
+  const passStreak = recentPassStreak(room);
+  const spread = (quote.ask - quote.bid) / width;
+
+  if (action === "pass" && fallbackAction !== "pass" && passStreak >= 2 && bestEdge > -0.002 && spread < 0.055) {
+    return fallbackAction;
+  }
+  if (action !== "pass" && bestEdge < -0.03 && room.game.turn < room.game.maxTurns) {
+    return "pass";
+  }
+  return action;
+}
+
 function takerQuoteOverride(room, estimate, currentAction) {
   const quote = room.game.currentQuote;
   if (!quote) {
@@ -83,7 +155,8 @@ export function refreshBotEstimate(room) {
     return;
   }
   const width = Math.max(1, room.game.contract.rangeHigh - room.game.contract.rangeLow);
-  const noise = (Math.random() * 2 - 1) * width * 0.14;
+  const noiseScale = botProfile(room) === "balanced" ? 0.18 : 0.14;
+  const noise = (Math.random() * 2 - 1) * width * noiseScale;
   room.bot.privateEstimate = room.game.contract.hiddenValue + noise;
 }
 
@@ -112,14 +185,15 @@ export async function botDecision(room, botPlayerId, env) {
   if (role === GAME_ROLE.MAKER) {
     const stateKey = roleStateKey(room, role, estimate);
     const picked = pickActionFromPolicy(policy.maker, stateKey, fallbackValue);
-    const quote = quoteFromMakerAction(room, estimate, typeof picked === "number" ? picked : fallbackValue);
+    const actionIndex = typeof picked === "number" ? picked : fallbackValue;
+    const quote = sanitizeMakerQuote(room, quoteFromMakerAction(room, estimate, actionIndex));
     return {
       type: "submit_quote",
       payload: quote,
       debug: {
         role,
         stateKey,
-        actionId: MAKER_ACTIONS[typeof picked === "number" ? picked : fallbackValue]?.id || "fallback",
+        actionId: MAKER_ACTIONS[actionIndex]?.id || "fallback",
       },
     };
   }
@@ -135,7 +209,7 @@ export async function botDecision(room, botPlayerId, env) {
     typeof pickedAction === "number" ? TAKER_DIRECTIONAL_ACTIONS[pickedAction] || fallbackActionValue : pickedAction;
   const modeledAction = takerActionForMode(room, estimate, mode, preferredAction, fallbackActionValue);
   const hybridAction = hybridTakerExecution(room, estimate, modeledAction, fallbackActionValue);
-  const action = takerQuoteOverride(room, estimate, hybridAction);
+  const action = guardrailTakerAction(room, estimate, takerQuoteOverride(room, estimate, hybridAction), fallbackActionValue);
   return {
     type: "taker_action",
     payload: {

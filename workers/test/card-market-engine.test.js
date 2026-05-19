@@ -204,16 +204,12 @@ test("only active seats can quote or vote to reveal in card market", () => {
   assert.throws(() => requestCardRevealVote(room, lateJoiner.id, 15_000), /waiting for the next round/i);
 });
 
-test("reposting the same card quote does not spam the tape", () => {
+test("card quotes lock until they trade or expire", () => {
   const { room, alpha } = startLiveCardRoom();
 
   submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 });
-  submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 });
-  submitCardQuote(room, alpha.id, { bid: 2.1, ask: 4.1, size: 1 });
-
-  const quoteEntries = room.game.log.filter((entry) => entry.type === "quote");
-  assert.equal(quoteEntries.length, 1);
-  assert.match(quoteEntries[0].text, /quoted 2 \/ 4 for 1/i);
+  assert.throws(() => submitCardQuote(room, alpha.id, { bid: 2, ask: 4, size: 1 }), /locked until it trades or expires/i);
+  assert.throws(() => submitCardQuote(room, alpha.id, { bid: 2.1, ask: 4.1, size: 1 }), /locked until it trades or expires/i);
 });
 
 test("card quotes reject non-integer size", () => {
@@ -277,6 +273,19 @@ test("card quotes fill one unit at a time and disappear only when fully taken", 
   assert.equal(room.game.positions[alpha.id].inventory, -2);
   assert.equal(room.game.liveQuotes[alpha.id], undefined);
   assert.throws(() => takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" }), /no longer live/i);
+});
+
+test("partially filled quotes can be replaced before expiry", () => {
+  const { room, alpha, bravo } = startLiveCardRoom();
+
+  submitCardQuote(room, alpha.id, { bid: 1, ask: 2, size: 2 });
+  takeCardAction(room, bravo.id, { targetPlayerId: alpha.id, action: "buy" });
+
+  submitCardQuote(room, alpha.id, { bid: 1.5, ask: 2.5, size: 1 });
+  assert.equal(room.game.liveQuotes[alpha.id]?.bid, 1.5);
+  assert.equal(room.game.liveQuotes[alpha.id]?.ask, 2.5);
+  assert.equal(room.game.liveQuotes[alpha.id]?.size, 1);
+  assert.equal(room.game.liveQuotes[alpha.id]?.initialSize, 1);
 });
 
 test("bots cannot start the next card countdown without enough human opt-in", () => {

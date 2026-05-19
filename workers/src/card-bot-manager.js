@@ -2,9 +2,18 @@ import { createPlayer, playerFor, removePlayerFromRoom } from "./game-engine.js"
 
 export const CARD_BOT_KIND = "card_rl";
 export const CARD_BOT_DELAY_RANGES = {
-  initial: { minMs: 10_000, jitterMs: 6_000 },
-  responsive: { minMs: 10_000, jitterMs: 5_000 },
-  postAction: { minMs: 12_000, jitterMs: 6_000 },
+  initial: { minMs: 6_000, jitterMs: 4_000 },
+  responsive: { minMs: 4_500, jitterMs: 3_000 },
+  marketResponse: { minMs: 2_200, jitterMs: 1_400 },
+  wait: { minMs: 2_800, jitterMs: 2_400 },
+  postAction: { minMs: 7_500, jitterMs: 4_500 },
+};
+
+export const CARD_BOT_PROFILES = {
+  balanced: {
+    id: "balanced",
+    displayName: "Balanced Bot",
+  },
 };
 
 const CARD_BOT_NAMES = [
@@ -93,13 +102,22 @@ export function cardBotConnectedIds(room) {
 }
 
 export function createCardBotPlayer(room, policyVersion = "heuristic", now = Date.now()) {
+  const policySpec =
+    typeof policyVersion === "string"
+      ? { version: policyVersion, family: policyVersion === "heuristic" ? "heuristic" : null }
+      : policyVersion || { version: "heuristic", family: "heuristic" };
+  const profileId = String(policySpec.profile || "balanced").trim() || "balanced";
+  const profile = CARD_BOT_PROFILES[profileId] || CARD_BOT_PROFILES.balanced;
   const player = createPlayer(nextCardBotName(room), {
     ready: true,
     isBot: true,
     lastActiveAt: now,
+    botProfile: profile.id,
+    botDisplayName: profile.displayName,
+    botPolicyFamily: policySpec.family || null,
+    botPolicyVersion: policySpec.version || "heuristic",
   });
   player.botKind = CARD_BOT_KIND;
-  player.botPolicyVersion = policyVersion;
   scheduleBotWake(room, player, now, "initial");
   player.pendingRemoval = false;
   return player;
@@ -110,7 +128,8 @@ export function addCardBotsToRoom(room, count, policyVersion = "heuristic", now 
   const resolvedCount = Math.max(0, Math.min(Number(count || 0), availableSeats));
   const added = [];
   for (let index = 0; index < resolvedCount; index += 1) {
-    const bot = createCardBotPlayer(room, policyVersion, now);
+    const selection = Array.isArray(policyVersion) ? policyVersion[index] || policyVersion[policyVersion.length - 1] || "heuristic" : policyVersion;
+    const bot = createCardBotPlayer(room, selection, now);
     room.players.push(bot);
     added.push(bot);
   }
@@ -168,6 +187,10 @@ export function scheduleCardBotPostAction(room, player, now = Date.now()) {
   return scheduleBotWake(room, player, now, "postAction");
 }
 
+export function scheduleCardBotWaitAction(room, player, now = Date.now()) {
+  return scheduleBotWake(room, player, now, "wait");
+}
+
 export function nudgeResponsiveCardBots(room, now = Date.now(), excludePlayerId = null) {
   const waitingIds = waitingCardBots(room).map((player) => player.id);
   const activeSeatIds = new Set(room.game.activeSeatIds || []);
@@ -179,6 +202,19 @@ export function nudgeResponsiveCardBots(room, now = Date.now(), excludePlayerId 
       return;
     }
     const scheduledAt = now + resolveCardBotDelayMs(room, "responsive", now);
+    if (!Number.isFinite(player.botNextActionAt) || player.botNextActionAt > scheduledAt) {
+      player.botNextActionAt = scheduledAt;
+    }
+  });
+}
+
+export function nudgeMarketResponsiveCardBots(room, now = Date.now(), excludePlayerId = null) {
+  const activeSeatIds = new Set(room.game.activeSeatIds || []);
+  room.players.forEach((player) => {
+    if (!player.isBot || player.pendingRemoval || player.id === excludePlayerId || !activeSeatIds.has(player.id)) {
+      return;
+    }
+    const scheduledAt = now + resolveCardBotDelayMs(room, "marketResponse", now);
     if (!Number.isFinite(player.botNextActionAt) || player.botNextActionAt > scheduledAt) {
       player.botNextActionAt = scheduledAt;
     }

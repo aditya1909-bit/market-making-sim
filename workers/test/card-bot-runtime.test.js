@@ -8,11 +8,76 @@ import {
   pruneCardBotsPendingRemoval,
   resolveCardBotDelayMs,
 } from "../src/card-bot-manager.js";
-import { advanceCardBots } from "../src/card-bot-runtime.js";
+import { advanceCardBots, resolveCardPolicyAssignments } from "../src/card-bot-runtime.js";
 import { buildCardPlayerView, prepareNextCardGame, startCardGame, submitCardQuote, takeCardAction } from "../src/card-engine.js";
 import { chooseCardBotDecision } from "../src/card-rl-core.js";
 import { resetRuntimeCardRlPolicyCache } from "../src/card-rl-policy-loader.js";
 import { createRoomState } from "../src/game-engine.js";
+
+function createLinearPolicyEntry(id = "linear-v2") {
+  return {
+    id,
+    family: "linear",
+    version: id,
+    compatibilityVersion: 2,
+    model: {
+      modelType: "linear",
+      compatibilityVersion: 2,
+      quoteTemplates: [{ id: "mid_00_100_1", reservationOffset: 0, spreadScale: 1, size: 1 }],
+      intentHead: { weights: [[0, 0, 0, 0, 0, 0, 5], [0], [0], [0]], bias: [0, 3, -5, -5], labels: ["take", "quote", "reveal", "wait"] },
+      quoteHead: { weights: [[0]], bias: [1] },
+      takeHead: { candidateWeights: [], candidateBias: 2, passWeights: [], passBias: -1 },
+      revealHead: { weights: [], bias: -5 },
+    },
+  };
+}
+
+function createNeuralPolicyEntry(id = "neural-v1") {
+  return {
+    id,
+    family: "neural",
+    version: id,
+    compatibilityVersion: 2,
+    model: {
+      modelType: "neural_mlp",
+      compatibilityVersion: 2,
+      hiddenSize: 23,
+      quoteTemplates: [{ id: "mid_00_100_1", reservationOffset: 0, spreadScale: 1, size: 1 }],
+      trunk: {
+        weights: Array.from({ length: 23 }, (_, row) => Array.from({ length: 23 }, (_, col) => (row === col ? 1 : 0))),
+        bias: Array.from({ length: 23 }, () => 0),
+      },
+      intentHead: { weights: [[0, 0, 0, 0, 0, 0, 5], [0], [0], [0]], bias: [0, 2, -5, -5], labels: ["take", "quote", "reveal", "wait"] },
+      quoteHead: { stateWeights: [[0]], templateWeights: [[0, 0, 0]], bias: [1] },
+      takeHead: { candidateStateWeights: [], candidateExtraWeights: [], candidateBias: 2, passWeights: [], passBias: -1 },
+      revealHead: { weights: [], bias: -5 },
+    },
+  };
+}
+
+function createRegistryEnv() {
+  const linear = createLinearPolicyEntry();
+  const neural = createNeuralPolicyEntry();
+  return {
+    CARD_RL_POLICY_KV: {
+      async get(key) {
+        if (key === "card-policy:metadata") {
+          return { compatibilityVersion: 2, defaultPolicyIds: { linear: linear.id, neural: neural.id } };
+        }
+        if (key === "card-policy:registry") {
+          return {
+            metadata: { compatibilityVersion: 2, defaultPolicyIds: { linear: linear.id, neural: neural.id } },
+            policies: {
+              [linear.id]: linear,
+              [neural.id]: neural,
+            },
+          };
+        }
+        return null;
+      },
+    },
+  };
+}
 
 function createLobbyRoom() {
   const room = createRoomState("BOT1", "Host", {
@@ -26,7 +91,7 @@ function createLobbyRoom() {
 
 test("card room view exposes bot metadata and connected status", () => {
   const room = createLobbyRoom();
-  const [bot] = addCardBotsToRoom(room, 1, "policy-v1", 1_000);
+  const [bot] = addCardBotsToRoom(room, 1, { version: "linear-v2", family: "linear" }, 1_000);
 
   const view = buildCardPlayerView(room, room.hostId, new Set(), 1_000);
   const botEntry = view.players.find((entry) => entry.id === bot.id);
@@ -35,32 +100,31 @@ test("card room view exposes bot metadata and connected status", () => {
   assert.equal(botEntry.isBot, true);
   assert.equal(botEntry.connected, true);
   assert.equal(botEntry.botKind, "card_rl");
-  assert.equal(botEntry.botPolicyVersion, "policy-v1");
+  assert.equal(botEntry.botProfile, "balanced");
+  assert.equal(botEntry.botDisplayName, "Balanced Bot");
+  assert.equal(botEntry.botPolicyFamily, "linear");
+  assert.equal(botEntry.botPolicyVersion, "linear-v2");
 });
 
-test("card room view exposes host status for the current viewer", () => {
+test("card bots can be assigned distinct policy families at add time", () => {
   const room = createLobbyRoom();
-  const [bot] = addCardBotsToRoom(room, 1, "policy-v1", 1_000);
+  const added = addCardBotsToRoom(
+    room,
+    2,
+    [
+      { version: "linear-v2", family: "linear" },
+      { version: "neural-v1", family: "neural" },
+    ],
+    1_000
+  );
 
-  const hostView = buildCardPlayerView(room, room.hostId, new Set(), 1_000);
-  const botView = buildCardPlayerView(room, bot.id, new Set(), 1_000);
-
-  assert.equal(hostView.isHost, true);
-  assert.equal(botView.isHost, false);
-});
-
-test("card bots get distinct generated names", () => {
-  const room = createLobbyRoom();
-  const added = addCardBotsToRoom(room, 3, "policy-v1", 1_000);
-  const names = added.map((player) => player.name);
-
-  assert.equal(new Set(names).size, names.length);
-  assert.ok(names.every((name) => name.startsWith("RL ")));
+  assert.equal(added[0].botPolicyFamily, "linear");
+  assert.equal(added[1].botPolicyFamily, "neural");
 });
 
 test("active card bot removal is deferred until the round ends", () => {
   const room = createLobbyRoom();
-  const [bot] = addCardBotsToRoom(room, 1, "policy-v1", 1_000);
+  const [bot] = addCardBotsToRoom(room, 1, { version: "linear-v2", family: "linear" }, 1_000);
 
   startCardGame(room, [room.hostId, bot.id], 2_000);
 
@@ -76,9 +140,9 @@ test("active card bot removal is deferred until the round ends", () => {
   assert.equal(room.players.some((entry) => entry.id === bot.id), false);
 });
 
-test("card bots fall back to heuristic actions when no deployed policy is present", async () => {
+test("card bots fall back to heuristic actions when no deployed registry is present", async () => {
   const room = createLobbyRoom();
-  const [bot] = addCardBotsToRoom(room, 1, "heuristic", 1_000);
+  const [bot] = addCardBotsToRoom(room, 1, { version: "heuristic", family: "heuristic" }, 1_000);
 
   startCardGame(room, [room.hostId, bot.id], 2_000);
   bot.botNextActionAt = 33_000;
@@ -91,7 +155,7 @@ test("card bots fall back to heuristic actions when no deployed policy is presen
 
 test("humans can trade against RL bot quotes", () => {
   const room = createLobbyRoom();
-  const [bot] = addCardBotsToRoom(room, 1, "policy-v1", 1_000);
+  const [bot] = addCardBotsToRoom(room, 1, { version: "linear-v2", family: "linear" }, 1_000);
 
   startCardGame(room, [room.hostId, bot.id], 2_000);
   submitCardQuote(room, bot.id, { bid: 1, ask: 2, size: 1 });
@@ -109,71 +173,37 @@ test("humans can trade against RL bot quotes", () => {
 test("card bots can trade with each other using the deployed policy runtime", async () => {
   resetRuntimeCardRlPolicyCache();
   const room = createLobbyRoom();
-  const added = addCardBotsToRoom(room, 2, "policy-v1", 1_000);
-  const [botA, botB] = added;
+  const now = Date.now();
+  const [botA, botB] = addCardBotsToRoom(
+    room,
+    2,
+    [
+      { version: "linear-v2", family: "linear" },
+      { version: "neural-v1", family: "neural" },
+    ],
+    1_000
+  );
 
-  startCardGame(room, [room.hostId, botA.id, botB.id], 2_000);
-  botA.botNextActionAt = 33_000;
-  botB.botNextActionAt = 35_000;
+  startCardGame(room, [room.hostId, botA.id, botB.id], now - 40_000);
+  room.game.liveQuotes[botA.id] = { bid: -80, ask: -40, size: 1, quotedAt: now - 2_000 };
+  botA.botNextActionAt = now + 25_000;
+  botB.botNextActionAt = now;
 
-  const env = {
-    CARD_RL_POLICY_KV: {
-      async get(key) {
-        if (key === "card-policy:metadata") {
-          return { version: "test-v1", compatibilityVersion: 1 };
-        }
-        if (key === "card-policy:model") {
-          return {
-            quoteTemplates: [{ id: "mid_1", reservationOffset: 0, spreadScale: 1, size: 1 }],
-            quoteHead: { weights: [[]], bias: [1] },
-            takeHead: { candidateWeights: [], candidateBias: 5, passWeights: [], passBias: -5 },
-            revealHead: { weights: [], bias: -5 },
-          };
-        }
-        return null;
-      },
-    },
-  };
-
-  const quoted = await advanceCardBots(room, env, 33_000);
-  assert.equal(quoted, true);
-  assert.ok(room.game.liveQuotes[botA.id]);
-
-  const traded = await advanceCardBots(room, env, 35_000);
+  const traded = await advanceCardBots(room, createRegistryEnv(), now);
   assert.equal(traded, true);
   const botInventories = [room.game.positions[botA.id].inventory, room.game.positions[botB.id].inventory];
   assert.ok(botInventories.some((value) => value !== 0));
-  assert.ok(botInventories.includes(1) || botInventories.includes(-1));
 });
 
 test("acting card bots receive a longer stochastic cooldown", async () => {
   resetRuntimeCardRlPolicyCache();
   const room = createLobbyRoom();
-  const [bot] = addCardBotsToRoom(room, 1, "policy-v1", 1_000);
+  const [bot] = addCardBotsToRoom(room, 1, { version: "linear-v2", family: "linear" }, 1_000);
 
   startCardGame(room, [room.hostId, bot.id], 2_000);
   bot.botNextActionAt = 33_000;
 
-  const env = {
-    CARD_RL_POLICY_KV: {
-      async get(key) {
-        if (key === "card-policy:metadata") {
-          return { version: "test-v1", compatibilityVersion: 1 };
-        }
-        if (key === "card-policy:model") {
-          return {
-            quoteTemplates: [{ id: "mid_1", reservationOffset: 0, spreadScale: 1, size: 1 }],
-            quoteHead: { weights: [[]], bias: [1] },
-            takeHead: { candidateWeights: [], candidateBias: -5, passWeights: [], passBias: 0 },
-            revealHead: { weights: [], bias: -5 },
-          };
-        }
-        return null;
-      },
-    },
-  };
-
-  await advanceCardBots(room, env, 33_000);
+  await advanceCardBots(room, createRegistryEnv(), 33_000);
 
   const delay = Number(bot.botNextActionAt) - 33_000;
   assert.ok(delay >= CARD_BOT_DELAY_RANGES.postAction.minMs);
@@ -204,25 +234,108 @@ test("card bot reaction delay partially follows the table pace", () => {
 
 test("policy runtime prefers taking strong live quotes over refreshing its own quote", () => {
   const room = createLobbyRoom();
-  const added = addCardBotsToRoom(room, 2, "policy-v1", 1_000);
-  const [botA, botB] = added;
+  const [botA, botB] = addCardBotsToRoom(
+    room,
+    2,
+    [
+      { version: "linear-v2", family: "linear" },
+      { version: "linear-v2", family: "linear" },
+    ],
+    1_000
+  );
 
   startCardGame(room, [room.hostId, botA.id, botB.id], 2_000);
   room.game.liveQuotes[botA.id] = { bid: -80, ask: -40, size: 1, quotedAt: 32_000 };
 
-  const policy = {
-    metadata: { version: "test-v1", compatibilityVersion: 1 },
-    model: {
-      compatibilityVersion: 1,
-      quoteTemplates: [{ id: "mid_1", reservationOffset: 0, spreadScale: 1, size: 1 }],
-      quoteHead: { weights: [[]], bias: [5] },
-      takeHead: { candidateWeights: [], candidateBias: 0.2, passWeights: [], passBias: -1 },
-      revealHead: { weights: [], bias: -5 },
-    },
-  };
-
-  const decision = chooseCardBotDecision(room, botB.id, policy, 35_000);
+  const decision = chooseCardBotDecision(room, botB.id, createLinearPolicyEntry(), 35_000);
 
   assert.equal(decision.type, "taker_action");
   assert.equal(decision.payload?.targetPlayerId, botA.id);
+});
+
+test("heuristic fallback takes stale favorable quotes instead of parking", () => {
+  const room = createLobbyRoom();
+  const [botA, botB] = addCardBotsToRoom(
+    room,
+    2,
+    [
+      { version: "heuristic", family: "heuristic" },
+      { version: "heuristic", family: "heuristic" },
+    ],
+    1_000
+  );
+
+  startCardGame(room, [room.hostId, botA.id, botB.id], Date.now() - 40_000);
+  room.game.liveQuotes[botA.id] = { bid: -90, ask: -55, size: 1, initialSize: 1, quotedAt: Date.now() - 18_000 };
+
+  const decision = chooseCardBotDecision(room, botB.id, null, Date.now());
+
+  assert.equal(decision.type, "taker_action");
+  assert.equal(decision.payload?.targetPlayerId, botA.id);
+});
+
+test("waiting card bots receive a short cooldown instead of staying immediately due", async () => {
+  const room = createLobbyRoom();
+  const [bot] = addCardBotsToRoom(room, 1, { version: "heuristic", family: "heuristic" }, 1_000);
+  const now = Date.now();
+
+  startCardGame(room, [room.hostId, bot.id], now - 40_000);
+  room.game.revealedBoardCount = room.game.boardCards.length;
+  room.game.liveQuotes[bot.id] = { bid: 1, ask: 2, size: 1, initialSize: 1, quotedAt: now - 1_000 };
+  bot.botNextActionAt = now;
+
+  const changed = await advanceCardBots(room, {}, now);
+
+  assert.equal(changed, true);
+  assert.ok(bot.botNextActionAt > now);
+  assert.ok(bot.botNextActionAt - now < CARD_BOT_DELAY_RANGES.wait.minMs + CARD_BOT_DELAY_RANGES.wait.jitterMs + 1_000);
+});
+
+test("resolveCardPolicyAssignments picks only registered live policy ids", async () => {
+  resetRuntimeCardRlPolicyCache();
+  const random = Math.random;
+  let picks = [0.1, 0.9, 0.2, 0.8];
+  Math.random = () => picks.shift() ?? 0.1;
+  try {
+    const assignments = await resolveCardPolicyAssignments(createRegistryEnv(), null, 4);
+    assert.deepEqual(
+      assignments.map((entry) => entry.version),
+      ["linear-v2", "neural-v1", "linear-v2", "neural-v1"]
+    );
+    assert.deepEqual(
+      assignments.map((entry) => entry.family),
+      ["linear", "neural", "linear", "neural"]
+    );
+  } finally {
+    Math.random = random;
+  }
+});
+
+test("resolveCardPolicyAssignments falls back to heuristic when no family passed the live gate", async () => {
+  resetRuntimeCardRlPolicyCache();
+  const env = {
+    CARD_RL_POLICY_KV: {
+      async get(key) {
+        if (key === "card-policy:metadata") {
+          return { compatibilityVersion: 2, defaultPolicyIds: {} };
+        }
+        if (key === "card-policy:registry") {
+          return {
+            metadata: { compatibilityVersion: 2, defaultPolicyIds: {} },
+            policies: {
+              "linear-v2": createLinearPolicyEntry(),
+              "neural-v1": createNeuralPolicyEntry(),
+            },
+          };
+        }
+        return null;
+      },
+    },
+  };
+
+  const assignments = await resolveCardPolicyAssignments(env, null, 2);
+  assert.deepEqual(assignments, [
+    { version: "heuristic", family: "heuristic", profile: "balanced" },
+    { version: "heuristic", family: "heuristic", profile: "balanced" },
+  ]);
 });

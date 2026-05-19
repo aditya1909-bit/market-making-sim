@@ -8,7 +8,7 @@ import {
   nudgeResponsiveCardBots,
   pruneCardBotsPendingRemoval,
 } from "./card-bot-manager.js";
-import { advanceCardBots, nextCardBotWakeAt, reseedLiveCardBots, resolveCardPolicyVersion } from "./card-bot-runtime.js";
+import { advanceCardBots, nextCardBotWakeAt, reseedLiveCardBots, resolveCardPolicyAssignments } from "./card-bot-runtime.js";
 import {
   advanceCardGameClock,
   buildCardPlayerView,
@@ -238,11 +238,12 @@ export class RoomDurableObject extends DurableObject {
     const name = validateName(body.name);
     const code = String(body.code || "").trim().toUpperCase();
     const humanRole = body.humanRole;
+    const botProfile = String(body.botProfile || "balanced").trim() || "balanced";
     if (!code) {
       throw new Error("Room code is required.");
     }
 
-    this.room = createBotRoomState(code, name, humanRole, "rl");
+    this.room = createBotRoomState(code, name, humanRole, "rl", botProfile);
     prepareNextGame(this.room, sampleContract(), { autoStart: true });
     const human = this.room.players.find((player) => !player.isBot);
     markPlayerActive(this.room, human.id);
@@ -295,8 +296,9 @@ export class RoomDurableObject extends DurableObject {
       throw new Error("Unknown host player.");
     }
 
-    const policyVersion = await resolveCardPolicyVersion(this.env, body.policyVersion || null);
-    const added = addCardBotsToRoom(this.room, body.count, policyVersion, Date.now());
+    const botProfile = String(body.botProfile || "balanced").trim() || "balanced";
+    const policyAssignments = await resolveCardPolicyAssignments(this.env, body.policyVersion || null, Number(body.count || 0), botProfile);
+    const added = addCardBotsToRoom(this.room, body.count, policyAssignments, Date.now());
     if (!added.length) {
       throw new Error("No seats available for additional card bots.");
     }
@@ -320,6 +322,9 @@ export class RoomDurableObject extends DurableObject {
         id: player.id,
         name: player.name,
         botKind: player.botKind,
+        botProfile: player.botProfile,
+        botDisplayName: player.botDisplayName,
+        botPolicyFamily: player.botPolicyFamily,
         botPolicyVersion: player.botPolicyVersion,
       })),
     });

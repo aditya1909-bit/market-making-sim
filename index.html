@@ -223,6 +223,12 @@
               <span class="mini-label">Bot count</span>
               <input id="card-bot-count" type="number" min="1" max="9" value="1" />
             </label>
+            <label class="quote-field">
+              <span class="mini-label">Bot mix</span>
+              <select id="card-bot-profile">
+                <option value="balanced" selected>Balanced</option>
+              </select>
+            </label>
           </div>
           <div class="action-row top-gap">
             <button id="add-card-bots" class="primary-button" disabled>Add Bots</button>
@@ -298,6 +304,7 @@
               <input id="size-input" type="number" min="1" max="5" step="1" value="1" />
             </label>
           </div>
+          <p id="quote-validation" class="body-copy subtle-copy">Enter a bid below ask and choose a whole-number size.</p>
           <div class="action-row top-gap">
             <button id="submit-quote" class="primary-button" disabled>Submit Quote</button>
           </div>

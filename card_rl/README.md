@@ -7,9 +7,9 @@ Local Python training package for the multi-seat `card_market` bot.
 - a seat-based card-market simulator
 - exact posterior mean / uncertainty features from private hand and revealed board
 - heuristic teacher for quote, take, and reveal decisions
-- a compact linear policy with quote, take, reveal, and value heads
+- a compact dual-family policy stack with linear and neural exports
 - behavior-cloning warm start plus lightweight PPO-style self-play fine-tuning
-- export to `workers/src/card-rl-policy-data.js` for KV upload
+- export to `workers/src/card-rl-policy-registry-data.js` for KV upload
 
 ## Train
 

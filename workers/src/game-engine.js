@@ -1,7 +1,10 @@
 import { GAME_ACTOR, GAME_ROLE, ROOM_STATUS, TAKER_ACTION } from "./protocol.js";
 
-const WIDE_SPREAD_THRESHOLD = 0.18;
-const TIGHT_SPREAD_THRESHOLD = 0.04;
+const WIDE_SPREAD_THRESHOLD = 0.15;
+const TIGHT_SPREAD_THRESHOLD = 0.035;
+const FILL_INCENTIVE_RATE = 0.0003;
+const MAKER_PASS_PENALTY_RATE = 0.0012;
+const TAKER_PASS_PENALTY_RATE = 0.00045;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -35,31 +38,29 @@ function quoteSpreadRatio(quote, contract) {
   return clamp(quoteSpread(quote) / hiddenRangeWidth(contract), 0, 2);
 }
 
-function tradeRebatesForQuote(quote, contract) {
-  const tightness = clamp(1 - quoteSpreadRatio(quote, contract) / 0.12, 0, 1);
-  const sizeWeight = clamp(Number(quote?.size || 1), 1, 4);
+function tradeIncentivesForQuote(quote, contract) {
+  const width = hiddenRangeWidth(contract);
+  const sizeWeight = clamp(Number(quote?.size || 1), 1, 5);
   return {
-    maker: round2(0.01 + 0.015 * tightness + 0.004 * sizeWeight),
-    taker: round2(0.008 + 0.012 * tightness + 0.003 * sizeWeight),
+    maker: round2(width * FILL_INCENTIVE_RATE * sizeWeight),
+    taker: round2(width * FILL_INCENTIVE_RATE * sizeWeight),
   };
 }
 
-function makerWideSpreadPenaltyForQuote(quote, contract, streak) {
+function makerWideSpreadPenaltyForQuote(quote, contract) {
   const spreadRatio = quoteSpreadRatio(quote, contract);
   if (spreadRatio < WIDE_SPREAD_THRESHOLD) {
     return 0;
   }
-  const widthWeight = 1 + Math.max(0, spreadRatio - WIDE_SPREAD_THRESHOLD) * 3;
-  return round2((0.03 + Math.max(0, streak - 1) * 0.02) * widthWeight);
+  return round2(hiddenRangeWidth(contract) * MAKER_PASS_PENALTY_RATE * clamp(Number(quote?.size || 1), 1, 5));
 }
 
-function takerTightSpreadPenaltyForQuote(quote, contract, streak) {
+function takerTightSpreadPenaltyForQuote(quote, contract) {
   const spreadRatio = quoteSpreadRatio(quote, contract);
   if (spreadRatio > TIGHT_SPREAD_THRESHOLD) {
     return 0;
   }
-  const tightnessWeight = 1 + Math.max(0, TIGHT_SPREAD_THRESHOLD - spreadRatio) * 8;
-  return round2((0.02 + Math.max(0, streak - 1) * 0.015) * tightnessWeight);
+  return round2(hiddenRangeWidth(contract) * TAKER_PASS_PENALTY_RATE * clamp(Number(quote?.size || 1), 1, 5));
 }
 
 function resetHiddenIncentiveState(game) {
@@ -91,6 +92,9 @@ export function createPlayer(name, options = {}) {
     ready: Boolean(options.ready),
     isBot: Boolean(options.isBot),
     botKind: options.botKind ? String(options.botKind) : null,
+    botProfile: options.botProfile ? String(options.botProfile) : null,
+    botDisplayName: options.botDisplayName ? String(options.botDisplayName) : null,
+    botPolicyFamily: options.botPolicyFamily ? String(options.botPolicyFamily) : null,
     botPolicyVersion: options.botPolicyVersion ? String(options.botPolicyVersion) : null,
     botNextActionAt: Number.isFinite(options.botNextActionAt) ? Number(options.botNextActionAt) : null,
     pendingRemoval: Boolean(options.pendingRemoval),
@@ -173,10 +177,16 @@ export function createMatchedRoomState(code, nameA, nameB, gameType = "hidden_va
   return room;
 }
 
-export function createBotRoomState(code, humanName, humanRole = GAME_ROLE.MAKER, strategy = "rl") {
+export function createBotRoomState(code, humanName, humanRole = GAME_ROLE.MAKER, strategy = "rl", botProfile = "balanced") {
   const room = baseRoom(code, { gameType: "hidden_value", maxPlayers: 2, roomVisibility: "private_room" });
   const human = createPlayer(humanName, { ready: true });
-  const bot = createPlayer("RL Bot", { ready: true, isBot: true });
+  const profile = String(botProfile || "balanced").trim() || "balanced";
+  const bot = createPlayer("Balanced Bot", {
+    ready: true,
+    isBot: true,
+    botProfile: profile,
+    botDisplayName: profile === "balanced" ? "Balanced Bot" : "RL Bot",
+  });
   room.players = [human, bot];
   room.hostId = human.id;
   room.matchType = "bot";
@@ -184,6 +194,7 @@ export function createBotRoomState(code, humanName, humanRole = GAME_ROLE.MAKER,
     enabled: true,
     playerId: bot.id,
     strategy,
+    profile,
     privateEstimate: null,
   };
 
@@ -463,33 +474,33 @@ export function takeAction(room, playerId, payload) {
     room.game.maker.inventory -= qty;
     room.game.taker.cash -= tradePrice * qty;
     room.game.taker.inventory += qty;
-    ({ maker: makerRebate, taker: takerRebate } = tradeRebatesForQuote(quote, room.game.contract));
+    ({ maker: makerRebate, taker: takerRebate } = tradeIncentivesForQuote(quote, room.game.contract));
     room.game.maker.cash += makerRebate;
-    room.game.taker.cash += takerRebate;
+    room.game.taker.cash -= takerRebate;
     resetHiddenIncentiveState(room.game);
-    text = `${takerName} buys ${qty} at ${tradePrice}. Maker rebate ${makerRebate}. Taker rebate ${takerRebate}.`;
+    text = `${takerName} buys ${qty} at ${tradePrice}. Maker rebate ${makerRebate}. Taker fee ${takerRebate}.`;
   } else if (action === TAKER_ACTION.SELL) {
     tradePrice = quote.bid;
     room.game.maker.cash -= tradePrice * qty;
     room.game.maker.inventory += qty;
     room.game.taker.cash += tradePrice * qty;
     room.game.taker.inventory -= qty;
-    ({ maker: makerRebate, taker: takerRebate } = tradeRebatesForQuote(quote, room.game.contract));
+    ({ maker: makerRebate, taker: takerRebate } = tradeIncentivesForQuote(quote, room.game.contract));
     room.game.maker.cash += makerRebate;
-    room.game.taker.cash += takerRebate;
+    room.game.taker.cash -= takerRebate;
     resetHiddenIncentiveState(room.game);
-    text = `${takerName} sells ${qty} at ${tradePrice}. Maker rebate ${makerRebate}. Taker rebate ${takerRebate}.`;
+    text = `${takerName} sells ${qty} at ${tradePrice}. Maker rebate ${makerRebate}. Taker fee ${takerRebate}.`;
   } else if (action === TAKER_ACTION.PASS) {
     const spreadRatio = quoteSpreadRatio(quote, room.game.contract);
     if (spreadRatio >= WIDE_SPREAD_THRESHOLD) {
       room.game.incentives.makerWideSpreadPassStreak += 1;
       room.game.incentives.takerTightSpreadPassStreak = 0;
-      makerPenalty = makerWideSpreadPenaltyForQuote(quote, room.game.contract, room.game.incentives.makerWideSpreadPassStreak);
+      makerPenalty = makerWideSpreadPenaltyForQuote(quote, room.game.contract);
       room.game.maker.cash -= makerPenalty;
     } else if (spreadRatio <= TIGHT_SPREAD_THRESHOLD) {
       room.game.incentives.takerTightSpreadPassStreak += 1;
       room.game.incentives.makerWideSpreadPassStreak = 0;
-      takerPenalty = takerTightSpreadPenaltyForQuote(quote, room.game.contract, room.game.incentives.takerTightSpreadPassStreak);
+      takerPenalty = takerTightSpreadPenaltyForQuote(quote, room.game.contract);
       room.game.taker.cash -= takerPenalty;
     } else {
       resetHiddenIncentiveState(room.game);
@@ -593,6 +604,9 @@ export function buildPlayerView(room, playerId, connectedIds = new Set()) {
       connected: entry.isBot || connectedIds.has(entry.id),
       isBot: entry.isBot,
       botKind: entry.botKind || null,
+      botProfile: entry.botProfile || null,
+      botDisplayName: entry.botDisplayName || null,
+      botPolicyFamily: entry.botPolicyFamily || null,
       botPolicyVersion: entry.botPolicyVersion || null,
       pendingRemoval: Boolean(entry.pendingRemoval),
     })),
