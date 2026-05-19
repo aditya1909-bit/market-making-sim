@@ -118,25 +118,51 @@ def _take_edge_from_choice(take: Dict) -> float:
     return max(float(buy_edge), float(sell_edge))
 
 
+def _strongest_take_payload(base: Dict) -> Dict | None:
+    best = None
+    for entry in base["quotes"]:
+        buy_edge = (base["stats"]["mean"] - float(entry["quote"]["ask"])) / base["stats"]["width"]
+        sell_edge = (float(entry["quote"]["bid"]) - base["stats"]["mean"]) / base["stats"]["width"]
+        edge = max(float(buy_edge), float(sell_edge))
+        action = "buy" if buy_edge >= sell_edge else "sell"
+        if best is None or edge > best["edge"]:
+            best = {
+                "edge": edge,
+                "payload": {
+                    "targetPlayerId": entry["target_player_id"],
+                    "action": action,
+                },
+            }
+    return best
+
+
+def _take_edge_thresholds(model_type: str, base: Dict) -> tuple[float, float]:
+    stdev = float(base["values"][1])
+    seat_ratio = float(base["values"][4])
+    reveal_progress = float(base["values"][3])
+    best_quote_age = float(base["values"][22])
+    neural_padding = 0.004 if model_type != "linear" else 0.0
+    take_floor = max(0.006, 0.009 + seat_ratio * 0.004 + stdev * 0.014 - best_quote_age * 0.014 + neural_padding)
+    strong_take_floor = max(
+        0.012,
+        0.018 + seat_ratio * 0.009 + stdev * 0.028 - reveal_progress * 0.012 - best_quote_age * 0.016 + neural_padding,
+    )
+    return take_floor, strong_take_floor
+
+
 def _stabilize_action_decision(model_type: str, base: Dict, intent_label: str, take: Dict, quote: Dict, reveal: Dict) -> tuple[str, Dict]:
     best_take_edge = max(float(base["values"][6]), float(base["values"][7]))
     selected_take_edge = _take_edge_from_choice(take)
     live_quote_count = float(base["values"][5])
     stdev = float(base["values"][1])
-    seat_ratio = float(base["values"][4])
     has_own_quote = bool(base["own_quote"])
     reveal_progress = float(base["values"][3])
-    best_quote_age = float(base["values"][22])
-    neural_padding = 0.007 if model_type != "linear" else 0.0
-    take_floor = max(0.006, 0.011 + seat_ratio * 0.012 + stdev * 0.024 - best_quote_age * 0.015 + neural_padding)
-    strong_take_floor = max(
-        0.014,
-        0.022 + seat_ratio * 0.018 + stdev * 0.04 - reveal_progress * 0.015 - best_quote_age * 0.018 + neural_padding,
-    )
+    take_floor, strong_take_floor = _take_edge_thresholds(model_type, base)
     quote_floor_when_idle = 0.28 if model_type == "linear" else 0.34
+    strongest_take = _strongest_take_payload(base)
 
-    if best_take_edge >= strong_take_floor and take["payload"]["action"] != "pass" and selected_take_edge >= take_floor:
-        return "taker_action", take["payload"]
+    if strongest_take and strongest_take["edge"] >= strong_take_floor:
+        return "taker_action", strongest_take["payload"]
 
     if intent_label == "take" and (take["payload"]["action"] == "pass" or selected_take_edge < take_floor):
         intent_label = "quote" if not has_own_quote or live_quote_count <= quote_floor_when_idle else "wait"
@@ -151,8 +177,8 @@ def _stabilize_action_decision(model_type: str, base: Dict, intent_label: str, t
     if intent_label == "wait" and not has_own_quote and live_quote_count <= quote_floor_when_idle and best_take_edge < take_floor:
         intent_label = "quote"
 
-    if intent_label in {"wait", "quote"} and best_take_edge >= take_floor and take["payload"]["action"] != "pass":
-        intent_label = "take"
+    if strongest_take and intent_label in {"wait", "quote"} and strongest_take["edge"] >= take_floor:
+        return "taker_action", strongest_take["payload"]
 
     return _decision_from_components(intent_label, take, quote, reveal)
 
@@ -274,7 +300,15 @@ class LinearCardPolicy:
         quote = self.choose_quote(state, player_id, now_step, base)
         reveal = self.choose_reveal(state, player_id, now_step, base)
         intent_label = INTENT_LABELS[int(intent["action_index"])]
-        action_type, payload = _stabilize_action_decision(self.model_type, base, intent_label, take, quote, reveal)
+        locked_role = (state.get("role_constraints") or {}).get(player_id)
+        strongest_take = _strongest_take_payload(base)
+        take_floor, strong_take_floor = _take_edge_thresholds(self.model_type, base)
+        if locked_role == "taker" and strongest_take and strongest_take["edge"] >= take_floor:
+            action_type, payload = "taker_action", strongest_take["payload"]
+        elif locked_role == "maker" and quote["payload"] is not None:
+            action_type, payload = "submit_quote", quote["payload"]
+        else:
+            action_type, payload = _stabilize_action_decision(self.model_type, base, intent_label, take, quote, reveal)
         return {
             "type": action_type,
             "payload": payload,

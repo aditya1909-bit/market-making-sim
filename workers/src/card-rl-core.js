@@ -526,14 +526,14 @@ function strongTakeThreshold(base) {
   const uncertaintyRatio = Number(base.values?.[1] || 0);
   const revealRatio = Number(base.values?.[3] || 0);
   const bestQuoteAgeRatio = base.quotes.length ? Math.max(...base.quotes.map((entry) => clamp(entry.ageMs / 25_000, 0, 2))) : 0;
-  return Math.max(0.002, 0.008 + seatRatio * 0.002 + uncertaintyRatio * 0.014 - revealRatio * 0.006 - bestQuoteAgeRatio * 0.02);
+  return Math.max(0.012, 0.018 + seatRatio * 0.009 + uncertaintyRatio * 0.028 - revealRatio * 0.012 - bestQuoteAgeRatio * 0.016);
 }
 
 function opportunisticTakeThreshold(base) {
   const seatRatio = Number(base.values?.[4] || 0);
   const uncertaintyRatio = Number(base.values?.[1] || 0);
   const bestQuoteAgeRatio = base.quotes.length ? Math.max(...base.quotes.map((entry) => clamp(entry.ageMs / 25_000, 0, 2))) : 0;
-  return Math.max(0.0, 0.003 + seatRatio * 0.001 + uncertaintyRatio * 0.008 - bestQuoteAgeRatio * 0.02);
+  return Math.max(0.006, 0.009 + seatRatio * 0.004 + uncertaintyRatio * 0.014 - bestQuoteAgeRatio * 0.014);
 }
 
 function encodeNeuralBase(model, base) {
@@ -707,8 +707,8 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
     return {
       type: "taker_action",
       payload: {
-        targetPlayerId: takeChoice.targetPlayerId,
-        action: takeChoice.action,
+        targetPlayerId: takeChoice.pass ? heuristicTake.entry.targetPlayerId : takeChoice.targetPlayerId,
+        action: takeChoice.pass ? heuristicTake.action : takeChoice.action,
       },
       debug: {
         source: "policy",
@@ -719,7 +719,7 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
     };
   }
 
-  if (intentChoice.intent === "take" && !takeChoice.pass) {
+  if (intentChoice.intent === "take" && !takeChoice.pass && preferredTakeEdge >= opportunisticTakeThreshold(base)) {
     return {
       type: "taker_action",
       payload: {
@@ -759,7 +759,7 @@ export function chooseCardBotDecision(room, playerId, policy, now = Date.now()) 
     };
   }
 
-  if (!takeChoice.pass && takeChoice.score >= quoteChoice.score + 0.02) {
+  if (!takeChoice.pass && preferredTakeEdge >= opportunisticTakeThreshold(base) && takeChoice.score >= quoteChoice.score + 0.02) {
     return {
       type: "taker_action",
       payload: {

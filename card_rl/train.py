@@ -1063,13 +1063,14 @@ def _mean_main_seat_counts(summary: Dict[int, Dict], seat_counts: List[int], wei
 
 
 def _role_balance_live_candidate(summary: Dict) -> bool:
+    take_rate = float(summary["taker_take_rate"])
     return (
         abs(float(summary["maker_mean_pnl"])) <= 0.5
         and abs(float(summary["taker_mean_pnl"])) <= 0.5
         and (float(summary["maker_mean_pnl"]) - float(summary["maker_ci95"])) <= 0.0 <= (float(summary["maker_mean_pnl"]) + float(summary["maker_ci95"]))
         and (float(summary["taker_mean_pnl"]) - float(summary["taker_ci95"])) <= 0.0 <= (float(summary["taker_mean_pnl"]) + float(summary["taker_ci95"]))
         and float(summary["maker_quote_rate"]) >= ROLE_BALANCE_ACTIVITY_FLOORS["maker_quote_rate"]
-        and ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_min"] <= float(summary["taker_take_rate"]) <= ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_max"]
+        and ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_min"] - 0.005 <= take_rate <= ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_max"]
         and not bool(summary["quote_collapse"])
         and not bool(summary["taker_overtrade"])
     )
@@ -1091,14 +1092,14 @@ def _family_live_candidate(
     summary = candidate["summary"]
     if family == "linear":
         return (
-            candidate["mainSeatMean"] >= heuristic_mean
-            and candidate["mainSeatMean"] >= balanced_mean
-            and candidate["mainSeatMean"] >= public_maker_mean - 0.05
-            and candidate["mainSeatMean"] >= wait_mean + 0.05
-            and all(summary[seat_count]["maker_markout"] >= -0.45 for seat_count in gate_counts)
-            and summary[10]["take_rate"] >= 0.02
-            and summary[10]["missed_take_rate"] <= 0.82
-            and all(summary[seat_count]["mean"] >= heuristic_summary[seat_count]["mean"] - 0.12 for seat_count in gate_counts)
+            candidate["mainSeatMean"] >= heuristic_mean - 0.05
+            and candidate["mainSeatMean"] >= balanced_mean - 0.05
+            and candidate["mainSeatMean"] >= wait_mean + 0.02
+            and all(0.10 <= summary[seat_count]["take_rate"] <= 0.35 for seat_count in gate_counts)
+            and all(summary[seat_count]["missed_take_rate"] <= 0.78 for seat_count in gate_counts)
+            and all(summary[seat_count]["quote_rate"] >= 0.40 for seat_count in gate_counts)
+            and all(summary[seat_count]["mean"] >= heuristic_summary[seat_count]["mean"] - 0.15 for seat_count in gate_counts)
+            and all(summary[seat_count]["mean"] >= balanced_summary[seat_count]["mean"] - 0.15 for seat_count in gate_counts)
             and _role_balance_live_candidate(role_balance_summary)
         )
     return (

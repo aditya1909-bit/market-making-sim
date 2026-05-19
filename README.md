@@ -31,7 +31,7 @@ Current quick benchmark artifacts are committed under `results/portfolio/`. The 
 | Hidden-value RL maker uplift | `+16,354.862` pnl/game | Learned maker improves over fallback maker on holdout. |
 | Hidden-value RL taker uplift | `+155,947.676` pnl/game | Learned taker materially reduces the fallback taker's loss profile on holdout. |
 | Card RL linear policy vs bootstrap | `+0.822` to `+21.816` pnl by seat count | Learned card policy beats bootstrap across the tested seat counts. |
-| Card RL live gate | `research benchmark` | Role-balance gate still flags low taker activity, so the balanced heuristic remains the safer live default. |
+| Card RL live gate | `research benchmark` | The latest long training pass fixed take starvation but failed maker/taker parity, so the balanced heuristic remains the safer live default. |
 
 ![Hidden-value bot uplift](docs/assets/bot-uplift.png)
 
@@ -55,7 +55,7 @@ Current quick benchmark artifacts are committed under `results/portfolio/`. The 
 
 Hidden-value mode is a compact market-making environment: one maker, one taker, a private settlement value, repeated quotes, fill/pass decisions, and final mark-to-value PnL. The live bot path uses exported policy tables with sanity checks and heuristic fallbacks.
 
-Card Market is a higher-dimensional benchmark: multiple seats, private cards, public hand state, quote/take/reveal/wait actions, inventory, markout, missed-take diagnostics, and role-balance evaluation. The learned `linear-v2` policy is useful evidence of ML iteration, but the benchmark correctly keeps it out of the live-default claim until taker activity and role parity clear the gate.
+Card Market is a higher-dimensional benchmark: multiple seats, private cards, public hand state, quote/take/reveal/wait actions, inventory, markout, missed-take diagnostics, and role-balance evaluation. The learned `linear-v2` policy is useful evidence of ML iteration, but the benchmark correctly keeps it out of the live-default claim until activity, maker toxicity, and role parity all clear the gate.
 
 The benchmark pipeline saves both raw logs and structured outputs:
 
