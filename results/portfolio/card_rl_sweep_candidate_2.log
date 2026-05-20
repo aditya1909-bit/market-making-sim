@@ -1,0 +1,123 @@
+Seed 17 | objective hybrid-as | selector pareto-live-gate | linear bc 800 | linear ppo 800 | neural off | neural bc 800 | neural ppo 800 | workers 11
+
+BC linear    [----------------------------]   1.1% 9/800 |    0.7/s | elapsed 13s | eta 19m 13s | thread workers | examples 625 | q 308 t 22 r 46
+BC linear    [----------------------------]   2.2% 18/800 |    1.3/s | elapsed 14s | eta 9m 48s | thread workers | examples 1436 | q 713 t 31 r 92
+BC linear    [----------------------------]   3.4% 27/800 |    1.9/s | elapsed 14s | eta 6m 42s | thread workers | examples 2212 | q 1080 t 108 r 136
+BC linear    [#---------------------------]   5.6% 45/800 |    3.1/s | elapsed 14s | eta 4m 0s | thread workers | examples 3931 | q 1865 t 327 r 229 
+BC linear    [#---------------------------]   6.8% 54/800 |    3.7/s | elapsed 14s | eta 3m 20s | thread workers | examples 4711 | q 2216 t 402 r 283
+BC linear    [##--------------------------]   7.9% 63/800 |    4.2/s | elapsed 15s | eta 2m 56s | thread workers | examples 5562 | q 2597 t 430 r 340
+BC linear    [##--------------------------]   9.0% 72/800 |    4.7/s | elapsed 15s | eta 2m 34s | thread workers | examples 6316 | q 2952 t 534 r 383
+BC linear    [##--------------------------]  10.1% 81/800 |    5.1/s | elapsed 16s | eta 2m 21s | thread workers | examples 7283 | q 3412 t 619 r 440
+BC linear    [###-------------------------]  11.2% 90/800 |    4.8/s | elapsed 19s | eta 2m 27s | thread workers | examples 8332 | q 3864 t 765 r 506
+BC linear    [###-------------------------]  12.4% 99/800 |    5.0/s | elapsed 20s | eta 2m 19s | thread workers | examples 9595 | q 4393 t 1109 r 560
+BC linear    [###-------------------------]  13.5% 108/800 |    4.6/s | elapsed 23s | eta 2m 29s | thread workers | examples 10184 | q 4648 t 1131 r 604
+BC linear    [####------------------------]  14.6% 117/800 |    4.5/s | elapsed 26s | eta 2m 31s | thread workers | examples 10864 | q 4933 t 1234 r 662
+BC linear    [####------------------------]  15.8% 126/800 |    4.7/s | elapsed 27s | eta 2m 25s | thread workers | examples 11719 | q 5304 t 1360 r 716
+BC linear    [####------------------------]  16.9% 135/800 |    4.9/s | elapsed 28s | eta 2m 16s | thread workers | examples 12585 | q 5753 t 1360 r 776
+BC linear    [#####-----------------------]  18.0% 144/800 |    5.0/s | elapsed 29s | eta 2m 12s | thread workers | examples 13464 | q 6119 t 1411 r 836
+BC linear    [#####-----------------------]  19.1% 153/800 |    5.2/s | elapsed 29s | eta 2m 4s | thread workers | examples 14392 | q 6559 t 1460 r 900 
+BC linear    [#####-----------------------]  20.2% 162/800 |    5.5/s | elapsed 30s | eta 1m 56s | thread workers | examples 15271 | q 7008 t 1509 r 949
+BC linear    [######----------------------]  22.5% 180/800 |    6.1/s | elapsed 30s | eta 1m 42s | thread workers | examples 17300 | q 7874 t 1688 r 1091
+BC linear    [######----------------------]  23.6% 189/800 |    6.3/s | elapsed 30s | eta 1m 37s | thread workers | examples 18175 | q 8265 t 1823 r 1137
+BC linear    [#######---------------------]  25.9% 207/800 |    4.9/s | elapsed 42s | eta 2m 1s | thread workers | examples 19857 | q 8899 t 2211 r 1227 
+BC linear    [#######---------------------]  27.0% 216/800 |    5.1/s | elapsed 42s | eta 1m 54s | thread workers | examples 20588 | q 9200 t 2303 r 1277
+BC linear    [#######---------------------]  28.1% 225/800 |    5.2/s | elapsed 44s | eta 1m 51s | thread workers | examples 21387 | q 9625 t 2321 r 1323
+BC linear    [########--------------------]  29.2% 234/800 |    5.3/s | elapsed 44s | eta 1m 46s | thread workers | examples 22232 | q 10015 t 2394 r 1378
+BC linear    [########--------------------]  30.4% 243/800 |    5.4/s | elapsed 45s | eta 1m 42s | thread workers | examples 23112 | q 10417 t 2425 r 1435
+BC linear    [########--------------------]  31.5% 252/800 |    5.6/s | elapsed 45s | eta 1m 39s | thread workers | examples 23986 | q 10797 t 2652 r 1470
+BC linear    [#########-------------------]  32.6% 261/800 |    5.7/s | elapsed 46s | eta 1m 34s | thread workers | examples 24867 | q 11196 t 2751 r 1531
+BC linear    [#########-------------------]  33.8% 270/800 |    5.9/s | elapsed 46s | eta 1m 30s | thread workers | examples 25716 | q 11535 t 2811 r 1602
+BC linear    [#########-------------------]  34.9% 279/800 |    5.9/s | elapsed 47s | eta 1m 28s | thread workers | examples 26871 | q 11962 t 3169 r 1650
+BC linear    [##########------------------]  36.0% 288/800 |    6.1/s | elapsed 48s | eta 1m 25s | thread workers | examples 27846 | q 12473 t 3214 r 1708
+BC linear    [##########------------------]  37.1% 297/800 |    6.2/s | elapsed 48s | eta 1m 22s | thread workers | examples 28888 | q 12875 t 3335 r 1774
+BC linear    [##########------------------]  38.2% 306/800 |    5.7/s | elapsed 54s | eta 1m 27s | thread workers | examples 29616 | q 13240 t 3422 r 1802
+BC linear    [###########-----------------]  39.4% 315/800 |    5.6/s | elapsed 56s | eta 1m 26s | thread workers | examples 30433 | q 13575 t 3525 r 1868
+BC linear    [###########-----------------]  40.5% 324/800 |    5.7/s | elapsed 57s | eta 1m 24s | thread workers | examples 31225 | q 13953 t 3542 r 1912
+BC linear    [###########-----------------]  41.6% 333/800 |    5.7/s | elapsed 58s | eta 1m 22s | thread workers | examples 32028 | q 14324 t 3657 r 1952
+BC linear    [###########-----------------]  42.8% 342/800 |    5.8/s | elapsed 59s | eta 1m 19s | thread workers | examples 33008 | q 14813 t 3748 r 2009
+BC linear    [############----------------]  43.9% 351/800 |    5.9/s | elapsed 59s | eta 1m 16s | thread workers | examples 33786 | q 15134 t 3874 r 2056
+BC linear    [############----------------]  45.0% 360/800 |    6.1/s | elapsed 59s | eta 1m 12s | thread workers | examples 34906 | q 15558 t 4256 r 2090
+BC linear    [#############---------------]  47.2% 378/800 |    6.3/s | elapsed 1m 0s | eta 1m 7s | thread workers | examples 36739 | q 16415 t 4402 r 2202
+BC linear    [#############---------------]  49.5% 396/800 |    6.6/s | elapsed 1m 0s | eta 1m 1s | thread workers | examples 38726 | q 17256 t 4761 r 2310
+BC linear    [##############--------------]  50.6% 405/800 |    5.7/s | elapsed 1m 11s | eta 1m 9s | thread workers | examples 39372 | q 17571 t 4852 r 2347
+BC linear    [##############--------------]  51.7% 414/800 |    5.7/s | elapsed 1m 13s | eta 1m 8s | thread workers | examples 40120 | q 17916 t 4965 r 2383
+BC linear    [##############--------------]  52.9% 423/800 |    5.7/s | elapsed 1m 14s | eta 1m 6s | thread workers | examples 40878 | q 18262 t 5034 r 2433
+BC linear    [###############-------------]  54.0% 432/800 |    5.8/s | elapsed 1m 14s | eta 1m 3s | thread workers | examples 41746 | q 18648 t 5077 r 2485
+BC linear    [###############-------------]  55.1% 441/800 |    5.9/s | elapsed 1m 14s | eta 1m 0s | thread workers | examples 42657 | q 19050 t 5174 r 2537
+BC linear    [###############-------------]  56.2% 450/800 |    6.0/s | elapsed 1m 15s | eta 58s | thread workers | examples 43535 | q 19436 t 5340 r 2584  
+BC linear    [################------------]  57.4% 459/800 |    6.0/s | elapsed 1m 16s | eta 56s | thread workers | examples 44332 | q 19805 t 5376 r 2634  
+BC linear    [################------------]  59.6% 477/800 |    6.2/s | elapsed 1m 17s | eta 52s | thread workers | examples 46262 | q 20628 t 5512 r 2763  
+BC linear    [#################-----------]  60.8% 486/800 |    6.3/s | elapsed 1m 17s | eta 50s | thread workers | examples 47350 | q 21083 t 5782 r 2806  
+BC linear    [#################-----------]  61.9% 495/800 |    6.4/s | elapsed 1m 18s | eta 48s | thread workers | examples 48313 | q 21535 t 5830 r 2868  
+BC linear    [#################-----------]  63.0% 504/800 |    5.9/s | elapsed 1m 26s | eta 51s | thread workers | examples 49060 | q 21871 t 5884 r 2926  
+BC linear    [##################----------]  65.2% 522/800 |    6.0/s | elapsed 1m 28s | eta 47s | thread workers | examples 50833 | q 22594 t 6211 r 3019  
+BC linear    [##################----------]  66.4% 531/800 |    6.0/s | elapsed 1m 28s | eta 45s | thread workers | examples 51687 | q 22960 t 6355 r 3065  
+BC linear    [##################----------]  67.5% 540/800 |    6.1/s | elapsed 1m 28s | eta 43s | thread workers | examples 52671 | q 23394 t 6491 r 3128  
+BC linear    [###################---------]  68.6% 549/800 |    6.2/s | elapsed 1m 29s | eta 41s | thread workers | examples 53669 | q 23850 t 6774 r 3157  
+BC linear    [###################---------]  69.8% 558/800 |    6.2/s | elapsed 1m 30s | eta 39s | thread workers | examples 54585 | q 24248 t 6938 r 3207  
+BC linear    [###################---------]  70.9% 567/800 |    6.3/s | elapsed 1m 30s | eta 37s | thread workers | examples 55479 | q 24622 t 6988 r 3275  
+BC linear    [####################--------]  72.0% 576/800 |    6.4/s | elapsed 1m 30s | eta 35s | thread workers | examples 56306 | q 25050 t 7037 r 3328  
+BC linear    [####################--------]  74.2% 594/800 |    6.6/s | elapsed 1m 30s | eta 31s | thread workers | examples 58243 | q 25917 t 7256 r 3440  
+BC linear    [#####################-------]  75.4% 603/800 |    5.9/s | elapsed 1m 42s | eta 33s | thread workers | examples 58919 | q 26176 t 7339 r 3501  
+BC linear    [#####################-------]  76.5% 612/800 |    6.0/s | elapsed 1m 43s | eta 32s | thread workers | examples 59808 | q 26585 t 7469 r 3546  
+BC linear    [#####################-------]  77.6% 621/800 |    6.0/s | elapsed 1m 44s | eta 30s | thread workers | examples 60578 | q 26920 t 7588 r 3592  
+BC linear    [######################------]  78.8% 630/800 |    6.0/s | elapsed 1m 45s | eta 28s | thread workers | examples 61409 | q 27275 t 7683 r 3642  
+BC linear    [######################------]  79.9% 639/800 |    6.1/s | elapsed 1m 45s | eta 27s | thread workers | examples 62267 | q 27602 t 7758 r 3708  
+BC linear    [######################------]  81.0% 648/800 |    6.1/s | elapsed 1m 46s | eta 25s | thread workers | examples 63156 | q 28000 t 7927 r 3747  
+BC linear    [#######################-----]  83.2% 666/800 |    6.3/s | elapsed 1m 46s | eta 21s | thread workers | examples 64914 | q 28772 t 8094 r 3862  
+BC linear    [#######################-----]  84.4% 675/800 |    6.3/s | elapsed 1m 47s | eta 20s | thread workers | examples 65822 | q 29200 t 8094 r 3923  
+BC linear    [########################----]  86.6% 693/800 |    6.2/s | elapsed 1m 52s | eta 17s | thread workers | examples 67956 | q 30312 t 8320 r 4025  
+BC linear    [########################----]  87.8% 702/800 |    6.1/s | elapsed 1m 56s | eta 16s | thread workers | examples 68782 | q 30675 t 8378 r 4084  
+BC linear    [########################----]  88.9% 711/800 |    6.0/s | elapsed 1m 58s | eta 15s | thread workers | examples 69728 | q 31088 t 8502 r 4144  
+BC linear    [#########################---]  90.0% 720/800 |    6.1/s | elapsed 1m 59s | eta 13s | thread workers | examples 70542 | q 31478 t 8623 r 4185  
+BC linear    [#########################---]  91.1% 729/800 |    6.1/s | elapsed 1m 59s | eta 12s | thread workers | examples 71331 | q 31878 t 8708 r 4228  
+BC linear    [#########################---]  92.2% 738/800 |    6.2/s | elapsed 2m 0s | eta 10s | thread workers | examples 72175 | q 32276 t 8711 r 4297   
+BC linear    [##########################--]  94.5% 756/800 |    6.3/s | elapsed 2m 0s | eta 7s | thread workers | examples 73948 | q 33078 t 8829 r 4425    
+BC linear    [##########################--]  95.6% 765/800 |    6.4/s | elapsed 2m 0s | eta 6s | thread workers | examples 74752 | q 33431 t 8926 r 4481    
+BC linear    [###########################-]  97.9% 783/800 |    6.5/s | elapsed 2m 1s | eta 3s | thread workers | examples 76637 | q 34166 t 9234 r 4607    
+BC linear    [############################] 100.0% 800/800 |    6.6/s | elapsed 2m 2s | thread workers | examples 78539 | q 34979 t 9459 r 4721             
+BC linear    [############################] 100.0% 800/800 |    6.6/s | elapsed 2m 2s | thread workers | examples 78539 | q 34979 t 9459 r 4721             
+
+PPO linea    [----------------------------]   0.1% 1/800 |    1.2/s | elapsed 1s | eta 11m 12s | thread workers | seats 2 | tracked 15 | cur 1 hist 0 boot 0 teach 1 base 0 heur 0 | avg reward 0.000
+PPO linea    [----------------------------]   2.9% 23/800 |   12.6/s | elapsed 2s | eta 1m 2s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 1 teach 1 base 1 heur 0 | avg reward 0.000 
+PPO linea    [#---------------------------]   5.6% 45/800 |   15.9/s | elapsed 3s | eta 47s | thread workers | seats 10 | tracked 30 | cur 2 hist 0 boot 1 teach 3 base 3 heur 1 | avg reward 0.000  
+PPO linea    [##--------------------------]   8.4% 67/800 |   18.1/s | elapsed 4s | eta 40s | thread workers | seats 10 | tracked 30 | cur 2 hist 0 boot 0 teach 3 base 4 heur 1 | avg reward 0.000  
+PPO linea    [###-------------------------]  11.1% 89/800 |   19.0/s | elapsed 5s | eta 37s | thread workers | seats 6 | tracked 15 | cur 1 hist 0 boot 1 teach 0 base 4 heur 0 | avg reward 0.000   
+PPO linea    [###-------------------------]  13.9% 111/800 |   19.4/s | elapsed 6s | eta 36s | thread workers | seats 2 | tracked 15 | cur 1 hist 0 boot 1 teach 0 base 0 heur 0 | avg reward 0.000  
+PPO linea    [####------------------------]  16.6% 133/800 |   19.8/s | elapsed 7s | eta 34s | thread workers | seats 6 | tracked 15 | cur 1 hist 0 boot 0 teach 3 base 2 heur 0 | avg reward 0.000  
+PPO linea    [#####-----------------------]  19.4% 155/800 |   20.3/s | elapsed 8s | eta 32s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 2 teach 0 base 1 heur 0 | avg reward -0.000 
+PPO linea    [######----------------------]  22.1% 177/800 |   20.3/s | elapsed 9s | eta 31s | thread workers | seats 10 | tracked 15 | cur 1 hist 0 boot 2 teach 6 base 1 heur 0 | avg reward -0.000
+PPO linea    [######----------------------]  24.9% 199/800 |   20.6/s | elapsed 10s | eta 29s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 0 teach 2 base 1 heur 0 | avg reward -0.000
+PPO linea    [#######---------------------]  27.6% 221/800 |   21.1/s | elapsed 10s | eta 27s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 0 teach 1 base 1 heur 1 | avg reward -0.000
+PPO linea    [########--------------------]  30.4% 243/800 |   21.1/s | elapsed 12s | eta 26s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 0 teach 0 base 2 heur 1 | avg reward -0.000
+PPO linea    [#########-------------------]  33.1% 265/800 |   21.3/s | elapsed 12s | eta 25s | thread workers | seats 2 | tracked 15 | cur 1 hist 0 boot 0 teach 1 base 0 heur 0 | avg reward -0.000
+PPO linea    [##########------------------]  35.9% 287/800 |   21.6/s | elapsed 13s | eta 24s | thread workers | seats 6 | tracked 15 | cur 1 hist 0 boot 0 teach 2 base 3 heur 0 | avg reward -0.000
+PPO linea    [##########------------------]  38.6% 309/800 |   21.6/s | elapsed 14s | eta 23s | thread workers | seats 8 | tracked 15 | cur 1 hist 0 boot 1 teach 3 base 3 heur 0 | avg reward -0.000
+PPO linea    [###########-----------------]  41.4% 331/800 |   21.7/s | elapsed 15s | eta 22s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 1 teach 2 base 0 heur 0 | avg reward -0.000
+PPO linea    [############----------------]  44.1% 353/800 |   22.0/s | elapsed 16s | eta 20s | thread workers | seats 8 | tracked 15 | cur 1 hist 0 boot 0 teach 2 base 4 heur 1 | avg reward -0.000
+PPO linea    [#############---------------]  46.9% 375/800 |   22.2/s | elapsed 17s | eta 19s | thread workers | seats 6 | tracked 15 | cur 1 hist 0 boot 0 teach 1 base 2 heur 2 | avg reward -0.000
+PPO linea    [#############---------------]  49.6% 397/800 |   22.1/s | elapsed 18s | eta 18s | thread workers | seats 6 | tracked 15 | cur 1 hist 0 boot 1 teach 1 base 1 heur 2 | avg reward -0.000
+PPO linea    [##############--------------]  52.4% 419/800 |   22.3/s | elapsed 19s | eta 17s | thread workers | seats 8 | tracked 15 | cur 1 hist 0 boot 0 teach 1 base 6 heur 0 | avg reward -0.000
+PPO linea    [###############-------------]  55.1% 441/800 |   22.2/s | elapsed 20s | eta 16s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 0 teach 2 base 0 heur 1 | avg reward -0.000
+PPO linea    [################------------]  57.9% 463/800 |   22.2/s | elapsed 21s | eta 15s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 1 teach 1 base 1 heur 0 | avg reward -0.000
+PPO linea    [################------------]  60.6% 485/800 |   22.4/s | elapsed 22s | eta 14s | thread workers | seats 8 | tracked 15 | cur 1 hist 0 boot 0 teach 1 base 6 heur 0 | avg reward -0.000
+PPO linea    [#################-----------]  63.4% 507/800 |   22.3/s | elapsed 23s | eta 13s | thread workers | seats 10 | tracked 15 | cur 1 hist 0 boot 1 teach 5 base 3 heur 0 | avg reward -0.000
+PPO linea    [##################----------]  66.1% 529/800 |   22.4/s | elapsed 24s | eta 12s | thread workers | seats 10 | tracked 30 | cur 2 hist 0 boot 0 teach 5 base 3 heur 0 | avg reward -0.000
+PPO linea    [###################---------]  68.9% 551/800 |   22.4/s | elapsed 25s | eta 11s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 0 teach 3 base 0 heur 0 | avg reward -0.000 
+PPO linea    [####################--------]  71.6% 573/800 |   22.6/s | elapsed 25s | eta 10s | thread workers | seats 8 | tracked 30 | cur 2 hist 0 boot 0 teach 2 base 3 heur 1 | avg reward -0.000 
+PPO linea    [####################--------]  74.4% 595/800 |   22.6/s | elapsed 26s | eta 9s | thread workers | seats 6 | tracked 15 | cur 1 hist 0 boot 0 teach 3 base 2 heur 0 | avg reward -0.000  
+PPO linea    [#####################-------]  77.1% 617/800 |   22.6/s | elapsed 27s | eta 8s | thread workers | seats 10 | tracked 30 | cur 2 hist 0 boot 0 teach 2 base 4 heur 2 | avg reward -0.000 
+PPO linea    [######################------]  79.9% 639/800 |   22.7/s | elapsed 28s | eta 7s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 0 teach 1 base 2 heur 0 | avg reward -0.000  
+PPO linea    [#######################-----]  82.6% 661/800 |   22.6/s | elapsed 29s | eta 6s | thread workers | seats 2 | tracked 15 | cur 1 hist 0 boot 0 teach 0 base 1 heur 0 | avg reward -0.000  
+PPO linea    [#######################-----]  85.4% 683/800 |   22.6/s | elapsed 30s | eta 5s | thread workers | seats 6 | tracked 15 | cur 1 hist 0 boot 0 teach 3 base 2 heur 0 | avg reward -0.000  
+PPO linea    [########################----]  88.1% 705/800 |   22.6/s | elapsed 31s | eta 4s | thread workers | seats 8 | tracked 30 | cur 2 hist 0 boot 0 teach 2 base 3 heur 1 | avg reward -0.000  
+PPO linea    [#########################---]  90.9% 727/800 |   22.6/s | elapsed 32s | eta 3s | thread workers | seats 8 | tracked 30 | cur 2 hist 0 boot 1 teach 1 base 3 heur 1 | avg reward -0.000  
+PPO linea    [##########################--]  93.6% 749/800 |   22.5/s | elapsed 33s | eta 2s | thread workers | seats 8 | tracked 30 | cur 2 hist 0 boot 0 teach 1 base 4 heur 1 | avg reward -0.000  
+PPO linea    [##########################--]  96.4% 771/800 |   22.6/s | elapsed 34s | eta 1s | thread workers | seats 6 | tracked 15 | cur 1 hist 0 boot 0 teach 4 base 1 heur 0 | avg reward -0.000  
+PPO linea    [###########################-]  99.1% 793/800 |   22.9/s | elapsed 35s | eta 0s | thread workers | seats 10 | tracked 30 | cur 2 hist 0 boot 2 teach 5 base 1 heur 0 | avg reward -0.000 
+PPO linea    [############################] 100.0% 800/800 |   23.1/s | elapsed 35s | thread workers | seats 4 | tracked 15 | cur 1 hist 0 boot 0 teach 1 base 2 heur 0 | avg reward -0.000           
+PPO linea    [############################] 100.0% 800/800 |   23.1/s | elapsed 35s | avg reward -0.000                                                                                               
+Skipping neural training; exporting bootstrap neural policy for comparison only.
+Export gate | linear live False (vs heur +1.500) | neural live False (vs heur -11.802)
+Wrote card policy registry to /var/folders/50/v8fcvn9n4mdc8cxqdywkmk880000gn/T/tmpq6tim23i/candidate-2.js
+

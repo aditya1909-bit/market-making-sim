@@ -162,10 +162,12 @@ def parse_card_eval(text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any
         r"\s+\|\s+taker vol (?P<taker_vol>[-0-9.]+)"
         r"\s+\|\s+maker mko (?P<maker_mko>[-0-9.]+)"
         r"\s+\|\s+taker mko (?P<taker_mko>[-0-9.]+)"
+        r"(?:\s+\|\s+tox (?P<tox>[-0-9.]+))?"
         r"\s+\|\s+q-disp (?P<qdisp>[-0-9.]+)"
     )
 
     for title in [
+        "linear-v3 Summary",
         "linear-v2 Summary",
         "neural-v1 Summary",
         "Bootstrap Policy",
@@ -191,6 +193,7 @@ def parse_card_eval(text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any
             )
 
     for title in [
+        "linear-v3 Behavior",
         "linear-v2 Behavior",
         "neural-v1 Behavior",
         "Bootstrap Behavior",
@@ -221,13 +224,14 @@ def parse_card_eval(text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any
                     "taker_volume_per_episode": float(row["taker_vol"]),
                     "maker_markout": float(row["maker_mko"]),
                     "taker_markout": float(row["taker_mko"]),
+                    "quote_toxicity": float(row.get("tox") or 0.0),
                     "quote_mid_dispersion": float(row["qdisp"]),
                 }
             )
 
     role = {}
     role_match = re.search(
-        r"linear-v2 Role Balance\n"
+        r"(?P<policy>linear-v[0-9]+) Role Balance\n"
         r"incentives: maker_fill (?P<maker_fill>[-0-9.]+) \| taker_fill (?P<taker_fill>[-0-9.]+)"
         r" \| wide_pass (?P<wide_pass>[-0-9.]+) \| tight_refusal (?P<tight_refusal>[-0-9.]+)\n"
         r"maker pnl (?P<maker_pnl>[-0-9.]+) \| ci95 \+/-?(?P<maker_ci95>[-0-9.]+)"
@@ -239,7 +243,7 @@ def parse_card_eval(text: str) -> tuple[list[dict[str, Any]], list[dict[str, Any
     if role_match:
         row = role_match.groupdict()
         role = {
-            "policy": "linear-v2",
+            "policy": row["policy"],
             "maker_fill_rebate": float(row["maker_fill"]),
             "taker_fill_fee": float(row["taker_fill"]),
             "wide_quote_pass_penalty": float(row["wide_pass"]),
@@ -366,7 +370,7 @@ def main() -> int:
     if card_meta.get("role_balance"):
         write_csv(output / "role_balance.csv", [card_meta["role_balance"]])
 
-    linear_rows = [row for row in card_rows if row["policy"] == "linear-v2"]
+    linear_rows = [row for row in card_rows if row["policy"] in {"linear-v2", "linear-v3"}]
     bootstrap_rows = {row["seats"]: row for row in card_rows if row["policy"] == "Bootstrap"}
     linear_vs_bootstrap = [
         {
@@ -378,12 +382,16 @@ def main() -> int:
     ]
     live_card_policy_ready = False
     role_balance = card_meta.get("role_balance") or {}
+    linear_behavior = [row for row in card_behavior_rows if row["policy"] in {"linear-v2", "linear-v3"}]
+    max_toxicity = max((float(row.get("quote_toxicity", 0.0)) for row in linear_behavior), default=0.0)
     if role_balance:
         live_card_policy_ready = bool(
             role_balance.get("maker_quote_rate", 0) >= 0.40
             and 0.10 <= role_balance.get("taker_take_rate", 0) <= 0.35
             and abs(role_balance.get("maker_pnl", 0)) <= max(0.5, role_balance.get("maker_ci95", 0))
             and abs(role_balance.get("taker_pnl", 0)) <= max(0.5, role_balance.get("taker_ci95", 0))
+            and abs(role_balance.get("parity_gap", 0)) <= 0.50
+            and max_toxicity <= 0.20
         )
 
     summary = {

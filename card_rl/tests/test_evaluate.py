@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from card_rl import evaluate
+from card_rl import evaluate, train
 
 
 class RoleBalanceEvaluationTests(unittest.TestCase):
@@ -60,6 +60,44 @@ class RoleBalanceEvaluationTests(unittest.TestCase):
         self.assertEqual(schedule["maker_fill_rebate"], -0.0005)
         self.assertEqual(summary["parity_gap"], 0.12)
         self.assertEqual(len(evaluations), 3)
+
+    def test_conservative_gate_rejects_taker_favored_maker_toxic_policy(self) -> None:
+        summary = {
+            count: {
+                "take_rate": 0.22,
+                "missed_take_rate": 0.4,
+                "quote_rate": 0.55,
+                "mean": 0.0,
+                "maker_markout": -0.9,
+                "toxic_quote_rate": 0.2,
+            }
+            for count in (4, 6, 8, 10)
+        }
+        role_balance = {
+            "maker_mean_pnl": -1.2,
+            "maker_ci95": 0.1,
+            "taker_mean_pnl": 1.2,
+            "taker_ci95": 0.1,
+            "maker_quote_rate": 0.6,
+            "taker_take_rate": 0.2,
+            "parity_gap": 1.2,
+            "quote_collapse": False,
+            "taker_overtrade": False,
+        }
+        baseline = {count: {"mean": 0.0} for count in (4, 6, 8, 10)}
+        failures = train._family_gate_failures(
+            "linear",
+            {"summary": summary, "mainSeatMean": 0.0, "roleBalance": role_balance},
+            wait_mean=-1.0,
+            balanced_mean=0.0,
+            heuristic_mean=0.0,
+            balanced_summary=baseline,
+            heuristic_summary=baseline,
+            gate_counts=[4, 6, 8, 10],
+            role_balance_summary=role_balance,
+        )
+        self.assertIn("role_parity_gap", failures)
+        self.assertIn("seat_4_maker_toxicity", failures)
 
 
 if __name__ == "__main__":

@@ -393,6 +393,87 @@ export function quoteFromTemplate(room, playerId, template, now = Date.now(), op
   };
 }
 
+function quoteToxicity(base, quote) {
+  if (!quote || quote.bid === undefined || quote.ask === undefined) {
+    return 0;
+  }
+  const width = Math.max(0.01, Number(base.stats.width || 1));
+  const fair = Number(base.stats.mean || 0);
+  const bidEdge = (Number(quote.bid) - fair) / width;
+  const askEdge = (fair - Number(quote.ask)) / width;
+  const spread = Math.max(0, Number(quote.ask) - Number(quote.bid)) / width;
+  const narrowPenalty = Math.max(0, 0.035 - spread) * 1.6;
+  return Math.max(0, bidEdge, askEdge) + narrowPenalty;
+}
+
+function quoteFromHybridAsParams(room, playerId, params, now = Date.now()) {
+  if (!params || params.noop) {
+    return null;
+  }
+  const base = baseFeatureVector(room, playerId, now);
+  if (base.ownQuote && !base.ownQuoteRefreshAllowed) {
+    return null;
+  }
+  const stats = base.publicStats;
+  const width = Math.max(0.01, Number(stats.width || 1));
+  const stdevRatio = clamp(Number(stats.stdev || 0) / width, 0, 0.45);
+  const inventory = Number(base.position.inventory || 0);
+  const seatRatio = clamp((room.game.activeSeatIds?.length || 0) / 10, 0, 1);
+  const riskAversion = clamp(Number(params.risk_aversion ?? 0.5), 0, 1);
+  const inventorySkew = clamp(Number(params.inventory_skew ?? 0.45), 0, 1.5);
+  const spreadMultiplier = clamp(Number(params.spread_multiplier ?? 1), 0.65, 2.4);
+  const quoteMode = String(params.quote_mode || "balanced");
+  const privateSkewScale = clamp(Number(params.private_skew_scale ?? 0.35), 0, 0.7);
+  const lockedRole = room.game?.roleConstraints?.[playerId] || room.game?.role_constraints?.[playerId] || null;
+  const publicFair = (() => {
+    const rangeMid = (stats.rangeLow + stats.rangeHigh) / 2;
+    const bestBid = base.quotes.length ? Math.max(...base.quotes.map((entry) => Number(entry.quote.bid))) : rangeMid;
+    const bestAsk = base.quotes.length ? Math.min(...base.quotes.map((entry) => Number(entry.quote.ask))) : rangeMid;
+    let fair = stats.mean;
+    if (base.quotes.length) {
+      fair = fair * 0.88 + ((bestBid + bestAsk) / 2) * 0.12;
+    }
+    if (base.quotes.length || Math.abs(base.lastMark - rangeMid) > 0.01) {
+      fair = fair * 0.9 + base.lastMark * 0.1;
+    }
+    return clamp(fair, stats.rangeLow, stats.rangeHigh);
+  })();
+  let privateComponent = clamp(base.stats.mean - stats.mean, -0.16 * width, 0.16 * width) * privateSkewScale;
+  const inventoryComponent = inventory * width * (0.025 + 0.08 * riskAversion) * inventorySkew;
+  let modeSkew = (quoteMode === "bid" ? -0.05 : quoteMode === "ask" ? 0.05 : 0) * width;
+  let effectiveRiskAversion = riskAversion;
+  let effectiveSpreadMultiplier = spreadMultiplier;
+  if (lockedRole === "maker") {
+    privateComponent = 0;
+    modeSkew = 0;
+    effectiveRiskAversion = Math.min(effectiveRiskAversion, 0.45);
+    effectiveSpreadMultiplier = Math.min(effectiveSpreadMultiplier, 0.95);
+  } else {
+    privateComponent *= 1 + seatRatio * 1.25;
+  }
+  const reservation = publicFair + privateComponent - inventoryComponent + modeSkew;
+  const competitionSpread = base.quotes.length ? Math.min(...base.quotes.map((entry) => Number(entry.quote.ask) - Number(entry.quote.bid))) : 0.42;
+  const baseHalfSpread = Math.max(0.18, width * (0.018 + stdevRatio * (0.55 + effectiveRiskAversion * 0.75)));
+  let halfSpread = Math.max(baseHalfSpread * effectiveSpreadMultiplier * (1 + seatRatio * 0.55), competitionSpread * 0.42);
+  if (lockedRole === "maker") {
+    halfSpread = Math.max(0.04, Math.min(halfSpread, width * 0.04));
+  }
+  if (quoteMode === "wide") {
+    halfSpread *= 1.2;
+  } else if (quoteMode === "tight") {
+    halfSpread *= 0.88;
+  }
+  let bid = clamp(round2(reservation - halfSpread), stats.rangeLow, stats.rangeHigh - 0.01);
+  let ask = clamp(round2(Math.max(reservation + halfSpread, bid + 0.01)), bid + 0.01, stats.rangeHigh);
+  const toxicity = quoteToxicity(base, { bid, ask });
+  if (toxicity > 0.12) {
+    const widen = Math.min(width * 0.1, toxicity * width * 0.45);
+    bid = clamp(round2(bid - widen), stats.rangeLow, stats.rangeHigh - 0.01);
+    ask = clamp(round2(Math.max(ask + widen, bid + 0.01)), bid + 0.01, stats.rangeHigh);
+  }
+  return { bid, ask, size: clamp(Number(params.size || 1), 1, MAX_QUOTE_SIZE) };
+}
+
 export function heuristicCardBotDecision(room, playerId, now = Date.now()) {
   if (!cardTradingOpen(room, now)) {
     return {
@@ -567,7 +648,9 @@ function chooseIntentFromModel(base, model, encoded = null) {
 function chooseQuoteFromModel(room, playerId, model, now, base = null, encoded = null) {
   const resolvedBase = base || baseFeatureVector(room, playerId, now);
   const templates = Array.isArray(model?.quoteTemplates) && model.quoteTemplates.length ? model.quoteTemplates : CARD_QUOTE_TEMPLATES;
+  const hybridParams = Array.isArray(model?.hybridAsParams) ? model.hybridAsParams : [];
   let bestTemplate = templates[0];
+  let bestIndex = 0;
   let bestScore = -Infinity;
   templates.forEach((template, index) => {
     const features = quoteTemplateFeatures(resolvedBase, template);
@@ -581,12 +664,15 @@ function chooseQuoteFromModel(room, playerId, model, now, base = null, encoded =
     if (score > bestScore) {
       bestScore = score;
       bestTemplate = template;
+      bestIndex = index;
     }
   });
+  const params = model?.modelType === "linear_hybrid_as" ? hybridParams[bestIndex] : null;
   return {
     template: bestTemplate,
+    params,
     score: bestScore,
-    payload: quoteFromTemplate(room, playerId, bestTemplate, now),
+    payload: params ? quoteFromHybridAsParams(room, playerId, params, now) : quoteFromTemplate(room, playerId, bestTemplate, now),
   };
 }
 

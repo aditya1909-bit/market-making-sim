@@ -163,7 +163,9 @@ def card_behavior(summary: dict) -> None:
         ax.axis("off")
         save(fig, "card-behavior.png")
         return
-    focus = df[df["policy"].eq("linear-v2")].sort_values("seats")
+    focus = df[df["policy"].eq("linear-v3")].sort_values("seats")
+    if focus.empty:
+        focus = df[df["policy"].eq("linear-v2")].sort_values("seats")
     bottom = np.zeros(len(focus))
     x = np.arange(len(focus))
     for label, column, color in [
@@ -254,6 +256,46 @@ def quality_panel(summary: dict) -> None:
     save(fig, "quality-gates.png")
 
 
+def card_rl_gate(summary: dict) -> None:
+    report_path = RESULTS / "card_rl_gate_report.json"
+    fig, ax = plt.subplots(figsize=(10, 5.0))
+    fig.patch.set_facecolor(COLORS["bg"])
+    if not report_path.exists():
+        ax.text(0.5, 0.5, "Run scripts/card_rl_production_sweep.py to populate card RL gate data.", ha="center", va="center")
+        ax.axis("off")
+        save(fig, "card-rl-gate.png")
+        return
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    rows = pd.DataFrame(report.get("candidates", []))
+    if rows.empty:
+        ax.text(0.5, 0.5, "No card RL candidates recorded.", ha="center", va="center")
+        ax.axis("off")
+        save(fig, "card-rl-gate.png")
+        return
+    rows["mainSeatMean"] = pd.to_numeric(rows["mainSeatMean"], errors="coerce").fillna(0.0)
+    rows["failureCount"] = rows["gateFailures"].fillna("").map(lambda value: 0 if not value else len(str(value).split("|")))
+    colors = [COLORS["green"] if bool(value) else COLORS["orange"] for value in rows["liveCandidate"]]
+    x = np.arange(len(rows))
+    bars = ax.bar(x, rows["mainSeatMean"], color=colors, width=0.55)
+    style_axis(ax)
+    ax.axhline(0, color=COLORS["line"], linewidth=1)
+    ax.set_xticks(x, [f"c{int(v)}" for v in rows["candidate"]])
+    ax.set_ylabel("Weighted main-seat PnL")
+    ax.set_title("Card RL Production Gate Sweep", loc="left", fontsize=15, color=COLORS["ink"], fontweight="bold")
+    for bar, failures in zip(bars, rows["failureCount"]):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{int(failures)} fails", ha="center", va="bottom", fontsize=9, color=COLORS["ink"])
+    best = report.get("bestEvaluation") or {}
+    ax.text(
+        0.0,
+        -0.20,
+        f"Best candidate: {report.get('bestPolicyId') or 'n/a'} | promotion: {best.get('promotionDecision', 'n/a')} | live gate: {best.get('liveCandidate', False)}.",
+        transform=ax.transAxes,
+        color=COLORS["muted"],
+        fontsize=9,
+    )
+    save(fig, "card-rl-gate.png")
+
+
 def main() -> int:
     summary = load_summary()
     architecture(summary)
@@ -261,6 +303,7 @@ def main() -> int:
     card_behavior(summary)
     role_balance(summary)
     quality_panel(summary)
+    card_rl_gate(summary)
     return 0
 
 

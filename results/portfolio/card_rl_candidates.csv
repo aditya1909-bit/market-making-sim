@@ -1,0 +1,2 @@
+candidate,policyId,liveCandidate,promotionDecision,gateFailures,mainSeatMean,vsHeuristic,roleParityGap,makerQuoteRate,takerTakeRate,maxQuoteToxicity,maxToxicQuoteRate
+1,linear-v3,True,live-default,,1.4243242424242424,1.7409563636363636,0.17620000000000005,0.672,0.11133333333333334,0.003594498371611461,0.0008707009142359599

@@ -2,8 +2,7 @@ Policy: workers/src/card-rl-policy-registry-data.js
 Workers: 1
 Eval jobs:
 Top-level jobs run sequentially; each job uses full internal parallelism.
-- linear-v2 | workers 1 | seed 17
-- neural-v1 | workers 1 | seed 148
+- linear-v3 | workers 1 | seed 17
 - Bootstrap Policy | workers 1 | seed 118
 - Neural Bootstrap Policy | workers 1 | seed 168
 - Wait Baseline | workers 1 | seed 198
@@ -11,237 +10,194 @@ Top-level jobs run sequentially; each job uses full internal parallelism.
 - Public Maker Baseline | workers 1 | seed 213
 - Heuristic | workers 1 | seed 219
 
-Eval linear  [----------------------------]   2.5% 1/40 |    3.5/s | elapsed 0s | eta 11s | seat 2 | eps 15
-Eval linear  [#---------------------------]   5.0% 2/40 |    3.6/s | elapsed 1s | eta 11s | seat 2 | eps 15
-Eval linear  [##--------------------------]   7.5% 3/40 |    3.6/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval linear  [##--------------------------]  10.0% 4/40 |    3.6/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval linear  [###-------------------------]  12.5% 5/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval linear  [----------------------------]   2.5% 1/40 |    3.6/s | elapsed 0s | eta 11s | seat 2 | eps 15
+Eval linear  [#---------------------------]   5.0% 2/40 |    3.6/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval linear  [##--------------------------]   7.5% 3/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval linear  [##--------------------------]  10.0% 4/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval linear  [###-------------------------]  12.5% 5/40 |    3.7/s | elapsed 1s | eta 9s | seat 2 | eps 15 
 Eval linear  [####------------------------]  15.0% 6/40 |    3.7/s | elapsed 2s | eta 9s | seat 2 | eps 15 
 Eval linear  [####------------------------]  17.5% 7/40 |    3.7/s | elapsed 2s | eta 9s | seat 2 | eps 15 
 Eval linear  [#####-----------------------]  20.0% 8/40 |    3.7/s | elapsed 2s | eta 9s | seat 2 | eps 15 
 Eval linear  [######----------------------]  22.5% 9/40 |    3.4/s | elapsed 3s | eta 9s | seat 4 | eps 15 
 Eval linear  [#######---------------------]  25.0% 10/40 |    3.2/s | elapsed 3s | eta 9s | seat 4 | eps 15
-Eval linear  [#######---------------------]  27.5% 11/40 |    3.1/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval linear  [########--------------------]  30.0% 12/40 |    3.0/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval linear  [#########-------------------]  32.5% 13/40 |    2.9/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval linear  [#########-------------------]  35.0% 14/40 |    2.8/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval linear  [##########------------------]  37.5% 15/40 |    2.8/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval linear  [###########-----------------]  40.0% 16/40 |    2.7/s | elapsed 6s | eta 9s | seat 4 | eps 15
-Eval linear  [###########-----------------]  42.5% 17/40 |    2.6/s | elapsed 7s | eta 9s | seat 6 | eps 15
-Eval linear  [############----------------]  45.0% 18/40 |    2.5/s | elapsed 7s | eta 9s | seat 6 | eps 15
-Eval linear  [#############---------------]  47.5% 19/40 |    2.4/s | elapsed 8s | eta 9s | seat 6 | eps 15
-Eval linear  [##############--------------]  50.0% 20/40 |    2.3/s | elapsed 9s | eta 9s | seat 6 | eps 15
-Eval linear  [##############--------------]  52.5% 21/40 |    2.3/s | elapsed 9s | eta 8s | seat 6 | eps 15
+Eval linear  [#######---------------------]  27.5% 11/40 |    3.0/s | elapsed 4s | eta 10s | seat 4 | eps 15
+Eval linear  [########--------------------]  30.0% 12/40 |    2.9/s | elapsed 4s | eta 10s | seat 4 | eps 15
+Eval linear  [#########-------------------]  32.5% 13/40 |    2.8/s | elapsed 5s | eta 10s | seat 4 | eps 15
+Eval linear  [#########-------------------]  35.0% 14/40 |    2.8/s | elapsed 5s | eta 9s | seat 4 | eps 15 
+Eval linear  [##########------------------]  37.5% 15/40 |    2.7/s | elapsed 6s | eta 9s | seat 4 | eps 15 
+Eval linear  [###########-----------------]  40.0% 16/40 |    2.7/s | elapsed 6s | eta 9s | seat 4 | eps 15 
+Eval linear  [###########-----------------]  42.5% 17/40 |    2.5/s | elapsed 7s | eta 9s | seat 6 | eps 15 
+Eval linear  [############----------------]  45.0% 18/40 |    2.4/s | elapsed 7s | eta 9s | seat 6 | eps 15 
+Eval linear  [#############---------------]  47.5% 19/40 |    2.3/s | elapsed 8s | eta 9s | seat 6 | eps 15 
+Eval linear  [##############--------------]  50.0% 20/40 |    2.3/s | elapsed 9s | eta 9s | seat 6 | eps 15 
+Eval linear  [##############--------------]  52.5% 21/40 |    2.2/s | elapsed 10s | eta 9s | seat 6 | eps 15
 Eval linear  [###############-------------]  55.0% 22/40 |    2.2/s | elapsed 10s | eta 8s | seat 6 | eps 15
-Eval linear  [################------------]  57.5% 23/40 |    2.2/s | elapsed 11s | eta 8s | seat 6 | eps 15
-Eval linear  [################------------]  60.0% 24/40 |    2.1/s | elapsed 11s | eta 8s | seat 6 | eps 15
-Eval linear  [#################-----------]  62.5% 25/40 |    2.1/s | elapsed 12s | eta 7s | seat 8 | eps 15
-Eval linear  [##################----------]  65.0% 26/40 |    2.0/s | elapsed 13s | eta 7s | seat 8 | eps 15
+Eval linear  [################------------]  57.5% 23/40 |    2.1/s | elapsed 11s | eta 8s | seat 6 | eps 15
+Eval linear  [################------------]  60.0% 24/40 |    2.1/s | elapsed 12s | eta 8s | seat 6 | eps 15
+Eval linear  [#################-----------]  62.5% 25/40 |    2.0/s | elapsed 12s | eta 7s | seat 8 | eps 15
+Eval linear  [##################----------]  65.0% 26/40 |    1.9/s | elapsed 13s | eta 7s | seat 8 | eps 15
 Eval linear  [##################----------]  67.5% 27/40 |    1.9/s | elapsed 14s | eta 7s | seat 8 | eps 15
-Eval linear  [###################---------]  70.0% 28/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
-Eval linear  [####################--------]  72.5% 29/40 |    1.9/s | elapsed 16s | eta 6s | seat 8 | eps 15
+Eval linear  [###################---------]  70.0% 28/40 |    1.8/s | elapsed 15s | eta 7s | seat 8 | eps 15
+Eval linear  [####################--------]  72.5% 29/40 |    1.8/s | elapsed 16s | eta 6s | seat 8 | eps 15
 Eval linear  [#####################-------]  75.0% 30/40 |    1.8/s | elapsed 17s | eta 6s | seat 8 | eps 15
-Eval linear  [#####################-------]  77.5% 31/40 |    1.8/s | elapsed 17s | eta 5s | seat 8 | eps 15
-Eval linear  [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 5s | seat 8 | eps 15
-Eval linear  [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 19s | eta 4s | seat 10 | eps 15
-Eval linear  [#######################-----]  85.0% 34/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
+Eval linear  [#####################-------]  77.5% 31/40 |    1.7/s | elapsed 18s | eta 5s | seat 8 | eps 15
+Eval linear  [######################------]  80.0% 32/40 |    1.7/s | elapsed 19s | eta 5s | seat 8 | eps 15
+Eval linear  [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
+Eval linear  [#######################-----]  85.0% 34/40 |    1.6/s | elapsed 21s | eta 4s | seat 10 | eps 15
 Eval linear  [########################----]  87.5% 35/40 |    1.6/s | elapsed 22s | eta 3s | seat 10 | eps 15
 Eval linear  [#########################---]  90.0% 36/40 |    1.6/s | elapsed 23s | eta 3s | seat 10 | eps 15
-Eval linear  [#########################---]  92.5% 37/40 |    1.6/s | elapsed 24s | eta 2s | seat 10 | eps 15
+Eval linear  [#########################---]  92.5% 37/40 |    1.5/s | elapsed 24s | eta 2s | seat 10 | eps 15
 Eval linear  [##########################--]  95.0% 38/40 |    1.5/s | elapsed 25s | eta 1s | seat 10 | eps 15
-Eval linear  [###########################-]  97.5% 39/40 |    1.5/s | elapsed 26s | eta 1s | seat 10 | eps 15
-Eval linear  [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | seat 10 | eps 15         
-Eval linear  [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | sequential               
-Completed linear-v2 | sequential | workers 1 | avg main pnl -1.337
+Eval linear  [###########################-]  97.5% 39/40 |    1.5/s | elapsed 27s | eta 1s | seat 10 | eps 15
+Eval linear  [############################] 100.0% 40/40 |    1.4/s | elapsed 28s | seat 10 | eps 15         
+Eval linear  [############################] 100.0% 40/40 |    1.4/s | elapsed 28s | sequential               
+Completed linear-v3 | sequential | workers 1 | avg main pnl 1.106
 
-Eval neural  [----------------------------]   2.5% 1/40 |    3.8/s | elapsed 0s | eta 10s | seat 2 | eps 15
-Eval neural  [#---------------------------]   5.0% 2/40 |    3.8/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval neural  [##--------------------------]   7.5% 3/40 |    3.8/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval neural  [##--------------------------]  10.0% 4/40 |    3.8/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval neural  [###-------------------------]  12.5% 5/40 |    3.8/s | elapsed 1s | eta 9s | seat 2 | eps 15 
-Eval neural  [####------------------------]  15.0% 6/40 |    3.8/s | elapsed 2s | eta 9s | seat 2 | eps 15 
-Eval neural  [####------------------------]  17.5% 7/40 |    3.8/s | elapsed 2s | eta 9s | seat 2 | eps 15 
-Eval neural  [#####-----------------------]  20.0% 8/40 |    3.8/s | elapsed 2s | eta 9s | seat 2 | eps 15 
-Eval neural  [######----------------------]  22.5% 9/40 |    3.5/s | elapsed 3s | eta 9s | seat 4 | eps 15 
-Eval neural  [#######---------------------]  25.0% 10/40 |    3.3/s | elapsed 3s | eta 9s | seat 4 | eps 15
-Eval neural  [#######---------------------]  27.5% 11/40 |    3.1/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval neural  [########--------------------]  30.0% 12/40 |    3.0/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval neural  [#########-------------------]  32.5% 13/40 |    2.9/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval neural  [#########-------------------]  35.0% 14/40 |    2.9/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval neural  [##########------------------]  37.5% 15/40 |    2.8/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval neural  [###########-----------------]  40.0% 16/40 |    2.8/s | elapsed 6s | eta 9s | seat 4 | eps 15
-Eval neural  [###########-----------------]  42.5% 17/40 |    2.6/s | elapsed 6s | eta 9s | seat 6 | eps 15
-Eval neural  [############----------------]  45.0% 18/40 |    2.5/s | elapsed 7s | eta 9s | seat 6 | eps 15
-Eval neural  [#############---------------]  47.5% 19/40 |    2.4/s | elapsed 8s | eta 9s | seat 6 | eps 15
-Eval neural  [##############--------------]  50.0% 20/40 |    2.4/s | elapsed 8s | eta 8s | seat 6 | eps 15
-Eval neural  [##############--------------]  52.5% 21/40 |    2.3/s | elapsed 9s | eta 8s | seat 6 | eps 15
-Eval neural  [###############-------------]  55.0% 22/40 |    2.2/s | elapsed 10s | eta 8s | seat 6 | eps 15
-Eval neural  [################------------]  57.5% 23/40 |    2.2/s | elapsed 10s | eta 8s | seat 6 | eps 15
-Eval neural  [################------------]  60.0% 24/40 |    2.2/s | elapsed 11s | eta 7s | seat 6 | eps 15
-Eval neural  [#################-----------]  62.5% 25/40 |    2.1/s | elapsed 12s | eta 7s | seat 8 | eps 15
-Eval neural  [##################----------]  65.0% 26/40 |    2.0/s | elapsed 13s | eta 7s | seat 8 | eps 15
-Eval neural  [##################----------]  67.5% 27/40 |    2.0/s | elapsed 14s | eta 7s | seat 8 | eps 15
-Eval neural  [###################---------]  70.0% 28/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
-Eval neural  [####################--------]  72.5% 29/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
-Eval neural  [#####################-------]  75.0% 30/40 |    1.8/s | elapsed 16s | eta 5s | seat 8 | eps 15
-Eval neural  [#####################-------]  77.5% 31/40 |    1.8/s | elapsed 17s | eta 5s | seat 8 | eps 15
-Eval neural  [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 4s | seat 8 | eps 15
-Eval neural  [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 19s | eta 4s | seat 10 | eps 15
-Eval neural  [#######################-----]  85.0% 34/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
-Eval neural  [########################----]  87.5% 35/40 |    1.7/s | elapsed 21s | eta 3s | seat 10 | eps 15
-Eval neural  [#########################---]  90.0% 36/40 |    1.6/s | elapsed 22s | eta 2s | seat 10 | eps 15
-Eval neural  [#########################---]  92.5% 37/40 |    1.6/s | elapsed 23s | eta 2s | seat 10 | eps 15
-Eval neural  [##########################--]  95.0% 38/40 |    1.6/s | elapsed 24s | eta 1s | seat 10 | eps 15
-Eval neural  [###########################-]  97.5% 39/40 |    1.5/s | elapsed 25s | eta 1s | seat 10 | eps 15
-Eval neural  [############################] 100.0% 40/40 |    1.5/s | elapsed 26s | seat 10 | eps 15         
-Eval neural  [############################] 100.0% 40/40 |    1.5/s | elapsed 26s | sequential               
-Completed neural-v1 | sequential | workers 1 | avg main pnl -14.034
-
-Eval boot    [----------------------------]   2.5% 1/40 |    3.8/s | elapsed 0s | eta 10s | seat 2 | eps 15
-Eval boot    [#---------------------------]   5.0% 2/40 |    3.8/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval boot    [##--------------------------]   7.5% 3/40 |    3.9/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval boot    [##--------------------------]  10.0% 4/40 |    3.9/s | elapsed 1s | eta 9s | seat 2 | eps 15 
-Eval boot    [###-------------------------]  12.5% 5/40 |    3.9/s | elapsed 1s | eta 9s | seat 2 | eps 15 
-Eval boot    [####------------------------]  15.0% 6/40 |    3.9/s | elapsed 2s | eta 9s | seat 2 | eps 15 
-Eval boot    [####------------------------]  17.5% 7/40 |    3.9/s | elapsed 2s | eta 9s | seat 2 | eps 15 
-Eval boot    [#####-----------------------]  20.0% 8/40 |    3.9/s | elapsed 2s | eta 8s | seat 2 | eps 15 
-Eval boot    [######----------------------]  22.5% 9/40 |    3.6/s | elapsed 3s | eta 9s | seat 4 | eps 15 
-Eval boot    [#######---------------------]  25.0% 10/40 |    3.4/s | elapsed 3s | eta 9s | seat 4 | eps 15
-Eval boot    [#######---------------------]  27.5% 11/40 |    3.2/s | elapsed 3s | eta 9s | seat 4 | eps 15
-Eval boot    [########--------------------]  30.0% 12/40 |    3.1/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval boot    [#########-------------------]  32.5% 13/40 |    3.0/s | elapsed 4s | eta 9s | seat 4 | eps 15
+Eval boot    [----------------------------]   2.5% 1/40 |    3.7/s | elapsed 0s | eta 11s | seat 2 | eps 15
+Eval boot    [#---------------------------]   5.0% 2/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval boot    [##--------------------------]   7.5% 3/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval boot    [##--------------------------]  10.0% 4/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval boot    [###-------------------------]  12.5% 5/40 |    3.7/s | elapsed 1s | eta 9s | seat 2 | eps 15 
+Eval boot    [####------------------------]  15.0% 6/40 |    3.7/s | elapsed 2s | eta 9s | seat 2 | eps 15 
+Eval boot    [####------------------------]  17.5% 7/40 |    3.8/s | elapsed 2s | eta 9s | seat 2 | eps 15 
+Eval boot    [#####-----------------------]  20.0% 8/40 |    3.8/s | elapsed 2s | eta 9s | seat 2 | eps 15 
+Eval boot    [######----------------------]  22.5% 9/40 |    3.5/s | elapsed 3s | eta 9s | seat 4 | eps 15 
+Eval boot    [#######---------------------]  25.0% 10/40 |    3.3/s | elapsed 3s | eta 9s | seat 4 | eps 15
+Eval boot    [#######---------------------]  27.5% 11/40 |    3.1/s | elapsed 4s | eta 9s | seat 4 | eps 15
+Eval boot    [########--------------------]  30.0% 12/40 |    3.0/s | elapsed 4s | eta 9s | seat 4 | eps 15
+Eval boot    [#########-------------------]  32.5% 13/40 |    2.9/s | elapsed 4s | eta 9s | seat 4 | eps 15
 Eval boot    [#########-------------------]  35.0% 14/40 |    2.9/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval boot    [##########------------------]  37.5% 15/40 |    2.9/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval boot    [###########-----------------]  40.0% 16/40 |    2.8/s | elapsed 6s | eta 9s | seat 4 | eps 15
-Eval boot    [###########-----------------]  42.5% 17/40 |    2.7/s | elapsed 6s | eta 9s | seat 6 | eps 15
-Eval boot    [############----------------]  45.0% 18/40 |    2.6/s | elapsed 7s | eta 9s | seat 6 | eps 15
-Eval boot    [#############---------------]  47.5% 19/40 |    2.5/s | elapsed 8s | eta 8s | seat 6 | eps 15
-Eval boot    [##############--------------]  50.0% 20/40 |    2.4/s | elapsed 8s | eta 8s | seat 6 | eps 15
-Eval boot    [##############--------------]  52.5% 21/40 |    2.4/s | elapsed 9s | eta 8s | seat 6 | eps 15
-Eval boot    [###############-------------]  55.0% 22/40 |    2.3/s | elapsed 10s | eta 8s | seat 6 | eps 15
-Eval boot    [################------------]  57.5% 23/40 |    2.2/s | elapsed 10s | eta 8s | seat 6 | eps 15
-Eval boot    [################------------]  60.0% 24/40 |    2.2/s | elapsed 11s | eta 7s | seat 6 | eps 15
+Eval boot    [##########------------------]  37.5% 15/40 |    2.8/s | elapsed 5s | eta 9s | seat 4 | eps 15
+Eval boot    [###########-----------------]  40.0% 16/40 |    2.7/s | elapsed 6s | eta 9s | seat 4 | eps 15
+Eval boot    [###########-----------------]  42.5% 17/40 |    2.6/s | elapsed 6s | eta 9s | seat 6 | eps 15
+Eval boot    [############----------------]  45.0% 18/40 |    2.5/s | elapsed 7s | eta 9s | seat 6 | eps 15
+Eval boot    [#############---------------]  47.5% 19/40 |    2.4/s | elapsed 8s | eta 9s | seat 6 | eps 15
+Eval boot    [##############--------------]  50.0% 20/40 |    2.3/s | elapsed 9s | eta 9s | seat 6 | eps 15
+Eval boot    [##############--------------]  52.5% 21/40 |    2.3/s | elapsed 9s | eta 8s | seat 6 | eps 15
+Eval boot    [###############-------------]  55.0% 22/40 |    2.2/s | elapsed 10s | eta 8s | seat 6 | eps 15
+Eval boot    [################------------]  57.5% 23/40 |    2.2/s | elapsed 11s | eta 8s | seat 6 | eps 15
+Eval boot    [################------------]  60.0% 24/40 |    2.1/s | elapsed 11s | eta 7s | seat 6 | eps 15
 Eval boot    [#################-----------]  62.5% 25/40 |    2.1/s | elapsed 12s | eta 7s | seat 8 | eps 15
-Eval boot    [##################----------]  65.0% 26/40 |    2.1/s | elapsed 13s | eta 7s | seat 8 | eps 15
-Eval boot    [##################----------]  67.5% 27/40 |    2.0/s | elapsed 13s | eta 6s | seat 8 | eps 15
-Eval boot    [###################---------]  70.0% 28/40 |    2.0/s | elapsed 14s | eta 6s | seat 8 | eps 15
-Eval boot    [####################--------]  72.5% 29/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
-Eval boot    [#####################-------]  75.0% 30/40 |    1.9/s | elapsed 16s | eta 5s | seat 8 | eps 15
+Eval boot    [##################----------]  65.0% 26/40 |    2.0/s | elapsed 13s | eta 7s | seat 8 | eps 15
+Eval boot    [##################----------]  67.5% 27/40 |    1.9/s | elapsed 14s | eta 7s | seat 8 | eps 15
+Eval boot    [###################---------]  70.0% 28/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
+Eval boot    [####################--------]  72.5% 29/40 |    1.9/s | elapsed 16s | eta 6s | seat 8 | eps 15
+Eval boot    [#####################-------]  75.0% 30/40 |    1.8/s | elapsed 16s | eta 5s | seat 8 | eps 15
 Eval boot    [#####################-------]  77.5% 31/40 |    1.8/s | elapsed 17s | eta 5s | seat 8 | eps 15
-Eval boot    [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 4s | seat 8 | eps 15
-Eval boot    [#######################-----]  82.5% 33/40 |    1.8/s | elapsed 19s | eta 4s | seat 10 | eps 15
-Eval boot    [#######################-----]  85.0% 34/40 |    1.7/s | elapsed 20s | eta 3s | seat 10 | eps 15
-Eval boot    [########################----]  87.5% 35/40 |    1.7/s | elapsed 21s | eta 3s | seat 10 | eps 15
-Eval boot    [#########################---]  90.0% 36/40 |    1.7/s | elapsed 22s | eta 2s | seat 10 | eps 15
-Eval boot    [#########################---]  92.5% 37/40 |    1.6/s | elapsed 23s | eta 2s | seat 10 | eps 15
-Eval boot    [##########################--]  95.0% 38/40 |    1.6/s | elapsed 24s | eta 1s | seat 10 | eps 15
-Eval boot    [###########################-]  97.5% 39/40 |    1.6/s | elapsed 25s | eta 1s | seat 10 | eps 15
-Eval boot    [############################] 100.0% 40/40 |    1.5/s | elapsed 26s | seat 10 | eps 15         
-Eval boot    [############################] 100.0% 40/40 |    1.5/s | elapsed 26s | sequential               
-Completed Bootstrap Policy | sequential | workers 1 | avg main pnl -12.624
+Eval boot    [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 5s | seat 8 | eps 15
+Eval boot    [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 19s | eta 4s | seat 10 | eps 15
+Eval boot    [#######################-----]  85.0% 34/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
+Eval boot    [########################----]  87.5% 35/40 |    1.6/s | elapsed 21s | eta 3s | seat 10 | eps 15
+Eval boot    [#########################---]  90.0% 36/40 |    1.6/s | elapsed 23s | eta 3s | seat 10 | eps 15
+Eval boot    [#########################---]  92.5% 37/40 |    1.6/s | elapsed 24s | eta 2s | seat 10 | eps 15
+Eval boot    [##########################--]  95.0% 38/40 |    1.5/s | elapsed 25s | eta 1s | seat 10 | eps 15
+Eval boot    [###########################-]  97.5% 39/40 |    1.5/s | elapsed 26s | eta 1s | seat 10 | eps 15
+Eval boot    [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | seat 10 | eps 15         
+Eval boot    [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | sequential               
+Completed Bootstrap Policy | sequential | workers 1 | avg main pnl -8.731
 
-Eval neur    [----------------------------]   2.5% 1/40 |    3.7/s | elapsed 0s | eta 10s | seat 2 | eps 15
-Eval neur    [#---------------------------]   5.0% 2/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval neur    [##--------------------------]   7.5% 3/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval neur    [##--------------------------]  10.0% 4/40 |    3.7/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval neur    [###-------------------------]  12.5% 5/40 |    3.7/s | elapsed 1s | eta 9s | seat 2 | eps 15 
-Eval neur    [####------------------------]  15.0% 6/40 |    3.7/s | elapsed 2s | eta 9s | seat 2 | eps 15 
-Eval neur    [####------------------------]  17.5% 7/40 |    3.7/s | elapsed 2s | eta 9s | seat 2 | eps 15 
-Eval neur    [#####-----------------------]  20.0% 8/40 |    3.7/s | elapsed 2s | eta 9s | seat 2 | eps 15 
-Eval neur    [######----------------------]  22.5% 9/40 |    3.5/s | elapsed 3s | eta 9s | seat 4 | eps 15 
-Eval neur    [#######---------------------]  25.0% 10/40 |    3.3/s | elapsed 3s | eta 9s | seat 4 | eps 15
-Eval neur    [#######---------------------]  27.5% 11/40 |    3.1/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval neur    [########--------------------]  30.0% 12/40 |    3.0/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval neur    [#########-------------------]  32.5% 13/40 |    2.9/s | elapsed 4s | eta 9s | seat 4 | eps 15
-Eval neur    [#########-------------------]  35.0% 14/40 |    2.9/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval neur    [##########------------------]  37.5% 15/40 |    2.8/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval neur    [###########-----------------]  40.0% 16/40 |    2.8/s | elapsed 6s | eta 9s | seat 4 | eps 15
-Eval neur    [###########-----------------]  42.5% 17/40 |    2.6/s | elapsed 6s | eta 9s | seat 6 | eps 15
-Eval neur    [############----------------]  45.0% 18/40 |    2.5/s | elapsed 7s | eta 9s | seat 6 | eps 15
-Eval neur    [#############---------------]  47.5% 19/40 |    2.4/s | elapsed 8s | eta 9s | seat 6 | eps 15
-Eval neur    [##############--------------]  50.0% 20/40 |    2.4/s | elapsed 8s | eta 8s | seat 6 | eps 15
-Eval neur    [##############--------------]  52.5% 21/40 |    2.3/s | elapsed 9s | eta 8s | seat 6 | eps 15
-Eval neur    [###############-------------]  55.0% 22/40 |    2.3/s | elapsed 10s | eta 8s | seat 6 | eps 15
-Eval neur    [################------------]  57.5% 23/40 |    2.2/s | elapsed 10s | eta 8s | seat 6 | eps 15
-Eval neur    [################------------]  60.0% 24/40 |    2.2/s | elapsed 11s | eta 7s | seat 6 | eps 15
-Eval neur    [#################-----------]  62.5% 25/40 |    2.1/s | elapsed 12s | eta 7s | seat 8 | eps 15
+Eval neur    [----------------------------]   2.5% 1/40 |    3.6/s | elapsed 0s | eta 11s | seat 2 | eps 15
+Eval neur    [#---------------------------]   5.0% 2/40 |    3.6/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval neur    [##--------------------------]   7.5% 3/40 |    3.6/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval neur    [##--------------------------]  10.0% 4/40 |    3.6/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval neur    [###-------------------------]  12.5% 5/40 |    3.6/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval neur    [####------------------------]  15.0% 6/40 |    3.6/s | elapsed 2s | eta 9s | seat 2 | eps 15 
+Eval neur    [####------------------------]  17.5% 7/40 |    3.6/s | elapsed 2s | eta 9s | seat 2 | eps 15 
+Eval neur    [#####-----------------------]  20.0% 8/40 |    3.6/s | elapsed 2s | eta 9s | seat 2 | eps 15 
+Eval neur    [######----------------------]  22.5% 9/40 |    3.4/s | elapsed 3s | eta 9s | seat 4 | eps 15 
+Eval neur    [#######---------------------]  25.0% 10/40 |    3.2/s | elapsed 3s | eta 9s | seat 4 | eps 15
+Eval neur    [#######---------------------]  27.5% 11/40 |    3.0/s | elapsed 4s | eta 10s | seat 4 | eps 15
+Eval neur    [########--------------------]  30.0% 12/40 |    2.9/s | elapsed 4s | eta 10s | seat 4 | eps 15
+Eval neur    [#########-------------------]  32.5% 13/40 |    2.9/s | elapsed 5s | eta 9s | seat 4 | eps 15 
+Eval neur    [#########-------------------]  35.0% 14/40 |    2.8/s | elapsed 5s | eta 9s | seat 4 | eps 15 
+Eval neur    [##########------------------]  37.5% 15/40 |    2.7/s | elapsed 5s | eta 9s | seat 4 | eps 15 
+Eval neur    [###########-----------------]  40.0% 16/40 |    2.7/s | elapsed 6s | eta 9s | seat 4 | eps 15 
+Eval neur    [###########-----------------]  42.5% 17/40 |    2.6/s | elapsed 7s | eta 9s | seat 6 | eps 15 
+Eval neur    [############----------------]  45.0% 18/40 |    2.5/s | elapsed 7s | eta 9s | seat 6 | eps 15 
+Eval neur    [#############---------------]  47.5% 19/40 |    2.4/s | elapsed 8s | eta 9s | seat 6 | eps 15 
+Eval neur    [##############--------------]  50.0% 20/40 |    2.3/s | elapsed 9s | eta 9s | seat 6 | eps 15 
+Eval neur    [##############--------------]  52.5% 21/40 |    2.3/s | elapsed 9s | eta 8s | seat 6 | eps 15 
+Eval neur    [###############-------------]  55.0% 22/40 |    2.2/s | elapsed 10s | eta 8s | seat 6 | eps 15
+Eval neur    [################------------]  57.5% 23/40 |    2.2/s | elapsed 11s | eta 8s | seat 6 | eps 15
+Eval neur    [################------------]  60.0% 24/40 |    2.1/s | elapsed 11s | eta 8s | seat 6 | eps 15
+Eval neur    [#################-----------]  62.5% 25/40 |    2.0/s | elapsed 12s | eta 7s | seat 8 | eps 15
 Eval neur    [##################----------]  65.0% 26/40 |    2.0/s | elapsed 13s | eta 7s | seat 8 | eps 15
-Eval neur    [##################----------]  67.5% 27/40 |    2.0/s | elapsed 14s | eta 7s | seat 8 | eps 15
-Eval neur    [###################---------]  70.0% 28/40 |    1.9/s | elapsed 14s | eta 6s | seat 8 | eps 15
-Eval neur    [####################--------]  72.5% 29/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
-Eval neur    [#####################-------]  75.0% 30/40 |    1.9/s | elapsed 16s | eta 5s | seat 8 | eps 15
-Eval neur    [#####################-------]  77.5% 31/40 |    1.8/s | elapsed 17s | eta 5s | seat 8 | eps 15
-Eval neur    [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 4s | seat 8 | eps 15
-Eval neur    [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 19s | eta 4s | seat 10 | eps 15
-Eval neur    [#######################-----]  85.0% 34/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
-Eval neur    [########################----]  87.5% 35/40 |    1.7/s | elapsed 21s | eta 3s | seat 10 | eps 15
-Eval neur    [#########################---]  90.0% 36/40 |    1.6/s | elapsed 22s | eta 2s | seat 10 | eps 15
-Eval neur    [#########################---]  92.5% 37/40 |    1.6/s | elapsed 23s | eta 2s | seat 10 | eps 15
-Eval neur    [##########################--]  95.0% 38/40 |    1.6/s | elapsed 24s | eta 1s | seat 10 | eps 15
-Eval neur    [###########################-]  97.5% 39/40 |    1.5/s | elapsed 25s | eta 1s | seat 10 | eps 15
-Eval neur    [############################] 100.0% 40/40 |    1.5/s | elapsed 26s | seat 10 | eps 15         
-Eval neur    [############################] 100.0% 40/40 |    1.5/s | elapsed 26s | sequential               
-Completed Neural Bootstrap Policy | sequential | workers 1 | avg main pnl -14.256
+Eval neur    [##################----------]  67.5% 27/40 |    1.9/s | elapsed 14s | eta 7s | seat 8 | eps 15
+Eval neur    [###################---------]  70.0% 28/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
+Eval neur    [####################--------]  72.5% 29/40 |    1.8/s | elapsed 16s | eta 6s | seat 8 | eps 15
+Eval neur    [#####################-------]  75.0% 30/40 |    1.8/s | elapsed 17s | eta 6s | seat 8 | eps 15
+Eval neur    [#####################-------]  77.5% 31/40 |    1.8/s | elapsed 18s | eta 5s | seat 8 | eps 15
+Eval neur    [######################------]  80.0% 32/40 |    1.7/s | elapsed 18s | eta 5s | seat 8 | eps 15
+Eval neur    [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
+Eval neur    [#######################-----]  85.0% 34/40 |    1.6/s | elapsed 21s | eta 4s | seat 10 | eps 15
+Eval neur    [########################----]  87.5% 35/40 |    1.6/s | elapsed 22s | eta 3s | seat 10 | eps 15
+Eval neur    [#########################---]  90.0% 36/40 |    1.6/s | elapsed 23s | eta 3s | seat 10 | eps 15
+Eval neur    [#########################---]  92.5% 37/40 |    1.6/s | elapsed 24s | eta 2s | seat 10 | eps 15
+Eval neur    [##########################--]  95.0% 38/40 |    1.5/s | elapsed 25s | eta 1s | seat 10 | eps 15
+Eval neur    [###########################-]  97.5% 39/40 |    1.5/s | elapsed 26s | eta 1s | seat 10 | eps 15
+Eval neur    [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | seat 10 | eps 15         
+Eval neur    [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | sequential               
+Completed Neural Bootstrap Policy | sequential | workers 1 | avg main pnl -9.244
 
 Eval wait    [----------------------------]   2.5% 1/40 |    6.5/s | elapsed 0s | eta 6s | seat 2 | eps 15
-Eval wait    [#---------------------------]   5.0% 2/40 |    6.6/s | elapsed 0s | eta 6s | seat 2 | eps 15
-Eval wait    [##--------------------------]   7.5% 3/40 |    6.6/s | elapsed 0s | eta 6s | seat 2 | eps 15
-Eval wait    [##--------------------------]  10.0% 4/40 |    6.6/s | elapsed 1s | eta 5s | seat 2 | eps 15
-Eval wait    [###-------------------------]  12.5% 5/40 |    6.6/s | elapsed 1s | eta 5s | seat 2 | eps 15
-Eval wait    [####------------------------]  15.0% 6/40 |    6.6/s | elapsed 1s | eta 5s | seat 2 | eps 15
-Eval wait    [####------------------------]  17.5% 7/40 |    6.6/s | elapsed 1s | eta 5s | seat 2 | eps 15
-Eval wait    [#####-----------------------]  20.0% 8/40 |    6.6/s | elapsed 1s | eta 5s | seat 2 | eps 15
-Eval wait    [######----------------------]  22.5% 9/40 |    5.7/s | elapsed 2s | eta 5s | seat 4 | eps 15
-Eval wait    [#######---------------------]  25.0% 10/40 |    5.2/s | elapsed 2s | eta 6s | seat 4 | eps 15
-Eval wait    [#######---------------------]  27.5% 11/40 |    4.8/s | elapsed 2s | eta 6s | seat 4 | eps 15
-Eval wait    [########--------------------]  30.0% 12/40 |    4.5/s | elapsed 3s | eta 6s | seat 4 | eps 15
-Eval wait    [#########-------------------]  32.5% 13/40 |    4.3/s | elapsed 3s | eta 6s | seat 4 | eps 15
-Eval wait    [#########-------------------]  35.0% 14/40 |    4.1/s | elapsed 3s | eta 6s | seat 4 | eps 15
-Eval wait    [##########------------------]  37.5% 15/40 |    4.0/s | elapsed 4s | eta 6s | seat 4 | eps 15
-Eval wait    [###########-----------------]  40.0% 16/40 |    3.9/s | elapsed 4s | eta 6s | seat 4 | eps 15
-Eval wait    [###########-----------------]  42.5% 17/40 |    3.6/s | elapsed 5s | eta 6s | seat 6 | eps 15
-Eval wait    [############----------------]  45.0% 18/40 |    3.4/s | elapsed 5s | eta 6s | seat 6 | eps 15
-Eval wait    [#############---------------]  47.5% 19/40 |    3.2/s | elapsed 6s | eta 6s | seat 6 | eps 15
-Eval wait    [##############--------------]  50.0% 20/40 |    3.1/s | elapsed 6s | eta 6s | seat 6 | eps 15
-Eval wait    [##############--------------]  52.5% 21/40 |    3.0/s | elapsed 7s | eta 6s | seat 6 | eps 15
-Eval wait    [###############-------------]  55.0% 22/40 |    2.9/s | elapsed 8s | eta 6s | seat 6 | eps 15
+Eval wait    [#---------------------------]   5.0% 2/40 |    6.5/s | elapsed 0s | eta 6s | seat 2 | eps 15
+Eval wait    [##--------------------------]   7.5% 3/40 |    6.5/s | elapsed 0s | eta 6s | seat 2 | eps 15
+Eval wait    [##--------------------------]  10.0% 4/40 |    6.5/s | elapsed 1s | eta 6s | seat 2 | eps 15
+Eval wait    [###-------------------------]  12.5% 5/40 |    6.5/s | elapsed 1s | eta 5s | seat 2 | eps 15
+Eval wait    [####------------------------]  15.0% 6/40 |    6.5/s | elapsed 1s | eta 5s | seat 2 | eps 15
+Eval wait    [####------------------------]  17.5% 7/40 |    6.5/s | elapsed 1s | eta 5s | seat 2 | eps 15
+Eval wait    [#####-----------------------]  20.0% 8/40 |    6.5/s | elapsed 1s | eta 5s | seat 2 | eps 15
+Eval wait    [######----------------------]  22.5% 9/40 |    5.6/s | elapsed 2s | eta 6s | seat 4 | eps 15
+Eval wait    [#######---------------------]  25.0% 10/40 |    5.1/s | elapsed 2s | eta 6s | seat 4 | eps 15
+Eval wait    [#######---------------------]  27.5% 11/40 |    4.7/s | elapsed 2s | eta 6s | seat 4 | eps 15
+Eval wait    [########--------------------]  30.0% 12/40 |    4.4/s | elapsed 3s | eta 6s | seat 4 | eps 15
+Eval wait    [#########-------------------]  32.5% 13/40 |    4.2/s | elapsed 3s | eta 6s | seat 4 | eps 15
+Eval wait    [#########-------------------]  35.0% 14/40 |    4.0/s | elapsed 3s | eta 6s | seat 4 | eps 15
+Eval wait    [##########------------------]  37.5% 15/40 |    3.9/s | elapsed 4s | eta 6s | seat 4 | eps 15
+Eval wait    [###########-----------------]  40.0% 16/40 |    3.8/s | elapsed 4s | eta 6s | seat 4 | eps 15
+Eval wait    [###########-----------------]  42.5% 17/40 |    3.5/s | elapsed 5s | eta 7s | seat 6 | eps 15
+Eval wait    [############----------------]  45.0% 18/40 |    3.3/s | elapsed 5s | eta 7s | seat 6 | eps 15
+Eval wait    [#############---------------]  47.5% 19/40 |    3.2/s | elapsed 6s | eta 7s | seat 6 | eps 15
+Eval wait    [##############--------------]  50.0% 20/40 |    3.0/s | elapsed 7s | eta 7s | seat 6 | eps 15
+Eval wait    [##############--------------]  52.5% 21/40 |    2.9/s | elapsed 7s | eta 6s | seat 6 | eps 15
+Eval wait    [###############-------------]  55.0% 22/40 |    2.8/s | elapsed 8s | eta 6s | seat 6 | eps 15
 Eval wait    [################------------]  57.5% 23/40 |    2.8/s | elapsed 8s | eta 6s | seat 6 | eps 15
 Eval wait    [################------------]  60.0% 24/40 |    2.7/s | elapsed 9s | eta 6s | seat 6 | eps 15
 Eval wait    [#################-----------]  62.5% 25/40 |    2.6/s | elapsed 10s | eta 6s | seat 8 | eps 15
 Eval wait    [##################----------]  65.0% 26/40 |    2.5/s | elapsed 10s | eta 6s | seat 8 | eps 15
 Eval wait    [##################----------]  67.5% 27/40 |    2.4/s | elapsed 11s | eta 5s | seat 8 | eps 15
-Eval wait    [###################---------]  70.0% 28/40 |    2.4/s | elapsed 12s | eta 5s | seat 8 | eps 15
+Eval wait    [###################---------]  70.0% 28/40 |    2.3/s | elapsed 12s | eta 5s | seat 8 | eps 15
 Eval wait    [####################--------]  72.5% 29/40 |    2.3/s | elapsed 13s | eta 5s | seat 8 | eps 15
 Eval wait    [#####################-------]  75.0% 30/40 |    2.2/s | elapsed 14s | eta 5s | seat 8 | eps 15
-Eval wait    [#####################-------]  77.5% 31/40 |    2.2/s | elapsed 14s | eta 4s | seat 8 | eps 15
+Eval wait    [#####################-------]  77.5% 31/40 |    2.1/s | elapsed 14s | eta 4s | seat 8 | eps 15
 Eval wait    [######################------]  80.0% 32/40 |    2.1/s | elapsed 15s | eta 4s | seat 8 | eps 15
 Eval wait    [#######################-----]  82.5% 33/40 |    2.0/s | elapsed 16s | eta 3s | seat 10 | eps 15
 Eval wait    [#######################-----]  85.0% 34/40 |    2.0/s | elapsed 17s | eta 3s | seat 10 | eps 15
 Eval wait    [########################----]  87.5% 35/40 |    1.9/s | elapsed 18s | eta 3s | seat 10 | eps 15
-Eval wait    [#########################---]  90.0% 36/40 |    1.8/s | elapsed 19s | eta 2s | seat 10 | eps 15
-Eval wait    [#########################---]  92.5% 37/40 |    1.8/s | elapsed 21s | eta 2s | seat 10 | eps 15
-Eval wait    [##########################--]  95.0% 38/40 |    1.8/s | elapsed 22s | eta 1s | seat 10 | eps 15
-Eval wait    [###########################-]  97.5% 39/40 |    1.7/s | elapsed 23s | eta 1s | seat 10 | eps 15
+Eval wait    [#########################---]  90.0% 36/40 |    1.9/s | elapsed 19s | eta 2s | seat 10 | eps 15
+Eval wait    [#########################---]  92.5% 37/40 |    1.8/s | elapsed 20s | eta 2s | seat 10 | eps 15
+Eval wait    [##########################--]  95.0% 38/40 |    1.8/s | elapsed 21s | eta 1s | seat 10 | eps 15
+Eval wait    [###########################-]  97.5% 39/40 |    1.7/s | elapsed 22s | eta 1s | seat 10 | eps 15
 Eval wait    [############################] 100.0% 40/40 |    1.7/s | elapsed 24s | seat 10 | eps 15         
 Eval wait    [############################] 100.0% 40/40 |    1.7/s | elapsed 24s | sequential               
 Completed Wait Baseline | sequential | workers 1 | avg main pnl 0.000
 
-Eval baln    [----------------------------]   2.5% 1/40 |    3.9/s | elapsed 0s | eta 10s | seat 2 | eps 15
-Eval baln    [#---------------------------]   5.0% 2/40 |    3.9/s | elapsed 1s | eta 10s | seat 2 | eps 15
-Eval baln    [##--------------------------]   7.5% 3/40 |    3.9/s | elapsed 1s | eta 9s | seat 2 | eps 15 
-Eval baln    [##--------------------------]  10.0% 4/40 |    3.9/s | elapsed 1s | eta 9s | seat 2 | eps 15 
-Eval baln    [###-------------------------]  12.5% 5/40 |    3.9/s | elapsed 1s | eta 9s | seat 2 | eps 15 
-Eval baln    [####------------------------]  15.0% 6/40 |    4.0/s | elapsed 2s | eta 9s | seat 2 | eps 15 
+Eval baln    [----------------------------]   2.5% 1/40 |    4.0/s | elapsed 0s | eta 10s | seat 2 | eps 15
+Eval baln    [#---------------------------]   5.0% 2/40 |    4.0/s | elapsed 1s | eta 10s | seat 2 | eps 15
+Eval baln    [##--------------------------]   7.5% 3/40 |    4.0/s | elapsed 1s | eta 9s | seat 2 | eps 15 
+Eval baln    [##--------------------------]  10.0% 4/40 |    4.0/s | elapsed 1s | eta 9s | seat 2 | eps 15 
+Eval baln    [###-------------------------]  12.5% 5/40 |    4.0/s | elapsed 1s | eta 9s | seat 2 | eps 15 
+Eval baln    [####------------------------]  15.0% 6/40 |    4.0/s | elapsed 1s | eta 8s | seat 2 | eps 15 
 Eval baln    [####------------------------]  17.5% 7/40 |    4.0/s | elapsed 2s | eta 8s | seat 2 | eps 15 
 Eval baln    [#####-----------------------]  20.0% 8/40 |    4.0/s | elapsed 2s | eta 8s | seat 2 | eps 15 
-Eval baln    [######----------------------]  22.5% 9/40 |    3.6/s | elapsed 2s | eta 9s | seat 4 | eps 15 
+Eval baln    [######----------------------]  22.5% 9/40 |    3.6/s | elapsed 2s | eta 8s | seat 4 | eps 15 
 Eval baln    [#######---------------------]  25.0% 10/40 |    3.4/s | elapsed 3s | eta 9s | seat 4 | eps 15
 Eval baln    [#######---------------------]  27.5% 11/40 |    3.3/s | elapsed 3s | eta 9s | seat 4 | eps 15
 Eval baln    [########--------------------]  30.0% 12/40 |    3.1/s | elapsed 4s | eta 9s | seat 4 | eps 15
 Eval baln    [#########-------------------]  32.5% 13/40 |    3.0/s | elapsed 4s | eta 9s | seat 4 | eps 15
 Eval baln    [#########-------------------]  35.0% 14/40 |    2.9/s | elapsed 5s | eta 9s | seat 4 | eps 15
 Eval baln    [##########------------------]  37.5% 15/40 |    2.9/s | elapsed 5s | eta 9s | seat 4 | eps 15
-Eval baln    [###########-----------------]  40.0% 16/40 |    2.8/s | elapsed 6s | eta 8s | seat 4 | eps 15
+Eval baln    [###########-----------------]  40.0% 16/40 |    2.8/s | elapsed 6s | eta 9s | seat 4 | eps 15
 Eval baln    [###########-----------------]  42.5% 17/40 |    2.7/s | elapsed 6s | eta 9s | seat 6 | eps 15
 Eval baln    [############----------------]  45.0% 18/40 |    2.6/s | elapsed 7s | eta 9s | seat 6 | eps 15
 Eval baln    [#############---------------]  47.5% 19/40 |    2.5/s | elapsed 8s | eta 8s | seat 6 | eps 15
@@ -253,11 +209,11 @@ Eval baln    [################------------]  60.0% 24/40 |    2.2/s | elapsed 11
 Eval baln    [#################-----------]  62.5% 25/40 |    2.1/s | elapsed 12s | eta 7s | seat 8 | eps 15
 Eval baln    [##################----------]  65.0% 26/40 |    2.0/s | elapsed 13s | eta 7s | seat 8 | eps 15
 Eval baln    [##################----------]  67.5% 27/40 |    2.0/s | elapsed 14s | eta 7s | seat 8 | eps 15
-Eval baln    [###################---------]  70.0% 28/40 |    1.9/s | elapsed 14s | eta 6s | seat 8 | eps 15
+Eval baln    [###################---------]  70.0% 28/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
 Eval baln    [####################--------]  72.5% 29/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
 Eval baln    [#####################-------]  75.0% 30/40 |    1.8/s | elapsed 16s | eta 5s | seat 8 | eps 15
 Eval baln    [#####################-------]  77.5% 31/40 |    1.8/s | elapsed 17s | eta 5s | seat 8 | eps 15
-Eval baln    [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 4s | seat 8 | eps 15
+Eval baln    [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 5s | seat 8 | eps 15
 Eval baln    [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 19s | eta 4s | seat 10 | eps 15
 Eval baln    [#######################-----]  85.0% 34/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
 Eval baln    [########################----]  87.5% 35/40 |    1.6/s | elapsed 21s | eta 3s | seat 10 | eps 15
@@ -278,8 +234,8 @@ Eval pmak    [####------------------------]  15.0% 6/40 |    4.3/s | elapsed 1s 
 Eval pmak    [####------------------------]  17.5% 7/40 |    4.3/s | elapsed 2s | eta 8s | seat 2 | eps 15
 Eval pmak    [#####-----------------------]  20.0% 8/40 |    4.3/s | elapsed 2s | eta 7s | seat 2 | eps 15
 Eval pmak    [######----------------------]  22.5% 9/40 |    3.9/s | elapsed 2s | eta 8s | seat 4 | eps 15
-Eval pmak    [#######---------------------]  25.0% 10/40 |    3.6/s | elapsed 3s | eta 8s | seat 4 | eps 15
-Eval pmak    [#######---------------------]  27.5% 11/40 |    3.4/s | elapsed 3s | eta 8s | seat 4 | eps 15
+Eval pmak    [#######---------------------]  25.0% 10/40 |    3.7/s | elapsed 3s | eta 8s | seat 4 | eps 15
+Eval pmak    [#######---------------------]  27.5% 11/40 |    3.5/s | elapsed 3s | eta 8s | seat 4 | eps 15
 Eval pmak    [########--------------------]  30.0% 12/40 |    3.3/s | elapsed 4s | eta 8s | seat 4 | eps 15
 Eval pmak    [#########-------------------]  32.5% 13/40 |    3.2/s | elapsed 4s | eta 8s | seat 4 | eps 15
 Eval pmak    [#########-------------------]  35.0% 14/40 |    3.1/s | elapsed 5s | eta 8s | seat 4 | eps 15
@@ -301,13 +257,13 @@ Eval pmak    [####################--------]  72.5% 29/40 |    1.9/s | elapsed 15
 Eval pmak    [#####################-------]  75.0% 30/40 |    1.9/s | elapsed 16s | eta 5s | seat 8 | eps 15
 Eval pmak    [#####################-------]  77.5% 31/40 |    1.8/s | elapsed 17s | eta 5s | seat 8 | eps 15
 Eval pmak    [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 4s | seat 8 | eps 15
-Eval pmak    [#######################-----]  82.5% 33/40 |    1.8/s | elapsed 19s | eta 4s | seat 10 | eps 15
+Eval pmak    [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 19s | eta 4s | seat 10 | eps 15
 Eval pmak    [#######################-----]  85.0% 34/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
 Eval pmak    [########################----]  87.5% 35/40 |    1.7/s | elapsed 21s | eta 3s | seat 10 | eps 15
 Eval pmak    [#########################---]  90.0% 36/40 |    1.6/s | elapsed 22s | eta 2s | seat 10 | eps 15
 Eval pmak    [#########################---]  92.5% 37/40 |    1.6/s | elapsed 23s | eta 2s | seat 10 | eps 15
 Eval pmak    [##########################--]  95.0% 38/40 |    1.6/s | elapsed 24s | eta 1s | seat 10 | eps 15
-Eval pmak    [###########################-]  97.5% 39/40 |    1.5/s | elapsed 25s | eta 1s | seat 10 | eps 15
+Eval pmak    [###########################-]  97.5% 39/40 |    1.5/s | elapsed 26s | eta 1s | seat 10 | eps 15
 Eval pmak    [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | seat 10 | eps 15         
 Eval pmak    [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | sequential               
 Completed Public Maker Baseline | sequential | workers 1 | avg main pnl 0.244
@@ -339,11 +295,11 @@ Eval heur    [################------------]  60.0% 24/40 |    2.2/s | elapsed 11
 Eval heur    [#################-----------]  62.5% 25/40 |    2.1/s | elapsed 12s | eta 7s | seat 8 | eps 15
 Eval heur    [##################----------]  65.0% 26/40 |    2.0/s | elapsed 13s | eta 7s | seat 8 | eps 15
 Eval heur    [##################----------]  67.5% 27/40 |    2.0/s | elapsed 14s | eta 7s | seat 8 | eps 15
-Eval heur    [###################---------]  70.0% 28/40 |    1.9/s | elapsed 14s | eta 6s | seat 8 | eps 15
+Eval heur    [###################---------]  70.0% 28/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
 Eval heur    [####################--------]  72.5% 29/40 |    1.9/s | elapsed 15s | eta 6s | seat 8 | eps 15
-Eval heur    [#####################-------]  75.0% 30/40 |    1.9/s | elapsed 16s | eta 5s | seat 8 | eps 15
+Eval heur    [#####################-------]  75.0% 30/40 |    1.8/s | elapsed 16s | eta 5s | seat 8 | eps 15
 Eval heur    [#####################-------]  77.5% 31/40 |    1.8/s | elapsed 17s | eta 5s | seat 8 | eps 15
-Eval heur    [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 4s | seat 8 | eps 15
+Eval heur    [######################------]  80.0% 32/40 |    1.8/s | elapsed 18s | eta 5s | seat 8 | eps 15
 Eval heur    [#######################-----]  82.5% 33/40 |    1.7/s | elapsed 19s | eta 4s | seat 10 | eps 15
 Eval heur    [#######################-----]  85.0% 34/40 |    1.7/s | elapsed 20s | eta 4s | seat 10 | eps 15
 Eval heur    [########################----]  87.5% 35/40 |    1.6/s | elapsed 21s | eta 3s | seat 10 | eps 15
@@ -354,92 +310,57 @@ Eval heur    [###########################-]  97.5% 39/40 |    1.5/s | elapsed 26
 Eval heur    [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | seat 10 | eps 15         
 Eval heur    [############################] 100.0% 40/40 |    1.5/s | elapsed 27s | sequential               
 Completed Heuristic | sequential | workers 1 | avg main pnl -0.120
-linear-v2: family linear (sequential, workers 1)
+linear-v3: family linear (sequential, workers 1)
 
-linear-v2 Summary
-2 seats: 0.147 pnl | ci95 +/-0.648 | stdev 3.622 | avg |inv| 1.125
-4 seats: -0.153 pnl | ci95 +/-0.887 | stdev 4.955 | avg |inv| 0.883
-6 seats: -1.435 pnl | ci95 +/-1.214 | stdev 6.785 | avg |inv| 0.942
-8 seats: -2.353 pnl | ci95 +/-1.217 | stdev 6.800 | avg |inv| 0.758
-10 seats: -2.890 pnl | ci95 +/-1.194 | stdev 6.674 | avg |inv| 0.583
+linear-v3 Summary
+2 seats: 0.308 pnl | ci95 +/-0.480 | stdev 2.683 | avg |inv| 0.858
+4 seats: 0.670 pnl | ci95 +/-0.681 | stdev 3.808 | avg |inv| 0.883
+6 seats: 0.395 pnl | ci95 +/-0.920 | stdev 5.144 | avg |inv| 1.117
+8 seats: 2.186 pnl | ci95 +/-1.260 | stdev 7.043 | avg |inv| 0.975
+10 seats: 1.971 pnl | ci95 +/-1.425 | stdev 7.965 | avg |inv| 1.083
 
-linear-v2 Behavior
-2 seats: quote  48.9% | take  28.3% | reveal  17.3% | wait   5.5% | buy  14.4% | sell  13.8% | pass   0.0% | opp  40.4% | missed  73.9% | maker vol 1.02 | taker vol 4.24 | maker mko -0.19 | taker mko 0.08 | q-disp 2.54
-4 seats: quote  55.7% | take  15.0% | reveal  13.4% | wait  15.9% | buy   8.7% | sell   6.3% | pass   0.0% | opp  27.7% | missed  71.7% | maker vol 2.92 | taker vol 2.25 | maker mko -0.37 | taker mko 0.41 | q-disp 3.54
-6 seats: quote  56.6% | take  11.1% | reveal  14.3% | wait  18.1% | buy   5.7% | sell   5.4% | pass   0.0% | opp  16.8% | missed  65.6% | maker vol 3.29 | taker vol 1.67 | maker mko -0.56 | taker mko 0.25 | q-disp 4.26
-8 seats: quote  59.7% | take  10.7% | reveal  12.6% | wait  17.1% | buy   5.3% | sell   5.4% | pass   0.0% | opp  16.2% | missed  59.5% | maker vol 3.95 | taker vol 1.61 | maker mko -0.75 | taker mko 0.38 | q-disp 5.41
-10 seats: quote  60.2% | take   7.4% | reveal  11.3% | wait  21.1% | buy   3.9% | sell   3.5% | pass   0.0% | opp  11.1% | missed  66.8% | maker vol 3.27 | taker vol 1.11 | maker mko -1.06 | taker mko 0.52 | q-disp 6.52
+linear-v3 Behavior
+2 seats: quote  50.3% | take  15.6% | reveal  16.9% | wait  17.2% | buy   8.1% | sell   7.5% | pass   0.0% | opp  37.3% | missed  79.1% | maker vol 0.17 | taker vol 2.34 | maker mko -0.03 | taker mko 0.13 | tox 0.003 | q-disp 2.47
+4 seats: quote  52.9% | take  15.6% | reveal  12.9% | wait  18.6% | buy   8.6% | sell   7.0% | pass   0.0% | opp  24.7% | missed  74.6% | maker vol 0.76 | taker vol 2.34 | maker mko 0.10 | taker mko 0.25 | tox 0.002 | q-disp 3.59
+6 seats: quote  52.9% | take  16.9% | reveal  12.1% | wait  18.1% | buy   8.8% | sell   8.2% | pass   0.0% | opp  15.3% | missed  65.9% | maker vol 0.91 | taker vol 2.54 | maker mko -0.29 | taker mko 0.26 | tox 0.003 | q-disp 4.36
+8 seats: quote  50.1% | take  17.5% | reveal  12.7% | wait  19.7% | buy   8.9% | sell   8.6% | pass   0.0% | opp  13.8% | missed  56.0% | maker vol 0.83 | taker vol 2.62 | maker mko -0.65 | taker mko 1.04 | tox 0.003 | q-disp 5.60
+10 seats: quote  51.8% | take  18.9% | reveal  10.7% | wait  18.5% | buy   9.1% | sell   9.9% | pass   0.0% | opp  11.1% | missed  60.3% | maker vol 0.91 | taker vol 2.84 | maker mko -0.86 | taker mko 0.97 | tox 0.003 | q-disp 6.94
 
-linear-v2 Alerts
+linear-v3 Alerts
 Low take-rate warning on seats: 2, 4
-Maker-toxicity warning on seats: 8, 10
-neural-v1: family neural (sequential, workers 1)
 
-neural-v1 Summary
-2 seats: -0.929 pnl | ci95 +/-0.595 | stdev 3.325 | avg |inv| 1.250
-4 seats: -6.340 pnl | ci95 +/-1.114 | stdev 6.224 | avg |inv| 1.017
-6 seats: -13.456 pnl | ci95 +/-2.502 | stdev 13.983 | avg |inv| 1.083
-8 seats: -20.727 pnl | ci95 +/-2.778 | stdev 15.525 | avg |inv| 1.283
-10 seats: -28.717 pnl | ci95 +/-3.650 | stdev 20.402 | avg |inv| 1.325
+Role-balance sweep focus: linear-v3
+  fill +0.00000 | pass +0.00000 | parity 0.441 | maker quote  66.7% | taker take  10.7% | activity ok
+  fill +0.00050 | pass +0.00000 | parity 0.408 | maker quote  66.3% | taker take   9.9% | activity fail
+  fill -0.00050 | pass +0.00000 | parity 0.423 | maker quote  66.8% | taker take   9.9% | activity fail
+  fill +0.00050 | pass +0.00075 | parity 0.298 | maker quote  67.3% | taker take  11.1% | activity ok
+  fill -0.00050 | pass +0.00075 | parity 0.010 | maker quote  66.8% | taker take   9.1% | activity fail
+  fill +0.00100 | pass +0.00000 | parity 0.092 | maker quote  67.2% | taker take  11.3% | activity ok
+  fill -0.00100 | pass +0.00000 | parity 0.140 | maker quote  66.5% | taker take   9.0% | activity fail
+  fill +0.00100 | pass +0.00075 | parity 0.262 | maker quote  66.8% | taker take   9.8% | activity fail
+  fill -0.00100 | pass +0.00075 | parity 0.348 | maker quote  67.1% | taker take   8.9% | activity fail
+  fill +0.00200 | pass +0.00000 | parity 0.098 | maker quote  66.9% | taker take   9.5% | activity fail
+  fill -0.00200 | pass +0.00000 | parity 0.118 | maker quote  66.5% | taker take   9.7% | activity fail
+  fill +0.00200 | pass +0.00075 | parity 0.421 | maker quote  67.2% | taker take  10.5% | activity ok
+  fill -0.00200 | pass +0.00075 | parity 0.464 | maker quote  66.4% | taker take  10.2% | activity ok
+  fill +0.00300 | pass +0.00000 | parity 0.103 | maker quote  67.2% | taker take  11.3% | activity ok
+  fill -0.00300 | pass +0.00000 | parity 0.565 | maker quote  67.1% | taker take  10.7% | activity ok
+  fill +0.00300 | pass +0.00075 | parity 0.395 | maker quote  67.4% | taker take  11.3% | activity ok
+  fill -0.00300 | pass +0.00075 | parity 0.010 | maker quote  66.8% | taker take   8.6% | activity fail
 
-neural-v1 Behavior
-2 seats: quote  54.4% | take   7.9% | reveal  16.2% | wait  21.5% | buy   4.8% | sell   3.2% | pass   0.0% | opp  48.7% | missed  90.0% | maker vol 2.92 | taker vol 1.19 | maker mko -0.52 | taker mko 0.50 | q-disp 2.91
-4 seats: quote  61.2% | take  10.4% | reveal  12.7% | wait  15.7% | buy   5.3% | sell   5.1% | pass   0.0% | opp  28.7% | missed  82.2% | maker vol 6.32 | taker vol 1.57 | maker mko -1.06 | taker mko 0.21 | q-disp 3.71
-6 seats: quote  60.9% | take  10.5% | reveal  13.1% | wait  15.5% | buy   5.8% | sell   4.7% | pass   0.0% | opp  21.7% | missed  74.9% | maker vol 8.51 | taker vol 1.57 | maker mko -1.66 | taker mko 0.40 | q-disp 5.15
-8 seats: quote  62.3% | take   9.6% | reveal  12.9% | wait  15.2% | buy   4.8% | sell   4.8% | pass   0.0% | opp  18.8% | missed  72.2% | maker vol 9.80 | taker vol 1.43 | maker mko -2.21 | taker mko 0.66 | q-disp 6.55
-10 seats: quote  65.1% | take   8.2% | reveal  13.2% | wait  13.5% | buy   4.5% | sell   3.7% | pass   0.0% | opp  16.1% | missed  69.3% | maker vol 10.63 | taker vol 1.23 | maker mko -2.76 | taker mko 0.53 | q-disp 7.44
+linear-v3 Role Balance
+incentives: maker_fill 0.00100 | taker_fill 0.00100 | wide_pass 0.00000 | tight_refusal 0.00000
+maker pnl -0.092 | ci95 +/-0.302 | taker pnl 0.092 | ci95 +/-0.302
+fills/ep 1.70 | maker quote  67.2% | taker take  11.3% | parity gap 0.092
+maker mko -0.071 | taker mko 0.071 | maker fill/ep 0.028 | taker fee/ep 0.028
 
-neural-v1 Alerts
-Low take-rate warning on seats: 2, 4, 6, 8
-Maker-toxicity warning on seats: 4, 6, 8, 10
-
-Role-balance sweep focus: linear-v2
-  fill +0.00000 | pass +0.00000 | parity 0.153 | maker quote  53.9% | taker take   7.1% | activity fail
-  fill +0.00050 | pass +0.00000 | parity 0.424 | maker quote  52.7% | taker take   5.9% | activity fail
-  fill -0.00050 | pass +0.00000 | parity 0.194 | maker quote  52.9% | taker take   6.1% | activity fail
-  fill +0.00050 | pass +0.00075 | parity 0.242 | maker quote  52.9% | taker take   6.7% | activity fail
-  fill -0.00050 | pass +0.00075 | parity 0.186 | maker quote  52.8% | taker take   6.3% | activity fail
-  fill +0.00100 | pass +0.00000 | parity 0.170 | maker quote  53.5% | taker take   6.9% | activity fail
-  fill -0.00100 | pass +0.00000 | parity 0.208 | maker quote  52.9% | taker take   5.9% | activity fail
-  fill +0.00100 | pass +0.00075 | parity 0.353 | maker quote  52.1% | taker take   6.6% | activity fail
-  fill -0.00100 | pass +0.00075 | parity 0.353 | maker quote  52.6% | taker take   6.6% | activity fail
-
-linear-v2 Role Balance
-incentives: maker_fill 0.00000 | taker_fill 0.00000 | wide_pass 0.00000 | tight_refusal 0.00000
-maker pnl -0.153 | ci95 +/-0.240 | taker pnl 0.153 | ci95 +/-0.240
-fills/ep 1.06 | maker quote  53.9% | taker take   7.1% | parity gap 0.153
-maker mko -0.145 | taker mko 0.145 | maker fill/ep 0.000 | taker fee/ep 0.000
-
-linear-v2 Alerts
-taker-undertrade
-
-Role neural  [###-------------------------]  12.5% 1/8 |    4.1/s | elapsed 0s | eta 2s | eps 15
-Role neural  [#######---------------------]  25.0% 2/8 |    4.0/s | elapsed 0s | eta 1s | eps 15
-Role neural  [##########------------------]  37.5% 3/8 |    4.0/s | elapsed 1s | eta 1s | eps 15
-Role neural  [##############--------------]  50.0% 4/8 |    4.1/s | elapsed 1s | eta 1s | eps 15
-Role neural  [#################-----------]  62.5% 5/8 |    4.1/s | elapsed 1s | eta 1s | eps 15
-Role neural  [#####################-------]  75.0% 6/8 |    4.1/s | elapsed 1s | eta 0s | eps 15
-Role neural  [########################----]  87.5% 7/8 |    4.1/s | elapsed 2s | eta 0s | eps 15
-Role neural  [############################] 100.0% 8/8 |    4.1/s | elapsed 2s | eps 15         
-Role neural  [############################] 100.0% 8/8 |    4.1/s | elapsed 2s | sequential     
-neural-v1: role balance (sequential, workers 1)
-
-neural-v1 Role Balance
-incentives: maker_fill 0.00000 | taker_fill 0.00000 | wide_pass 0.00000 | tight_refusal 0.00000
-maker pnl -0.594 | ci95 +/-0.301 | taker pnl 0.594 | ci95 +/-0.301
-fills/ep 0.86 | maker quote  48.7% | taker take   5.7% | parity gap 0.594
-maker mko -0.691 | taker mko 0.691 | maker fill/ep 0.000 | taker fee/ep 0.000
-
-neural-v1 Alerts
-taker-undertrade, taker-favored
-
-Role wait-b  [###-------------------------]  12.5% 1/8 |  781.6/s | elapsed 0s | eta 0s | eps 15
-Role wait-b  [############################] 100.0% 8/8 |  798.5/s | elapsed 0s | eps 15         
-Role wait-b  [############################] 100.0% 8/8 |  797.9/s | elapsed 0s | sequential     
+Role wait-b  [###-------------------------]  12.5% 1/8 |  786.7/s | elapsed 0s | eta 0s | eps 15
+Role wait-b  [############################] 100.0% 8/8 |  787.9/s | elapsed 0s | eps 15         
+Role wait-b  [############################] 100.0% 8/8 |  786.8/s | elapsed 0s | sequential     
 wait-baseline: role balance (sequential, workers 1)
 
 wait-baseline Role Balance
-incentives: maker_fill 0.00000 | taker_fill 0.00000 | wide_pass 0.00000 | tight_refusal 0.00000
+incentives: maker_fill 0.00100 | taker_fill 0.00100 | wide_pass 0.00000 | tight_refusal 0.00000
 maker pnl 0.000 | ci95 +/-0.000 | taker pnl 0.000 | ci95 +/-0.000
 fills/ep 0.00 | maker quote   0.0% | taker take   0.0% | parity gap 0.000
 maker mko 0.000 | taker mko 0.000 | maker fill/ep 0.000 | taker fee/ep 0.000
@@ -459,27 +380,27 @@ Role balanc  [############################] 100.0% 8/8 |    4.2/s | elapsed 2s |
 balanced-baseline: role balance (sequential, workers 1)
 
 balanced-baseline Role Balance
-incentives: maker_fill 0.00000 | taker_fill 0.00000 | wide_pass 0.00000 | tight_refusal 0.00000
-maker pnl -1.645 | ci95 +/-0.778 | taker pnl 1.645 | ci95 +/-0.778
-fills/ep 3.23 | maker quote  72.7% | taker take  21.5% | parity gap 1.645
-maker mko -0.510 | taker mko 0.510 | maker fill/ep 0.000 | taker fee/ep 0.000
+incentives: maker_fill 0.00100 | taker_fill 0.00100 | wide_pass 0.00000 | tight_refusal 0.00000
+maker pnl -1.590 | ci95 +/-0.762 | taker pnl 1.590 | ci95 +/-0.762
+fills/ep 3.23 | maker quote  72.7% | taker take  21.5% | parity gap 1.590
+maker mko -0.510 | taker mko 0.510 | maker fill/ep 0.056 | taker fee/ep 0.056
 
 balanced-baseline Alerts
 taker-favored
 
-Role public  [###-------------------------]  12.5% 1/8 |    5.7/s | elapsed 0s | eta 1s | eps 15
-Role public  [#######---------------------]  25.0% 2/8 |    5.7/s | elapsed 0s | eta 1s | eps 15
-Role public  [##########------------------]  37.5% 3/8 |    5.7/s | elapsed 1s | eta 1s | eps 15
-Role public  [##############--------------]  50.0% 4/8 |    5.7/s | elapsed 1s | eta 1s | eps 15
-Role public  [#################-----------]  62.5% 5/8 |    5.7/s | elapsed 1s | eta 1s | eps 15
+Role public  [###-------------------------]  12.5% 1/8 |    5.8/s | elapsed 0s | eta 1s | eps 15
+Role public  [#######---------------------]  25.0% 2/8 |    5.8/s | elapsed 0s | eta 1s | eps 15
+Role public  [##########------------------]  37.5% 3/8 |    5.8/s | elapsed 1s | eta 1s | eps 15
+Role public  [##############--------------]  50.0% 4/8 |    5.8/s | elapsed 1s | eta 1s | eps 15
+Role public  [#################-----------]  62.5% 5/8 |    5.8/s | elapsed 1s | eta 1s | eps 15
 Role public  [#####################-------]  75.0% 6/8 |    5.7/s | elapsed 1s | eta 0s | eps 15
-Role public  [########################----]  87.5% 7/8 |    5.7/s | elapsed 1s | eta 0s | eps 15
-Role public  [############################] 100.0% 8/8 |    5.7/s | elapsed 1s | eps 15         
-Role public  [############################] 100.0% 8/8 |    5.7/s | elapsed 1s | sequential     
+Role public  [########################----]  87.5% 7/8 |    5.8/s | elapsed 1s | eta 0s | eps 15
+Role public  [############################] 100.0% 8/8 |    5.8/s | elapsed 1s | eps 15         
+Role public  [############################] 100.0% 8/8 |    5.8/s | elapsed 1s | sequential     
 public-maker-baseline: role balance (sequential, workers 1)
 
 public-maker-baseline Role Balance
-incentives: maker_fill 0.00000 | taker_fill 0.00000 | wide_pass 0.00000 | tight_refusal 0.00000
+incentives: maker_fill 0.00100 | taker_fill 0.00100 | wide_pass 0.00000 | tight_refusal 0.00000
 maker pnl 0.000 | ci95 +/-0.000 | taker pnl 0.000 | ci95 +/-0.000
 fills/ep 0.00 | maker quote  66.7% | taker take   0.0% | parity gap 0.000
 maker mko 0.000 | taker mko 0.000 | maker fill/ep 0.000 | taker fee/ep 0.000
@@ -489,20 +410,20 @@ taker-undertrade
 
 Role heuris  [###-------------------------]  12.5% 1/8 |    4.1/s | elapsed 0s | eta 2s | eps 15
 Role heuris  [#######---------------------]  25.0% 2/8 |    4.2/s | elapsed 0s | eta 1s | eps 15
-Role heuris  [##########------------------]  37.5% 3/8 |    4.1/s | elapsed 1s | eta 1s | eps 15
-Role heuris  [##############--------------]  50.0% 4/8 |    4.1/s | elapsed 1s | eta 1s | eps 15
-Role heuris  [#################-----------]  62.5% 5/8 |    4.1/s | elapsed 1s | eta 1s | eps 15
-Role heuris  [#####################-------]  75.0% 6/8 |    4.1/s | elapsed 1s | eta 0s | eps 15
-Role heuris  [########################----]  87.5% 7/8 |    4.1/s | elapsed 2s | eta 0s | eps 15
-Role heuris  [############################] 100.0% 8/8 |    4.1/s | elapsed 2s | eps 15         
-Role heuris  [############################] 100.0% 8/8 |    4.1/s | elapsed 2s | sequential     
+Role heuris  [##########------------------]  37.5% 3/8 |    4.2/s | elapsed 1s | eta 1s | eps 15
+Role heuris  [##############--------------]  50.0% 4/8 |    4.2/s | elapsed 1s | eta 1s | eps 15
+Role heuris  [#################-----------]  62.5% 5/8 |    4.2/s | elapsed 1s | eta 1s | eps 15
+Role heuris  [#####################-------]  75.0% 6/8 |    4.2/s | elapsed 1s | eta 0s | eps 15
+Role heuris  [########################----]  87.5% 7/8 |    4.2/s | elapsed 2s | eta 0s | eps 15
+Role heuris  [############################] 100.0% 8/8 |    4.2/s | elapsed 2s | eps 15         
+Role heuris  [############################] 100.0% 8/8 |    4.2/s | elapsed 2s | sequential     
 heuristic: role balance (sequential, workers 1)
 
 heuristic Role Balance
-incentives: maker_fill 0.00000 | taker_fill 0.00000 | wide_pass 0.00000 | tight_refusal 0.00000
-maker pnl -1.056 | ci95 +/-0.569 | taker pnl 1.056 | ci95 +/-0.569
-fills/ep 1.98 | maker quote  70.6% | taker take  13.2% | parity gap 1.056
-maker mko -0.533 | taker mko 0.533 | maker fill/ep 0.000 | taker fee/ep 0.000
+incentives: maker_fill 0.00100 | taker_fill 0.00100 | wide_pass 0.00000 | tight_refusal 0.00000
+maker pnl -1.020 | ci95 +/-0.556 | taker pnl 1.020 | ci95 +/-0.556
+fills/ep 1.98 | maker quote  70.6% | taker take  13.2% | parity gap 1.020
+maker mko -0.533 | taker mko 0.533 | maker fill/ep 0.036 | taker fee/ep 0.036
 
 heuristic Alerts
 taker-favored
@@ -510,34 +431,34 @@ taker-favored
 Bootstrap workers: 1 (sequential)
 
 Bootstrap Policy
-2 seats: -0.675 pnl | ci95 +/-0.522 | stdev 2.918 | avg |inv| 1.283
-4 seats: -6.927 pnl | ci95 +/-1.319 | stdev 7.374 | avg |inv| 1.150
-6 seats: -13.845 pnl | ci95 +/-2.268 | stdev 12.675 | avg |inv| 1.033
-8 seats: -16.967 pnl | ci95 +/-2.290 | stdev 12.797 | avg |inv| 1.317
-10 seats: -24.706 pnl | ci95 +/-3.530 | stdev 19.730 | avg |inv| 1.200
+2 seats: 0.978 pnl | ci95 +/-0.688 | stdev 3.848 | avg |inv| 1.142
+4 seats: -4.626 pnl | ci95 +/-1.381 | stdev 7.719 | avg |inv| 1.208
+6 seats: -9.788 pnl | ci95 +/-2.081 | stdev 11.630 | avg |inv| 1.425
+8 seats: -13.018 pnl | ci95 +/-2.732 | stdev 15.269 | avg |inv| 1.708
+10 seats: -17.198 pnl | ci95 +/-3.606 | stdev 20.152 | avg |inv| 1.417
 
 Bootstrap Behavior
-2 seats: quote  52.0% | take   9.9% | reveal  18.1% | wait  20.0% | buy   5.7% | sell   4.3% | pass   0.0% | opp  50.5% | missed  89.2% | maker vol 2.66 | taker vol 1.49 | maker mko -0.57 | taker mko 0.57 | q-disp 2.96
-4 seats: quote  61.3% | take  10.2% | reveal  14.3% | wait  14.2% | buy   5.5% | sell   4.7% | pass   0.0% | opp  28.4% | missed  84.7% | maker vol 6.62 | taker vol 1.53 | maker mko -1.08 | taker mko 0.14 | q-disp 4.01
-6 seats: quote  59.8% | take  10.9% | reveal  14.6% | wait  14.7% | buy   5.4% | sell   5.6% | pass   0.0% | opp  18.8% | missed  77.5% | maker vol 8.32 | taker vol 1.64 | maker mko -1.67 | taker mko 0.05 | q-disp 5.29
-8 seats: quote  61.2% | take  12.2% | reveal  13.4% | wait  13.2% | buy   6.6% | sell   5.6% | pass   0.0% | opp  17.8% | missed  68.2% | maker vol 9.29 | taker vol 1.82 | maker mko -1.94 | taker mko 0.60 | q-disp 6.56
-10 seats: quote  60.6% | take   9.9% | reveal  14.4% | wait  15.1% | buy   4.9% | sell   5.1% | pass   0.0% | opp  13.7% | missed  62.3% | maker vol 9.61 | taker vol 1.49 | maker mko -2.71 | taker mko 0.90 | q-disp 7.42
+2 seats: quote  47.6% | take  23.6% | reveal  14.8% | wait  13.9% | buy  12.9% | sell  10.7% | pass   0.0% | opp  50.1% | missed  70.0% | maker vol 2.82 | taker vol 3.54 | maker mko -0.48 | taker mko 0.66 | tox 0.026 | q-disp 2.91
+4 seats: quote  57.9% | take  16.1% | reveal  12.5% | wait  13.4% | buy   8.1% | sell   8.0% | pass   0.0% | opp  26.7% | missed  68.3% | maker vol 6.44 | taker vol 2.42 | maker mko -1.08 | taker mko 0.97 | tox 0.029 | q-disp 4.03
+6 seats: quote  56.3% | take  17.3% | reveal  12.3% | wait  14.1% | buy   8.9% | sell   8.4% | pass   0.0% | opp  17.6% | missed  55.8% | maker vol 7.58 | taker vol 2.60 | maker mko -1.63 | taker mko 0.97 | tox 0.038 | q-disp 5.23
+8 seats: quote  55.2% | take  21.3% | reveal  12.3% | wait  11.2% | buy  12.6% | sell   8.7% | pass   0.0% | opp  17.1% | missed  49.7% | maker vol 8.66 | taker vol 3.20 | maker mko -2.15 | taker mko 1.76 | tox 0.044 | q-disp 6.52
+10 seats: quote  56.7% | take  18.2% | reveal  11.0% | wait  14.1% | buy   9.1% | sell   9.2% | pass   0.0% | opp  12.8% | missed  43.7% | maker vol 8.93 | taker vol 2.73 | maker mko -2.75 | taker mko 2.69 | tox 0.046 | q-disp 7.59
 
 Neural bootstrap workers: 1 (sequential)
 
 Neural Bootstrap Policy
-2 seats: -0.708 pnl | ci95 +/-0.609 | stdev 3.402 | avg |inv| 1.442
-4 seats: -7.017 pnl | ci95 +/-1.323 | stdev 7.394 | avg |inv| 1.108
-6 seats: -13.574 pnl | ci95 +/-1.871 | stdev 10.455 | avg |inv| 1.292
-8 seats: -21.274 pnl | ci95 +/-3.479 | stdev 19.443 | avg |inv| 1.183
-10 seats: -28.706 pnl | ci95 +/-4.361 | stdev 24.376 | avg |inv| 1.050
+2 seats: 0.546 pnl | ci95 +/-0.707 | stdev 3.953 | avg |inv| 1.042
+4 seats: -4.809 pnl | ci95 +/-1.523 | stdev 8.512 | avg |inv| 1.117
+6 seats: -9.344 pnl | ci95 +/-2.001 | stdev 11.185 | avg |inv| 1.342
+8 seats: -11.015 pnl | ci95 +/-2.822 | stdev 15.771 | avg |inv| 1.200
+10 seats: -21.597 pnl | ci95 +/-4.746 | stdev 26.526 | avg |inv| 1.292
 
 Neural Bootstrap Behavior
-2 seats: quote  53.4% | take   9.4% | reveal  17.8% | wait  19.3% | buy   5.4% | sell   4.1% | pass   0.0% | opp  49.3% | missed  89.0% | maker vol 2.89 | taker vol 1.42 | maker mko -0.44 | taker mko 0.40 | q-disp 2.91
-4 seats: quote  61.8% | take   9.6% | reveal  13.7% | wait  14.8% | buy   5.1% | sell   4.6% | pass   0.0% | opp  27.7% | missed  84.5% | maker vol 6.67 | taker vol 1.44 | maker mko -1.03 | taker mko -0.09 | q-disp 3.78
-6 seats: quote  61.6% | take  10.2% | reveal  12.1% | wait  16.1% | buy   5.5% | sell   4.7% | pass   0.0% | opp  21.4% | missed  77.9% | maker vol 8.21 | taker vol 1.53 | maker mko -1.69 | taker mko 0.19 | q-disp 4.87
-8 seats: quote  63.4% | take   8.9% | reveal  14.3% | wait  13.4% | buy   4.9% | sell   4.1% | pass   0.0% | opp  17.7% | missed  70.8% | maker vol 10.03 | taker vol 1.34 | maker mko -2.15 | taker mko 0.22 | q-disp 6.44
-10 seats: quote  63.7% | take   8.7% | reveal  12.2% | wait  15.4% | buy   4.6% | sell   4.2% | pass   0.0% | opp  14.1% | missed  67.3% | maker vol 10.38 | taker vol 1.31 | maker mko -2.87 | taker mko 0.80 | q-disp 7.49
+2 seats: quote  48.9% | take  19.5% | reveal  15.6% | wait  16.0% | buy  10.3% | sell   9.2% | pass   0.0% | opp  43.7% | missed  71.5% | maker vol 2.48 | taker vol 2.92 | maker mko -0.58 | taker mko 0.68 | tox 0.026 | q-disp 2.89
+4 seats: quote  58.7% | take  16.7% | reveal  10.4% | wait  14.2% | buy   8.2% | sell   8.4% | pass   0.0% | opp  26.8% | missed  66.0% | maker vol 6.72 | taker vol 2.50 | maker mko -1.07 | taker mko 0.95 | tox 0.031 | q-disp 3.68
+6 seats: quote  58.2% | take  17.2% | reveal  12.3% | wait  12.4% | buy   9.6% | sell   7.6% | pass   0.0% | opp  20.1% | missed  56.9% | maker vol 8.13 | taker vol 2.58 | maker mko -1.61 | taker mko 1.45 | tox 0.036 | q-disp 5.07
+8 seats: quote  56.8% | take  17.9% | reveal  12.4% | wait  12.9% | buy  10.3% | sell   7.6% | pass   0.0% | opp  17.3% | missed  47.9% | maker vol 9.02 | taker vol 2.68 | maker mko -1.98 | taker mko 2.54 | tox 0.040 | q-disp 6.15
+10 seats: quote  60.3% | take  15.0% | reveal  11.3% | wait  13.4% | buy   8.6% | sell   6.4% | pass   0.0% | opp  13.1% | missed  47.0% | maker vol 10.59 | taker vol 2.25 | maker mko -2.74 | taker mko 3.28 | tox 0.047 | q-disp 7.23
 
 Wait baseline workers: 1 (sequential)
 
@@ -549,11 +470,11 @@ Wait Baseline
 10 seats: 0.000 pnl | ci95 +/-0.000 | stdev 0.000 | avg |inv| 0.000
 
 Wait Behavior
-2 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp  47.6% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | q-disp 0.00
-4 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp  21.9% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | q-disp 0.00
-6 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp  13.9% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | q-disp 0.00
-8 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp  12.7% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | q-disp 0.00
-10 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp   6.4% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | q-disp 0.00
+2 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp  47.6% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | tox 0.000 | q-disp 0.00
+4 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp  21.9% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | tox 0.000 | q-disp 0.00
+6 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp  13.9% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | tox 0.000 | q-disp 0.00
+8 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp  12.7% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | tox 0.000 | q-disp 0.00
+10 seats: quote   0.0% | take   0.0% | reveal   0.0% | wait 100.0% | buy   0.0% | sell   0.0% | pass   0.0% | opp   6.4% | missed 100.0% | maker vol 0.00 | taker vol 0.00 | maker mko 0.00 | taker mko 0.00 | tox 0.000 | q-disp 0.00
 
 Balanced baseline workers: 1 (sequential)
 
@@ -565,11 +486,11 @@ Balanced Baseline
 10 seats: -0.808 pnl | ci95 +/-1.513 | stdev 8.454 | avg |inv| 0.433
 
 Balanced Baseline Behavior
-2 seats: quote  59.0% | take  14.9% | reveal   4.6% | wait  21.6% | buy   8.6% | sell   6.3% | pass   0.0% | opp  41.2% | missed  75.9% | maker vol 2.16 | taker vol 2.23 | maker mko -0.36 | taker mko 0.46 | q-disp 2.79
-4 seats: quote  58.7% | take   9.6% | reveal   5.4% | wait  26.2% | buy   5.1% | sell   4.5% | pass   0.0% | opp  20.6% | missed  75.5% | maker vol 1.27 | taker vol 1.44 | maker mko -0.62 | taker mko 0.51 | q-disp 3.48
-6 seats: quote  58.2% | take  12.3% | reveal   5.3% | wait  24.2% | buy   6.2% | sell   6.1% | pass   0.0% | opp  15.5% | missed  70.6% | maker vol 1.38 | taker vol 1.85 | maker mko -1.84 | taker mko 0.49 | q-disp 4.61
-8 seats: quote  59.7% | take  11.9% | reveal   4.4% | wait  23.9% | buy   7.6% | sell   4.4% | pass   0.0% | opp  11.9% | missed  66.0% | maker vol 1.64 | taker vol 1.79 | maker mko -1.57 | taker mko 1.25 | q-disp 5.31
-10 seats: quote  60.3% | take   5.4% | reveal   5.8% | wait  28.5% | buy   2.9% | sell   2.5% | pass   0.0% | opp   7.7% | missed  84.8% | maker vol 0.84 | taker vol 0.81 | maker mko -2.03 | taker mko 1.11 | q-disp 6.38
+2 seats: quote  59.0% | take  14.9% | reveal   4.6% | wait  21.6% | buy   8.6% | sell   6.3% | pass   0.0% | opp  41.2% | missed  75.9% | maker vol 2.16 | taker vol 2.23 | maker mko -0.36 | taker mko 0.46 | tox 0.026 | q-disp 2.79
+4 seats: quote  58.7% | take   9.6% | reveal   5.4% | wait  26.2% | buy   5.1% | sell   4.5% | pass   0.0% | opp  20.6% | missed  75.5% | maker vol 1.27 | taker vol 1.44 | maker mko -0.62 | taker mko 0.51 | tox 0.013 | q-disp 3.48
+6 seats: quote  58.2% | take  12.3% | reveal   5.3% | wait  24.2% | buy   6.2% | sell   6.1% | pass   0.0% | opp  15.5% | missed  70.6% | maker vol 1.38 | taker vol 1.85 | maker mko -1.84 | taker mko 0.49 | tox 0.016 | q-disp 4.61
+8 seats: quote  59.7% | take  11.9% | reveal   4.4% | wait  23.9% | buy   7.6% | sell   4.4% | pass   0.0% | opp  11.9% | missed  66.0% | maker vol 1.64 | taker vol 1.79 | maker mko -1.57 | taker mko 1.25 | tox 0.013 | q-disp 5.31
+10 seats: quote  60.3% | take   5.4% | reveal   5.8% | wait  28.5% | buy   2.9% | sell   2.5% | pass   0.0% | opp   7.7% | missed  84.8% | maker vol 0.84 | taker vol 0.81 | maker mko -2.03 | taker mko 1.11 | tox 0.005 | q-disp 6.38
 
 Public maker workers: 1 (sequential)
 
@@ -581,11 +502,11 @@ Public Maker Baseline
 10 seats: 0.061 pnl | ci95 +/-0.139 | stdev 0.776 | avg |inv| 0.083
 
 Public Maker Behavior
-2 seats: quote  66.7% | take   0.0% | reveal   0.0% | wait  33.3% | buy   0.0% | sell   0.0% | pass   0.0% | opp  47.4% | missed 100.0% | maker vol 0.23 | taker vol 0.00 | maker mko -0.26 | taker mko 0.00 | q-disp 2.45
-4 seats: quote  67.9% | take   0.0% | reveal   0.0% | wait  32.1% | buy   0.0% | sell   0.0% | pass   0.0% | opp  24.7% | missed 100.0% | maker vol 0.78 | taker vol 0.00 | maker mko 0.53 | taker mko 0.00 | q-disp 3.38
-6 seats: quote  67.8% | take   0.0% | reveal   0.0% | wait  32.2% | buy   0.0% | sell   0.0% | pass   0.0% | opp  14.8% | missed 100.0% | maker vol 0.78 | taker vol 0.00 | maker mko 0.52 | taker mko 0.00 | q-disp 4.13
-8 seats: quote  67.9% | take   0.0% | reveal   0.0% | wait  32.1% | buy   0.0% | sell   0.0% | pass   0.0% | opp  11.2% | missed 100.0% | maker vol 1.04 | taker vol 0.00 | maker mko 0.38 | taker mko 0.00 | q-disp 5.25
-10 seats: quote  67.8% | take   0.0% | reveal   0.0% | wait  32.2% | buy   0.0% | sell   0.0% | pass   0.0% | opp   6.0% | missed 100.0% | maker vol 0.58 | taker vol 0.00 | maker mko 0.11 | taker mko 0.00 | q-disp 5.81
+2 seats: quote  66.7% | take   0.0% | reveal   0.0% | wait  33.3% | buy   0.0% | sell   0.0% | pass   0.0% | opp  47.4% | missed 100.0% | maker vol 0.23 | taker vol 0.00 | maker mko -0.26 | taker mko 0.00 | tox 0.006 | q-disp 2.45
+4 seats: quote  67.9% | take   0.0% | reveal   0.0% | wait  32.1% | buy   0.0% | sell   0.0% | pass   0.0% | opp  24.7% | missed 100.0% | maker vol 0.78 | taker vol 0.00 | maker mko 0.53 | taker mko 0.00 | tox 0.002 | q-disp 3.38
+6 seats: quote  67.8% | take   0.0% | reveal   0.0% | wait  32.2% | buy   0.0% | sell   0.0% | pass   0.0% | opp  14.8% | missed 100.0% | maker vol 0.78 | taker vol 0.00 | maker mko 0.52 | taker mko 0.00 | tox 0.001 | q-disp 4.13
+8 seats: quote  67.9% | take   0.0% | reveal   0.0% | wait  32.1% | buy   0.0% | sell   0.0% | pass   0.0% | opp  11.2% | missed 100.0% | maker vol 1.04 | taker vol 0.00 | maker mko 0.38 | taker mko 0.00 | tox 0.001 | q-disp 5.25
+10 seats: quote  67.8% | take   0.0% | reveal   0.0% | wait  32.2% | buy   0.0% | sell   0.0% | pass   0.0% | opp   6.0% | missed 100.0% | maker vol 0.58 | taker vol 0.00 | maker mko 0.11 | taker mko 0.00 | tox 0.000 | q-disp 5.81
 
 Heuristic workers: 1 (sequential)
 
@@ -597,22 +518,15 @@ Heuristic Seat
 10 seats: 0.016 pnl | ci95 +/-1.477 | stdev 8.256 | avg |inv| 0.483
 
 Heuristic Behavior
-2 seats: quote  56.8% | take  21.9% | reveal   4.1% | wait  17.2% | buy  13.4% | sell   8.5% | pass   0.0% | opp  46.2% | missed  68.4% | maker vol 3.03 | taker vol 3.28 | maker mko -0.41 | taker mko 0.33 | q-disp 2.72
-4 seats: quote  60.9% | take   7.2% | reveal   5.6% | wait  26.3% | buy   2.9% | sell   4.3% | pass   0.0% | opp  20.3% | missed  76.2% | maker vol 1.26 | taker vol 1.08 | maker mko -0.22 | taker mko 0.64 | q-disp 3.38
-6 seats: quote  59.3% | take   8.4% | reveal   5.3% | wait  27.0% | buy   3.9% | sell   4.4% | pass   0.0% | opp  14.5% | missed  71.6% | maker vol 1.12 | taker vol 1.26 | maker mko -1.10 | taker mko 1.05 | q-disp 4.17
-8 seats: quote  59.8% | take   8.2% | reveal   5.4% | wait  26.5% | buy   4.6% | sell   3.7% | pass   0.0% | opp  12.2% | missed  74.0% | maker vol 1.17 | taker vol 1.23 | maker mko -2.09 | taker mko 1.18 | q-disp 5.46
-10 seats: quote  59.8% | take   5.6% | reveal   5.9% | wait  28.7% | buy   2.9% | sell   2.6% | pass   0.0% | opp   7.3% | missed  82.6% | maker vol 0.73 | taker vol 0.83 | maker mko -1.75 | taker mko 1.56 | q-disp 6.07
+2 seats: quote  56.8% | take  21.9% | reveal   4.1% | wait  17.2% | buy  13.4% | sell   8.5% | pass   0.0% | opp  46.2% | missed  68.4% | maker vol 3.03 | taker vol 3.28 | maker mko -0.41 | taker mko 0.33 | tox 0.030 | q-disp 2.72
+4 seats: quote  60.9% | take   7.2% | reveal   5.6% | wait  26.3% | buy   2.9% | sell   4.3% | pass   0.0% | opp  20.3% | missed  76.2% | maker vol 1.26 | taker vol 1.08 | maker mko -0.22 | taker mko 0.64 | tox 0.009 | q-disp 3.38
+6 seats: quote  59.3% | take   8.4% | reveal   5.3% | wait  27.0% | buy   3.9% | sell   4.4% | pass   0.0% | opp  14.5% | missed  71.6% | maker vol 1.12 | taker vol 1.26 | maker mko -1.10 | taker mko 1.05 | tox 0.009 | q-disp 4.17
+8 seats: quote  59.8% | take   8.2% | reveal   5.4% | wait  26.5% | buy   4.6% | sell   3.7% | pass   0.0% | opp  12.2% | missed  74.0% | maker vol 1.17 | taker vol 1.23 | maker mko -2.09 | taker mko 1.18 | tox 0.010 | q-disp 5.46
+10 seats: quote  59.8% | take   5.6% | reveal   5.9% | wait  28.7% | buy   2.9% | sell   2.6% | pass   0.0% | opp   7.3% | missed  82.6% | maker vol 0.73 | taker vol 0.83 | maker mko -1.75 | taker mko 1.56 | tox 0.004 | q-disp 6.07
 
-Relative Uplift: linear-v2
-2 seats: vs bootstrap +0.823 | vs neural boot +0.855 | vs wait +0.147 | vs balanced -0.106 | vs public maker +0.208 | vs heuristic +0.301
-4 seats: vs bootstrap +6.774 | vs neural boot +6.864 | vs wait -0.153 | vs balanced -0.098 | vs public maker -0.569 | vs heuristic -0.579
-6 seats: vs bootstrap +12.410 | vs neural boot +12.139 | vs wait -1.435 | vs balanced +0.194 | vs public maker -1.841 | vs heuristic -1.530
-8 seats: vs bootstrap +14.614 | vs neural boot +18.921 | vs wait -2.353 | vs balanced -2.016 | vs public maker -2.749 | vs heuristic -1.373
-10 seats: vs bootstrap +21.816 | vs neural boot +25.815 | vs wait -2.890 | vs balanced -2.083 | vs public maker -2.952 | vs heuristic -2.906
-
-Relative Uplift: neural-v1
-2 seats: vs bootstrap -0.254 | vs neural boot -0.221 | vs wait -0.929 | vs balanced -1.182 | vs public maker -0.869 | vs heuristic -0.775
-4 seats: vs bootstrap +0.588 | vs neural boot +0.677 | vs wait -6.340 | vs balanced -6.284 | vs public maker -6.756 | vs heuristic -6.766
-6 seats: vs bootstrap +0.390 | vs neural boot +0.118 | vs wait -13.456 | vs balanced -11.827 | vs public maker -13.861 | vs heuristic -13.550
-8 seats: vs bootstrap -3.760 | vs neural boot +0.547 | vs wait -20.727 | vs balanced -20.390 | vs public maker -21.122 | vs heuristic -19.747
-10 seats: vs bootstrap -4.011 | vs neural boot -0.011 | vs wait -28.717 | vs balanced -27.909 | vs public maker -28.778 | vs heuristic -28.733
+Relative Uplift: linear-v3
+2 seats: vs bootstrap -0.670 | vs neural boot -0.237 | vs wait +0.308 | vs balanced +0.055 | vs public maker +0.369 | vs heuristic +0.462
+4 seats: vs bootstrap +5.296 | vs neural boot +5.479 | vs wait +0.670 | vs balanced +0.725 | vs public maker +0.254 | vs heuristic +0.244
+6 seats: vs bootstrap +10.184 | vs neural boot +9.740 | vs wait +0.395 | vs balanced +2.024 | vs public maker -0.010 | vs heuristic +0.301
+8 seats: vs bootstrap +15.205 | vs neural boot +13.201 | vs wait +2.186 | vs balanced +2.523 | vs public maker +1.790 | vs heuristic +3.166
+10 seats: vs bootstrap +19.169 | vs neural boot +23.568 | vs wait +1.971 | vs balanced +2.779 | vs public maker +1.910 | vs heuristic +1.955

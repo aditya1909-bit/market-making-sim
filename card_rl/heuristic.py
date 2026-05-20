@@ -93,6 +93,83 @@ def quote_from_template(
     }
 
 
+def hybrid_as_quote_from_params(
+    state: Dict,
+    player_id: str,
+    params: Dict,
+    now_step: int = 0,
+) -> Dict | None:
+    base = base_feature_vector(state, player_id, now_step)
+    if base["own_quote"] and not base["own_quote_refresh_allowed"]:
+        return None
+    public_stats = base["public_stats"]
+    width = float(public_stats["width"])
+    stdev_ratio = clamp(float(public_stats["stdev"]) / max(0.01, width), 0.0, 0.45)
+    inventory = float(base["position"].get("inventory", 0.0))
+    seat_ratio = clamp(len(state["active_seat_ids"]) / 10.0, 0.0, 1.0)
+    risk_aversion = clamp(float(params.get("risk_aversion", 0.5)), 0.0, 1.0)
+    inventory_skew = clamp(float(params.get("inventory_skew", 0.45)), 0.0, 1.5)
+    spread_multiplier = clamp(float(params.get("spread_multiplier", 1.0)), 0.65, 2.4)
+    quote_mode = str(params.get("quote_mode", "balanced"))
+    private_skew_scale = clamp(float(params.get("private_skew_scale", 0.35)), 0.0, 0.7)
+    locked_role = (state.get("role_constraints") or {}).get(player_id)
+    public_fair = public_fair_value(base)
+    private_component = _private_skew(base) * private_skew_scale
+    inventory_component = inventory * width * (0.025 + 0.08 * risk_aversion) * inventory_skew
+    mode_skew = {
+        "bid": -0.05,
+        "ask": 0.05,
+        "wide": 0.0,
+        "tight": 0.0,
+        "balanced": 0.0,
+    }.get(quote_mode, 0.0) * width
+    if locked_role == "maker":
+        private_component = 0.0
+        mode_skew = 0.0
+        spread_multiplier = min(spread_multiplier, 0.95)
+        risk_aversion = min(risk_aversion, 0.45)
+    else:
+        private_component *= 1.0 + seat_ratio * 1.25
+    reservation = public_fair + private_component - inventory_component + mode_skew
+    competition_spread = (
+        min(float(entry["quote"]["ask"]) - float(entry["quote"]["bid"]) for entry in base["quotes"])
+        if base["quotes"]
+        else 0.42
+    )
+    base_half_spread = max(0.18, width * (0.018 + stdev_ratio * (0.55 + risk_aversion * 0.75)))
+    half_spread = max(base_half_spread * spread_multiplier * (1.0 + seat_ratio * 0.55), competition_spread * 0.42)
+    if locked_role == "maker":
+        half_spread = max(0.04, min(half_spread, width * 0.04))
+    if quote_mode == "wide":
+        half_spread *= 1.2
+    elif quote_mode == "tight":
+        half_spread *= 0.88
+    bid = max(float(public_stats["range_low"]), min(float(public_stats["range_high"]) - 0.01, round(reservation - half_spread, 2)))
+    ask = max(bid + 0.01, min(float(public_stats["range_high"]), round(reservation + half_spread, 2)))
+    toxicity = quote_toxicity(base, {"bid": bid, "ask": ask})
+    if toxicity > 0.12:
+        widen = min(width * 0.1, toxicity * width * 0.45)
+        bid = max(float(public_stats["range_low"]), round(bid - widen, 2))
+        ask = min(float(public_stats["range_high"]), round(max(ask + widen, bid + 0.01), 2))
+    return {
+        "bid": bid,
+        "ask": ask,
+        "size": int(max(1, min(5, int(params.get("size", 1))))),
+    }
+
+
+def quote_toxicity(base: Dict, quote: Dict | None) -> float:
+    if not quote or quote.get("bid") is None or quote.get("ask") is None:
+        return 0.0
+    width = max(0.01, float(base["stats"]["width"]))
+    fair = float(base["stats"]["mean"])
+    bid_edge = (float(quote["bid"]) - fair) / width
+    ask_edge = (fair - float(quote["ask"])) / width
+    spread = max(0.0, float(quote["ask"]) - float(quote["bid"])) / width
+    narrow_penalty = max(0.0, 0.035 - spread) * 1.6
+    return max(0.0, bid_edge, ask_edge) + narrow_penalty
+
+
 def _best_take(base: Dict) -> Dict | None:
     best_take = None
     for entry in base["quotes"]:

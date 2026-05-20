@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from .evaluate import _evaluate_policy
-from .evaluate import ROLE_BALANCE_ACTIVITY_FLOORS, _choose_role_balance_schedule, _evaluate_role_balance_policy
+from .evaluate import ROLE_BALANCE_ACTIVITY_FLOORS, _choose_role_balance_schedule, _evaluate_role_balance_policy, maker_markout_floor
 from .export_policy import export_js_module
 from .features import base_feature_vector
 from .heuristic import (
@@ -22,8 +22,9 @@ from .heuristic import (
     BASELINE_WAIT,
     decision_for_baseline,
     heuristic_decision,
+    quote_toxicity,
 )
-from .model import _intent_index_for_decision, bootstrap_neural_policy, bootstrap_policy, policy_from_dict
+from .model import _intent_index_for_decision, bootstrap_hybrid_as_policy, bootstrap_neural_policy, bootstrap_policy, policy_from_dict
 from .simulator import CardMarketSimulator, IncentiveSchedule
 
 TEACHER_PROFILE_POOL = [
@@ -41,6 +42,8 @@ TRAINING_SEAT_COUNTS = [2, 4, 4, 6, 6, 8, 8, 10, 10, 10]
 GATE_SEAT_COUNTS = [4, 6, 8, 10]
 GATE_SEAT_WEIGHTS = {4: 1.0, 6: 1.2, 8: 1.5, 10: 1.8}
 TRAINING_INCENTIVE_SCHEDULE = IncentiveSchedule().to_dict()
+ADVERSARIAL_CURRICULUM = False
+CONSERVATIVE_PENALTY = 0.0
 
 
 def _format_duration(seconds: float) -> str:
@@ -639,6 +642,8 @@ def _sample_opponent_role(
     teacher_rng_seed: int,
 ) -> Dict:
     roll = rng.random()
+    if ADVERSARIAL_CURRICULUM and roll < 0.28:
+        return {"kind": "baseline", "baseline_id": BASELINE_TAKER_BEST_EDGE}
     if historical_pool and roll < 0.22:
         return {"kind": "historical", "policy": rng.choice(historical_pool)}
     if roll < 0.4:
@@ -711,6 +716,7 @@ def _build_actor(policy, trajectories: List[Dict], seat_roles: Dict[str, Dict]):
             reveal = choice["reveal"]
             intent = choice["intent"]
             base = choice["base"]
+            toxicity = quote_toxicity(base, quote.get("payload")) if quote.get("payload") else 0.0
             trajectories.append(
                 {
                     "player_id": player_id,
@@ -724,6 +730,7 @@ def _build_actor(policy, trajectories: List[Dict], seat_roles: Dict[str, Dict]):
                     "quote_action_index": int(quote["template_index"]),
                     "quote_features": quote["features"],
                     "quote_probabilities": quote["probabilities"],
+                    "quote_toxicity": toxicity,
                     "take_action_index": int(take["action_index"]),
                     "take_features": take["features"],
                     "take_probabilities": take["probabilities"],
@@ -799,6 +806,7 @@ def _accumulate_ppo_item(policy, gradients: Dict, item: Dict, reward: float, noo
         take_advantage -= max(0.0, -taker_markout) * profile["taker_markout_penalty_scale"] * 0.8
     if int(item["quote_action_index"]) != noop_index:
         quote_advantage -= max(0.0, -maker_markout) * profile["maker_markout_penalty_scale"] * 0.8
+        quote_advantage -= float(item.get("quote_toxicity", 0.0)) * (0.35 + CONSERVATIVE_PENALTY)
     reveal_advantage = advantage * profile["reveal_advantage_scale"] + _reveal_bonus(bool(item["reveal_vote"]), context)
     policy.accumulate_intent_gradient(
         gradients,
@@ -1076,6 +1084,70 @@ def _role_balance_live_candidate(summary: Dict) -> bool:
     )
 
 
+def _role_balance_gate_failures(summary: Dict) -> List[str]:
+    failures = []
+    take_rate = float(summary["taker_take_rate"])
+    if abs(float(summary["maker_mean_pnl"])) > 0.5 or abs(float(summary["taker_mean_pnl"])) > 0.5:
+        failures.append("role_pnl_outside_band")
+    if abs(float(summary.get("parity_gap", 0.0))) > 0.5:
+        failures.append("role_parity_gap")
+    if not ((float(summary["maker_mean_pnl"]) - float(summary["maker_ci95"])) <= 0.0 <= (float(summary["maker_mean_pnl"]) + float(summary["maker_ci95"]))):
+        failures.append("maker_ci_excludes_zero")
+    if not ((float(summary["taker_mean_pnl"]) - float(summary["taker_ci95"])) <= 0.0 <= (float(summary["taker_mean_pnl"]) + float(summary["taker_ci95"]))):
+        failures.append("taker_ci_excludes_zero")
+    if float(summary["maker_quote_rate"]) < ROLE_BALANCE_ACTIVITY_FLOORS["maker_quote_rate"]:
+        failures.append("quote_collapse")
+    if take_rate < ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_min"] - 0.005:
+        failures.append("taker_undertrade")
+    if take_rate > ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_max"]:
+        failures.append("taker_overtrade")
+    if bool(summary["quote_collapse"]):
+        failures.append("quote_collapse_flag")
+    return failures
+
+
+def _family_gate_failures(
+    family: str,
+    candidate: Dict,
+    *,
+    wait_mean: float,
+    balanced_mean: float,
+    heuristic_mean: float,
+    balanced_summary: Dict[int, Dict],
+    heuristic_summary: Dict[int, Dict],
+    gate_counts: List[int],
+    role_balance_summary: Dict,
+) -> List[str]:
+    summary = candidate["summary"]
+    failures: List[str] = []
+    if candidate["mainSeatMean"] < heuristic_mean - 0.05:
+        failures.append("weighted_pnl_below_heuristic")
+    if candidate["mainSeatMean"] < balanced_mean - 0.05:
+        failures.append("weighted_pnl_below_balanced")
+    if candidate["mainSeatMean"] < wait_mean + 0.02:
+        failures.append("weighted_pnl_below_wait")
+    for seat_count in gate_counts:
+        row = summary[seat_count]
+        if row["take_rate"] < 0.10:
+            failures.append(f"seat_{seat_count}_take_under")
+        if row["take_rate"] > 0.35:
+            failures.append(f"seat_{seat_count}_take_over")
+        if row["missed_take_rate"] > 0.78:
+            failures.append(f"seat_{seat_count}_missed_take")
+        if row["quote_rate"] < 0.40:
+            failures.append(f"seat_{seat_count}_quote_under")
+        if row["maker_markout"] < maker_markout_floor(seat_count) or row.get("toxic_quote_rate", 0.0) > 0.18:
+            failures.append(f"seat_{seat_count}_maker_toxicity")
+        if row["mean"] < heuristic_summary[seat_count]["mean"] - 0.15:
+            failures.append(f"seat_{seat_count}_below_heuristic")
+        if row["mean"] < balanced_summary[seat_count]["mean"] - 0.15:
+            failures.append(f"seat_{seat_count}_below_balanced")
+    failures.extend(_role_balance_gate_failures(role_balance_summary))
+    if family != "linear":
+        return failures
+    return list(dict.fromkeys(failures))
+
+
 def _family_live_candidate(
     family: str,
     candidate: Dict,
@@ -1091,16 +1163,16 @@ def _family_live_candidate(
 ) -> bool:
     summary = candidate["summary"]
     if family == "linear":
-        return (
-            candidate["mainSeatMean"] >= heuristic_mean - 0.05
-            and candidate["mainSeatMean"] >= balanced_mean - 0.05
-            and candidate["mainSeatMean"] >= wait_mean + 0.02
-            and all(0.10 <= summary[seat_count]["take_rate"] <= 0.35 for seat_count in gate_counts)
-            and all(summary[seat_count]["missed_take_rate"] <= 0.78 for seat_count in gate_counts)
-            and all(summary[seat_count]["quote_rate"] >= 0.40 for seat_count in gate_counts)
-            and all(summary[seat_count]["mean"] >= heuristic_summary[seat_count]["mean"] - 0.15 for seat_count in gate_counts)
-            and all(summary[seat_count]["mean"] >= balanced_summary[seat_count]["mean"] - 0.15 for seat_count in gate_counts)
-            and _role_balance_live_candidate(role_balance_summary)
+        return not _family_gate_failures(
+            family,
+            candidate,
+            wait_mean=wait_mean,
+            balanced_mean=balanced_mean,
+            heuristic_mean=heuristic_mean,
+            balanced_summary=balanced_summary,
+            heuristic_summary=heuristic_summary,
+            gate_counts=gate_counts,
+            role_balance_summary=role_balance_summary,
         )
     return (
         candidate["mainSeatMean"] >= heuristic_mean
@@ -1116,7 +1188,7 @@ def _family_live_candidate(
     )
 
 
-def _build_export_evaluation(linear_policy, neural_policy, workers: int, seed: int) -> tuple[Dict, Dict]:
+def _build_export_evaluation(linear_policy, neural_policy, workers: int, seed: int, linear_version: str = "linear-v2", neural_version: str = "neural-v1") -> tuple[Dict, Dict]:
     seat_counts = [2, 4, 6, 8, 10]
     gate_counts = list(GATE_SEAT_COUNTS)
     episodes = 300
@@ -1235,6 +1307,17 @@ def _build_export_evaluation(linear_policy, neural_policy, workers: int, seed: i
     default_policy_ids = {}
     for family in ("linear", "neural"):
         candidate = results[family]
+        candidate["gateFailures"] = _family_gate_failures(
+            family,
+            candidate,
+            wait_mean=wait_mean,
+            balanced_mean=balanced_mean,
+            heuristic_mean=heuristic_mean,
+            balanced_summary=balanced_summary,
+            heuristic_summary=heuristic_summary,
+            gate_counts=gate_counts,
+            role_balance_summary=candidate["roleBalance"],
+        )
         candidate["liveCandidate"] = _family_live_candidate(
             family,
             candidate,
@@ -1248,15 +1331,25 @@ def _build_export_evaluation(linear_policy, neural_policy, workers: int, seed: i
             role_balance_summary=candidate["roleBalance"],
         )
     if results["linear"]["liveCandidate"]:
-        default_policy_ids["linear"] = "linear-v2"
+        default_policy_ids["linear"] = linear_version
     if results["neural"]["liveCandidate"]:
-        default_policy_ids["neural"] = "neural-v1"
+        default_policy_ids["neural"] = neural_version
 
     evaluation = {
         "linear": {
             "mainSeatMean": results["linear"]["mainSeatMean"],
             "vsHeuristic": results["linear"]["mainSeatMean"] - heuristic_mean,
             "liveCandidate": results["linear"]["liveCandidate"],
+            "gateFailures": results["linear"]["gateFailures"],
+            "promotionDecision": "live-default" if results["linear"]["liveCandidate"] else "research-only",
+            "toxicity": {
+                str(seat_count): {
+                    "quoteToxicity": results["linear"]["summary"][seat_count].get("quote_toxicity", 0.0),
+                    "toxicQuoteRate": results["linear"]["summary"][seat_count].get("toxic_quote_rate", 0.0),
+                    "makerMarkout": results["linear"]["summary"][seat_count].get("maker_markout", 0.0),
+                }
+                for seat_count in gate_counts
+            },
             "roleBalance": results["linear"]["roleBalance"],
             "roleBalanceIncentiveSchedule": role_balance_schedule,
         },
@@ -1264,6 +1357,8 @@ def _build_export_evaluation(linear_policy, neural_policy, workers: int, seed: i
             "mainSeatMean": results["neural"]["mainSeatMean"],
             "vsHeuristic": results["neural"]["mainSeatMean"] - heuristic_mean,
             "liveCandidate": results["neural"]["liveCandidate"],
+            "gateFailures": results["neural"]["gateFailures"],
+            "promotionDecision": "live-default" if results["neural"]["liveCandidate"] else "research-only",
             "roleBalance": results["neural"]["roleBalance"],
             "roleBalanceIncentiveSchedule": role_balance_schedule,
         },
@@ -1300,7 +1395,17 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=Path("workers/src/card-rl-policy-registry-data.js"))
     parser.add_argument("--linear-version", type=str, default="linear-v2")
     parser.add_argument("--neural-version", type=str, default="neural-v1")
+    parser.add_argument("--objective", choices=["direct", "hybrid-as"], default="direct")
+    parser.add_argument("--adversarial-curriculum", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--conservative-penalty", type=float, default=0.0)
+    parser.add_argument("--candidate-selector", choices=["default", "pareto-live-gate"], default="default")
     args = parser.parse_args()
+
+    global ADVERSARIAL_CURRICULUM, CONSERVATIVE_PENALTY
+    ADVERSARIAL_CURRICULUM = bool(args.adversarial_curriculum)
+    CONSERVATIVE_PENALTY = max(0.0, float(args.conservative_penalty))
+    if args.objective == "hybrid-as" and args.linear_version == "linear-v2":
+        args.linear_version = "linear-v3"
 
     random.seed(args.seed)
     workers = max(1, int(args.workers))
@@ -1308,14 +1413,15 @@ def main() -> None:
     neural_ppo_episodes = args.ppo_episodes if args.neural_ppo_episodes is None else int(args.neural_ppo_episodes)
     print(
         (
-            f"Seed {args.seed} | linear bc {args.bc_episodes} | linear ppo {args.ppo_episodes} | "
+            f"Seed {args.seed} | objective {args.objective} | selector {args.candidate_selector} | "
+            f"linear bc {args.bc_episodes} | linear ppo {args.ppo_episodes} | "
             f"neural {'on' if args.train_neural else 'off'} | "
             f"neural bc {neural_bc_episodes} | neural ppo {neural_ppo_episodes} | workers {workers}"
         ),
         flush=True,
     )
     def train_family(family: str, bc_episodes: int, ppo_episodes: int, seed: int, assigned_workers: int) -> Dict:
-        policy = bootstrap_policy() if family == "linear" else bootstrap_neural_policy()
+        policy = bootstrap_hybrid_as_policy() if family == "linear" and args.objective == "hybrid-as" else bootstrap_policy() if family == "linear" else bootstrap_neural_policy()
         learning_rates = _family_learning_rates(family)
         warm_start_behavior_cloning(
             policy,
@@ -1357,7 +1463,7 @@ def main() -> None:
         else:
             neural_policy = bootstrap_neural_policy()
             print("Skipping neural training; exporting bootstrap neural policy for comparison only.", flush=True)
-    evaluation, default_policy_ids = _build_export_evaluation(linear_policy, neural_policy, workers, args.seed)
+    evaluation, default_policy_ids = _build_export_evaluation(linear_policy, neural_policy, workers, args.seed, args.linear_version, args.neural_version)
     print(
         (
             f"Export gate | linear live {evaluation['linear']['liveCandidate']} "

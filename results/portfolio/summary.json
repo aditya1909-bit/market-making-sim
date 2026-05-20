@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-19T16:35:14.804103+00:00",
+  "generated_at": "2026-05-20T13:59:06.811713+00:00",
   "mode": "quick",
   "environment": {
     "python": "3.11.6",
@@ -22,7 +22,7 @@
       ],
       "cwd": "workers",
       "returncode": 0,
-      "elapsed_seconds": 0.6623459581751376,
+      "elapsed_seconds": 0.37920166715048254,
       "log": "results/portfolio/raw_logs/worker_tests.log"
     },
     {
@@ -36,7 +36,7 @@
       ],
       "cwd": ".",
       "returncode": 0,
-      "elapsed_seconds": 0.11017041699960828,
+      "elapsed_seconds": 0.07913137483410537,
       "log": "results/portfolio/raw_logs/card_rl_tests.log"
     },
     {
@@ -53,7 +53,7 @@
       ],
       "cwd": ".",
       "returncode": 0,
-      "elapsed_seconds": 0.2639689580537379,
+      "elapsed_seconds": 0.26914145797491074,
       "log": "results/portfolio/raw_logs/hidden_value_eval.log"
     },
     {
@@ -72,7 +72,7 @@
       ],
       "cwd": ".",
       "returncode": 0,
-      "elapsed_seconds": 233.24402166716754,
+      "elapsed_seconds": 221.77868487499654,
       "log": "results/portfolio/raw_logs/card_rl_eval.log"
     }
   ],
@@ -82,7 +82,7 @@
       "fail": 0
     },
     "card_rl": {
-      "pass": 16,
+      "pass": 19,
       "fail": 0
     }
   },
@@ -149,164 +149,124 @@
   "card_market": {
     "summary_rows": [
       {
-        "policy": "linear-v2",
+        "policy": "linear-v3",
         "seats": 2,
-        "mean_pnl": 0.147,
-        "ci95": 0.648,
-        "stdev": 3.622,
-        "avg_abs_inventory": 1.125
+        "mean_pnl": 0.308,
+        "ci95": 0.48,
+        "stdev": 2.683,
+        "avg_abs_inventory": 0.858
       },
       {
-        "policy": "linear-v2",
+        "policy": "linear-v3",
         "seats": 4,
-        "mean_pnl": -0.153,
-        "ci95": 0.887,
-        "stdev": 4.955,
+        "mean_pnl": 0.67,
+        "ci95": 0.681,
+        "stdev": 3.808,
         "avg_abs_inventory": 0.883
       },
       {
-        "policy": "linear-v2",
+        "policy": "linear-v3",
         "seats": 6,
-        "mean_pnl": -1.435,
-        "ci95": 1.214,
-        "stdev": 6.785,
-        "avg_abs_inventory": 0.942
+        "mean_pnl": 0.395,
+        "ci95": 0.92,
+        "stdev": 5.144,
+        "avg_abs_inventory": 1.117
       },
       {
-        "policy": "linear-v2",
+        "policy": "linear-v3",
         "seats": 8,
-        "mean_pnl": -2.353,
-        "ci95": 1.217,
-        "stdev": 6.8,
-        "avg_abs_inventory": 0.758
+        "mean_pnl": 2.186,
+        "ci95": 1.26,
+        "stdev": 7.043,
+        "avg_abs_inventory": 0.975
       },
       {
-        "policy": "linear-v2",
+        "policy": "linear-v3",
         "seats": 10,
-        "mean_pnl": -2.89,
-        "ci95": 1.194,
-        "stdev": 6.674,
-        "avg_abs_inventory": 0.583
-      },
-      {
-        "policy": "neural-v1",
-        "seats": 2,
-        "mean_pnl": -0.929,
-        "ci95": 0.595,
-        "stdev": 3.325,
-        "avg_abs_inventory": 1.25
-      },
-      {
-        "policy": "neural-v1",
-        "seats": 4,
-        "mean_pnl": -6.34,
-        "ci95": 1.114,
-        "stdev": 6.224,
-        "avg_abs_inventory": 1.017
-      },
-      {
-        "policy": "neural-v1",
-        "seats": 6,
-        "mean_pnl": -13.456,
-        "ci95": 2.502,
-        "stdev": 13.983,
+        "mean_pnl": 1.971,
+        "ci95": 1.425,
+        "stdev": 7.965,
         "avg_abs_inventory": 1.083
       },
       {
-        "policy": "neural-v1",
-        "seats": 8,
-        "mean_pnl": -20.727,
-        "ci95": 2.778,
-        "stdev": 15.525,
-        "avg_abs_inventory": 1.283
-      },
-      {
-        "policy": "neural-v1",
-        "seats": 10,
-        "mean_pnl": -28.717,
-        "ci95": 3.65,
-        "stdev": 20.402,
-        "avg_abs_inventory": 1.325
-      },
-      {
         "policy": "Bootstrap",
         "seats": 2,
-        "mean_pnl": -0.675,
-        "ci95": 0.522,
-        "stdev": 2.918,
-        "avg_abs_inventory": 1.283
+        "mean_pnl": 0.978,
+        "ci95": 0.688,
+        "stdev": 3.848,
+        "avg_abs_inventory": 1.142
       },
       {
         "policy": "Bootstrap",
         "seats": 4,
-        "mean_pnl": -6.927,
-        "ci95": 1.319,
-        "stdev": 7.374,
-        "avg_abs_inventory": 1.15
+        "mean_pnl": -4.626,
+        "ci95": 1.381,
+        "stdev": 7.719,
+        "avg_abs_inventory": 1.208
       },
       {
         "policy": "Bootstrap",
         "seats": 6,
-        "mean_pnl": -13.845,
-        "ci95": 2.268,
-        "stdev": 12.675,
-        "avg_abs_inventory": 1.033
+        "mean_pnl": -9.788,
+        "ci95": 2.081,
+        "stdev": 11.63,
+        "avg_abs_inventory": 1.425
       },
       {
         "policy": "Bootstrap",
         "seats": 8,
-        "mean_pnl": -16.967,
-        "ci95": 2.29,
-        "stdev": 12.797,
-        "avg_abs_inventory": 1.317
+        "mean_pnl": -13.018,
+        "ci95": 2.732,
+        "stdev": 15.269,
+        "avg_abs_inventory": 1.708
       },
       {
         "policy": "Bootstrap",
         "seats": 10,
-        "mean_pnl": -24.706,
-        "ci95": 3.53,
-        "stdev": 19.73,
+        "mean_pnl": -17.198,
+        "ci95": 3.606,
+        "stdev": 20.152,
+        "avg_abs_inventory": 1.417
+      },
+      {
+        "policy": "Neural Bootstrap",
+        "seats": 2,
+        "mean_pnl": 0.546,
+        "ci95": 0.707,
+        "stdev": 3.953,
+        "avg_abs_inventory": 1.042
+      },
+      {
+        "policy": "Neural Bootstrap",
+        "seats": 4,
+        "mean_pnl": -4.809,
+        "ci95": 1.523,
+        "stdev": 8.512,
+        "avg_abs_inventory": 1.117
+      },
+      {
+        "policy": "Neural Bootstrap",
+        "seats": 6,
+        "mean_pnl": -9.344,
+        "ci95": 2.001,
+        "stdev": 11.185,
+        "avg_abs_inventory": 1.342
+      },
+      {
+        "policy": "Neural Bootstrap",
+        "seats": 8,
+        "mean_pnl": -11.015,
+        "ci95": 2.822,
+        "stdev": 15.771,
         "avg_abs_inventory": 1.2
       },
       {
         "policy": "Neural Bootstrap",
-        "seats": 2,
-        "mean_pnl": -0.708,
-        "ci95": 0.609,
-        "stdev": 3.402,
-        "avg_abs_inventory": 1.442
-      },
-      {
-        "policy": "Neural Bootstrap",
-        "seats": 4,
-        "mean_pnl": -7.017,
-        "ci95": 1.323,
-        "stdev": 7.394,
-        "avg_abs_inventory": 1.108
-      },
-      {
-        "policy": "Neural Bootstrap",
-        "seats": 6,
-        "mean_pnl": -13.574,
-        "ci95": 1.871,
-        "stdev": 10.455,
-        "avg_abs_inventory": 1.292
-      },
-      {
-        "policy": "Neural Bootstrap",
-        "seats": 8,
-        "mean_pnl": -21.274,
-        "ci95": 3.479,
-        "stdev": 19.443,
-        "avg_abs_inventory": 1.183
-      },
-      {
-        "policy": "Neural Bootstrap",
         "seats": 10,
-        "mean_pnl": -28.706,
-        "ci95": 4.361,
-        "stdev": 24.376,
-        "avg_abs_inventory": 1.05
+        "mean_pnl": -21.597,
+        "ci95": 4.746,
+        "stdev": 26.526,
+        "avg_abs_inventory": 1.292
       },
       {
         "policy": "Wait Baseline",
@@ -471,364 +431,289 @@
     ],
     "behavior_rows": [
       {
-        "policy": "linear-v2",
+        "policy": "linear-v3",
         "seats": 2,
-        "quote_rate": 0.489,
-        "take_rate": 0.28300000000000003,
-        "reveal_rate": 0.17300000000000001,
-        "wait_rate": 0.055,
-        "buy_rate": 0.14400000000000002,
-        "sell_rate": 0.138,
+        "quote_rate": 0.503,
+        "take_rate": 0.156,
+        "reveal_rate": 0.16899999999999998,
+        "wait_rate": 0.172,
+        "buy_rate": 0.081,
+        "sell_rate": 0.075,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.40399999999999997,
-        "missed_take_rate": 0.7390000000000001,
-        "maker_volume_per_episode": 1.02,
-        "taker_volume_per_episode": 4.24,
-        "maker_markout": -0.19,
-        "taker_markout": 0.08,
-        "quote_mid_dispersion": 2.54
+        "take_opportunity_rate": 0.373,
+        "missed_take_rate": 0.7909999999999999,
+        "maker_volume_per_episode": 0.17,
+        "taker_volume_per_episode": 2.34,
+        "maker_markout": -0.03,
+        "taker_markout": 0.13,
+        "quote_toxicity": 0.003,
+        "quote_mid_dispersion": 2.47
       },
       {
-        "policy": "linear-v2",
+        "policy": "linear-v3",
         "seats": 4,
-        "quote_rate": 0.557,
-        "take_rate": 0.15,
-        "reveal_rate": 0.134,
-        "wait_rate": 0.159,
-        "buy_rate": 0.087,
-        "sell_rate": 0.063,
+        "quote_rate": 0.529,
+        "take_rate": 0.156,
+        "reveal_rate": 0.129,
+        "wait_rate": 0.18600000000000003,
+        "buy_rate": 0.086,
+        "sell_rate": 0.07,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.27699999999999997,
-        "missed_take_rate": 0.7170000000000001,
-        "maker_volume_per_episode": 2.92,
-        "taker_volume_per_episode": 2.25,
-        "maker_markout": -0.37,
-        "taker_markout": 0.41,
-        "quote_mid_dispersion": 3.54
-      },
-      {
-        "policy": "linear-v2",
-        "seats": 6,
-        "quote_rate": 0.5660000000000001,
-        "take_rate": 0.111,
-        "reveal_rate": 0.14300000000000002,
-        "wait_rate": 0.18100000000000002,
-        "buy_rate": 0.057,
-        "sell_rate": 0.054000000000000006,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.168,
-        "missed_take_rate": 0.6559999999999999,
-        "maker_volume_per_episode": 3.29,
-        "taker_volume_per_episode": 1.67,
-        "maker_markout": -0.56,
+        "take_opportunity_rate": 0.247,
+        "missed_take_rate": 0.746,
+        "maker_volume_per_episode": 0.76,
+        "taker_volume_per_episode": 2.34,
+        "maker_markout": 0.1,
         "taker_markout": 0.25,
-        "quote_mid_dispersion": 4.26
+        "quote_toxicity": 0.002,
+        "quote_mid_dispersion": 3.59
       },
       {
-        "policy": "linear-v2",
-        "seats": 8,
-        "quote_rate": 0.597,
-        "take_rate": 0.107,
-        "reveal_rate": 0.126,
-        "wait_rate": 0.171,
-        "buy_rate": 0.053,
-        "sell_rate": 0.054000000000000006,
+        "policy": "linear-v3",
+        "seats": 6,
+        "quote_rate": 0.529,
+        "take_rate": 0.16899999999999998,
+        "reveal_rate": 0.121,
+        "wait_rate": 0.18100000000000002,
+        "buy_rate": 0.08800000000000001,
+        "sell_rate": 0.08199999999999999,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.162,
-        "missed_take_rate": 0.595,
-        "maker_volume_per_episode": 3.95,
-        "taker_volume_per_episode": 1.61,
-        "maker_markout": -0.75,
-        "taker_markout": 0.38,
-        "quote_mid_dispersion": 5.41
+        "take_opportunity_rate": 0.153,
+        "missed_take_rate": 0.659,
+        "maker_volume_per_episode": 0.91,
+        "taker_volume_per_episode": 2.54,
+        "maker_markout": -0.29,
+        "taker_markout": 0.26,
+        "quote_toxicity": 0.003,
+        "quote_mid_dispersion": 4.36
       },
       {
-        "policy": "linear-v2",
+        "policy": "linear-v3",
+        "seats": 8,
+        "quote_rate": 0.501,
+        "take_rate": 0.175,
+        "reveal_rate": 0.127,
+        "wait_rate": 0.19699999999999998,
+        "buy_rate": 0.08900000000000001,
+        "sell_rate": 0.086,
+        "pass_rate": 0.0,
+        "take_opportunity_rate": 0.138,
+        "missed_take_rate": 0.56,
+        "maker_volume_per_episode": 0.83,
+        "taker_volume_per_episode": 2.62,
+        "maker_markout": -0.65,
+        "taker_markout": 1.04,
+        "quote_toxicity": 0.003,
+        "quote_mid_dispersion": 5.6
+      },
+      {
+        "policy": "linear-v3",
         "seats": 10,
-        "quote_rate": 0.602,
-        "take_rate": 0.07400000000000001,
-        "reveal_rate": 0.113,
-        "wait_rate": 0.21100000000000002,
-        "buy_rate": 0.039,
-        "sell_rate": 0.035,
+        "quote_rate": 0.518,
+        "take_rate": 0.18899999999999997,
+        "reveal_rate": 0.107,
+        "wait_rate": 0.185,
+        "buy_rate": 0.091,
+        "sell_rate": 0.099,
         "pass_rate": 0.0,
         "take_opportunity_rate": 0.111,
-        "missed_take_rate": 0.6679999999999999,
-        "maker_volume_per_episode": 3.27,
-        "taker_volume_per_episode": 1.11,
-        "maker_markout": -1.06,
-        "taker_markout": 0.52,
+        "missed_take_rate": 0.603,
+        "maker_volume_per_episode": 0.91,
+        "taker_volume_per_episode": 2.84,
+        "maker_markout": -0.86,
+        "taker_markout": 0.97,
+        "quote_toxicity": 0.003,
+        "quote_mid_dispersion": 6.94
+      },
+      {
+        "policy": "Bootstrap",
+        "seats": 2,
+        "quote_rate": 0.47600000000000003,
+        "take_rate": 0.23600000000000002,
+        "reveal_rate": 0.14800000000000002,
+        "wait_rate": 0.139,
+        "buy_rate": 0.129,
+        "sell_rate": 0.107,
+        "pass_rate": 0.0,
+        "take_opportunity_rate": 0.501,
+        "missed_take_rate": 0.7,
+        "maker_volume_per_episode": 2.82,
+        "taker_volume_per_episode": 3.54,
+        "maker_markout": -0.48,
+        "taker_markout": 0.66,
+        "quote_toxicity": 0.026,
+        "quote_mid_dispersion": 2.91
+      },
+      {
+        "policy": "Bootstrap",
+        "seats": 4,
+        "quote_rate": 0.579,
+        "take_rate": 0.161,
+        "reveal_rate": 0.125,
+        "wait_rate": 0.134,
+        "buy_rate": 0.081,
+        "sell_rate": 0.08,
+        "pass_rate": 0.0,
+        "take_opportunity_rate": 0.267,
+        "missed_take_rate": 0.6829999999999999,
+        "maker_volume_per_episode": 6.44,
+        "taker_volume_per_episode": 2.42,
+        "maker_markout": -1.08,
+        "taker_markout": 0.97,
+        "quote_toxicity": 0.029,
+        "quote_mid_dispersion": 4.03
+      },
+      {
+        "policy": "Bootstrap",
+        "seats": 6,
+        "quote_rate": 0.563,
+        "take_rate": 0.17300000000000001,
+        "reveal_rate": 0.12300000000000001,
+        "wait_rate": 0.141,
+        "buy_rate": 0.08900000000000001,
+        "sell_rate": 0.084,
+        "pass_rate": 0.0,
+        "take_opportunity_rate": 0.17600000000000002,
+        "missed_take_rate": 0.5579999999999999,
+        "maker_volume_per_episode": 7.58,
+        "taker_volume_per_episode": 2.6,
+        "maker_markout": -1.63,
+        "taker_markout": 0.97,
+        "quote_toxicity": 0.038,
+        "quote_mid_dispersion": 5.23
+      },
+      {
+        "policy": "Bootstrap",
+        "seats": 8,
+        "quote_rate": 0.552,
+        "take_rate": 0.213,
+        "reveal_rate": 0.12300000000000001,
+        "wait_rate": 0.11199999999999999,
+        "buy_rate": 0.126,
+        "sell_rate": 0.087,
+        "pass_rate": 0.0,
+        "take_opportunity_rate": 0.171,
+        "missed_take_rate": 0.49700000000000005,
+        "maker_volume_per_episode": 8.66,
+        "taker_volume_per_episode": 3.2,
+        "maker_markout": -2.15,
+        "taker_markout": 1.76,
+        "quote_toxicity": 0.044,
         "quote_mid_dispersion": 6.52
       },
       {
-        "policy": "neural-v1",
-        "seats": 2,
-        "quote_rate": 0.544,
-        "take_rate": 0.079,
-        "reveal_rate": 0.162,
-        "wait_rate": 0.215,
-        "buy_rate": 0.048,
-        "sell_rate": 0.032,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.48700000000000004,
-        "missed_take_rate": 0.9,
-        "maker_volume_per_episode": 2.92,
-        "taker_volume_per_episode": 1.19,
-        "maker_markout": -0.52,
-        "taker_markout": 0.5,
-        "quote_mid_dispersion": 2.91
-      },
-      {
-        "policy": "neural-v1",
-        "seats": 4,
-        "quote_rate": 0.612,
-        "take_rate": 0.10400000000000001,
-        "reveal_rate": 0.127,
-        "wait_rate": 0.157,
-        "buy_rate": 0.053,
-        "sell_rate": 0.051,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.287,
-        "missed_take_rate": 0.8220000000000001,
-        "maker_volume_per_episode": 6.32,
-        "taker_volume_per_episode": 1.57,
-        "maker_markout": -1.06,
-        "taker_markout": 0.21,
-        "quote_mid_dispersion": 3.71
-      },
-      {
-        "policy": "neural-v1",
-        "seats": 6,
-        "quote_rate": 0.609,
-        "take_rate": 0.105,
-        "reveal_rate": 0.131,
-        "wait_rate": 0.155,
-        "buy_rate": 0.057999999999999996,
-        "sell_rate": 0.047,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.217,
-        "missed_take_rate": 0.7490000000000001,
-        "maker_volume_per_episode": 8.51,
-        "taker_volume_per_episode": 1.57,
-        "maker_markout": -1.66,
-        "taker_markout": 0.4,
-        "quote_mid_dispersion": 5.15
-      },
-      {
-        "policy": "neural-v1",
-        "seats": 8,
-        "quote_rate": 0.623,
-        "take_rate": 0.096,
-        "reveal_rate": 0.129,
-        "wait_rate": 0.152,
-        "buy_rate": 0.048,
-        "sell_rate": 0.048,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.188,
-        "missed_take_rate": 0.722,
-        "maker_volume_per_episode": 9.8,
-        "taker_volume_per_episode": 1.43,
-        "maker_markout": -2.21,
-        "taker_markout": 0.66,
-        "quote_mid_dispersion": 6.55
-      },
-      {
-        "policy": "neural-v1",
+        "policy": "Bootstrap",
         "seats": 10,
-        "quote_rate": 0.6509999999999999,
-        "take_rate": 0.08199999999999999,
-        "reveal_rate": 0.132,
-        "wait_rate": 0.135,
-        "buy_rate": 0.045,
-        "sell_rate": 0.037000000000000005,
+        "quote_rate": 0.5670000000000001,
+        "take_rate": 0.182,
+        "reveal_rate": 0.11,
+        "wait_rate": 0.141,
+        "buy_rate": 0.091,
+        "sell_rate": 0.092,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.161,
-        "missed_take_rate": 0.693,
-        "maker_volume_per_episode": 10.63,
-        "taker_volume_per_episode": 1.23,
-        "maker_markout": -2.76,
-        "taker_markout": 0.53,
-        "quote_mid_dispersion": 7.44
+        "take_opportunity_rate": 0.128,
+        "missed_take_rate": 0.43700000000000006,
+        "maker_volume_per_episode": 8.93,
+        "taker_volume_per_episode": 2.73,
+        "maker_markout": -2.75,
+        "taker_markout": 2.69,
+        "quote_toxicity": 0.046,
+        "quote_mid_dispersion": 7.59
       },
       {
-        "policy": "Bootstrap",
+        "policy": "Neural Bootstrap",
         "seats": 2,
-        "quote_rate": 0.52,
-        "take_rate": 0.099,
-        "reveal_rate": 0.18100000000000002,
-        "wait_rate": 0.2,
-        "buy_rate": 0.057,
-        "sell_rate": 0.043,
+        "quote_rate": 0.489,
+        "take_rate": 0.195,
+        "reveal_rate": 0.156,
+        "wait_rate": 0.16,
+        "buy_rate": 0.10300000000000001,
+        "sell_rate": 0.092,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.505,
-        "missed_take_rate": 0.892,
-        "maker_volume_per_episode": 2.66,
-        "taker_volume_per_episode": 1.49,
-        "maker_markout": -0.57,
-        "taker_markout": 0.57,
-        "quote_mid_dispersion": 2.96
+        "take_opportunity_rate": 0.43700000000000006,
+        "missed_take_rate": 0.715,
+        "maker_volume_per_episode": 2.48,
+        "taker_volume_per_episode": 2.92,
+        "maker_markout": -0.58,
+        "taker_markout": 0.68,
+        "quote_toxicity": 0.026,
+        "quote_mid_dispersion": 2.89
       },
       {
-        "policy": "Bootstrap",
+        "policy": "Neural Bootstrap",
         "seats": 4,
-        "quote_rate": 0.613,
-        "take_rate": 0.102,
-        "reveal_rate": 0.14300000000000002,
+        "quote_rate": 0.5870000000000001,
+        "take_rate": 0.16699999999999998,
+        "reveal_rate": 0.10400000000000001,
         "wait_rate": 0.142,
-        "buy_rate": 0.055,
-        "sell_rate": 0.047,
+        "buy_rate": 0.08199999999999999,
+        "sell_rate": 0.084,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.284,
-        "missed_take_rate": 0.847,
-        "maker_volume_per_episode": 6.62,
-        "taker_volume_per_episode": 1.53,
-        "maker_markout": -1.08,
-        "taker_markout": 0.14,
-        "quote_mid_dispersion": 4.01
+        "take_opportunity_rate": 0.268,
+        "missed_take_rate": 0.66,
+        "maker_volume_per_episode": 6.72,
+        "taker_volume_per_episode": 2.5,
+        "maker_markout": -1.07,
+        "taker_markout": 0.95,
+        "quote_toxicity": 0.031,
+        "quote_mid_dispersion": 3.68
       },
       {
-        "policy": "Bootstrap",
+        "policy": "Neural Bootstrap",
         "seats": 6,
-        "quote_rate": 0.598,
-        "take_rate": 0.109,
-        "reveal_rate": 0.146,
-        "wait_rate": 0.147,
-        "buy_rate": 0.054000000000000006,
-        "sell_rate": 0.055999999999999994,
+        "quote_rate": 0.5820000000000001,
+        "take_rate": 0.172,
+        "reveal_rate": 0.12300000000000001,
+        "wait_rate": 0.124,
+        "buy_rate": 0.096,
+        "sell_rate": 0.076,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.188,
-        "missed_take_rate": 0.775,
-        "maker_volume_per_episode": 8.32,
-        "taker_volume_per_episode": 1.64,
-        "maker_markout": -1.67,
-        "taker_markout": 0.05,
-        "quote_mid_dispersion": 5.29
+        "take_opportunity_rate": 0.201,
+        "missed_take_rate": 0.569,
+        "maker_volume_per_episode": 8.13,
+        "taker_volume_per_episode": 2.58,
+        "maker_markout": -1.61,
+        "taker_markout": 1.45,
+        "quote_toxicity": 0.036,
+        "quote_mid_dispersion": 5.07
       },
       {
-        "policy": "Bootstrap",
+        "policy": "Neural Bootstrap",
         "seats": 8,
-        "quote_rate": 0.612,
-        "take_rate": 0.122,
-        "reveal_rate": 0.134,
-        "wait_rate": 0.132,
-        "buy_rate": 0.066,
-        "sell_rate": 0.055999999999999994,
+        "quote_rate": 0.568,
+        "take_rate": 0.179,
+        "reveal_rate": 0.124,
+        "wait_rate": 0.129,
+        "buy_rate": 0.10300000000000001,
+        "sell_rate": 0.076,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.17800000000000002,
-        "missed_take_rate": 0.682,
-        "maker_volume_per_episode": 9.29,
-        "taker_volume_per_episode": 1.82,
-        "maker_markout": -1.94,
-        "taker_markout": 0.6,
-        "quote_mid_dispersion": 6.56
+        "take_opportunity_rate": 0.17300000000000001,
+        "missed_take_rate": 0.479,
+        "maker_volume_per_episode": 9.02,
+        "taker_volume_per_episode": 2.68,
+        "maker_markout": -1.98,
+        "taker_markout": 2.54,
+        "quote_toxicity": 0.04,
+        "quote_mid_dispersion": 6.15
       },
       {
-        "policy": "Bootstrap",
+        "policy": "Neural Bootstrap",
         "seats": 10,
-        "quote_rate": 0.606,
-        "take_rate": 0.099,
-        "reveal_rate": 0.14400000000000002,
-        "wait_rate": 0.151,
-        "buy_rate": 0.049,
-        "sell_rate": 0.051,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.13699999999999998,
-        "missed_take_rate": 0.623,
-        "maker_volume_per_episode": 9.61,
-        "taker_volume_per_episode": 1.49,
-        "maker_markout": -2.71,
-        "taker_markout": 0.9,
-        "quote_mid_dispersion": 7.42
-      },
-      {
-        "policy": "Neural Bootstrap",
-        "seats": 2,
-        "quote_rate": 0.534,
-        "take_rate": 0.094,
-        "reveal_rate": 0.17800000000000002,
-        "wait_rate": 0.193,
-        "buy_rate": 0.054000000000000006,
-        "sell_rate": 0.040999999999999995,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.493,
-        "missed_take_rate": 0.89,
-        "maker_volume_per_episode": 2.89,
-        "taker_volume_per_episode": 1.42,
-        "maker_markout": -0.44,
-        "taker_markout": 0.4,
-        "quote_mid_dispersion": 2.91
-      },
-      {
-        "policy": "Neural Bootstrap",
-        "seats": 4,
-        "quote_rate": 0.618,
-        "take_rate": 0.096,
-        "reveal_rate": 0.13699999999999998,
-        "wait_rate": 0.14800000000000002,
-        "buy_rate": 0.051,
-        "sell_rate": 0.046,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.27699999999999997,
-        "missed_take_rate": 0.845,
-        "maker_volume_per_episode": 6.67,
-        "taker_volume_per_episode": 1.44,
-        "maker_markout": -1.03,
-        "taker_markout": -0.09,
-        "quote_mid_dispersion": 3.78
-      },
-      {
-        "policy": "Neural Bootstrap",
-        "seats": 6,
-        "quote_rate": 0.616,
-        "take_rate": 0.102,
-        "reveal_rate": 0.121,
-        "wait_rate": 0.161,
-        "buy_rate": 0.055,
-        "sell_rate": 0.047,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.214,
-        "missed_take_rate": 0.779,
-        "maker_volume_per_episode": 8.21,
-        "taker_volume_per_episode": 1.53,
-        "maker_markout": -1.69,
-        "taker_markout": 0.19,
-        "quote_mid_dispersion": 4.87
-      },
-      {
-        "policy": "Neural Bootstrap",
-        "seats": 8,
-        "quote_rate": 0.634,
-        "take_rate": 0.08900000000000001,
-        "reveal_rate": 0.14300000000000002,
+        "quote_rate": 0.603,
+        "take_rate": 0.15,
+        "reveal_rate": 0.113,
         "wait_rate": 0.134,
-        "buy_rate": 0.049,
-        "sell_rate": 0.040999999999999995,
+        "buy_rate": 0.086,
+        "sell_rate": 0.064,
         "pass_rate": 0.0,
-        "take_opportunity_rate": 0.177,
-        "missed_take_rate": 0.708,
-        "maker_volume_per_episode": 10.03,
-        "taker_volume_per_episode": 1.34,
-        "maker_markout": -2.15,
-        "taker_markout": 0.22,
-        "quote_mid_dispersion": 6.44
-      },
-      {
-        "policy": "Neural Bootstrap",
-        "seats": 10,
-        "quote_rate": 0.637,
-        "take_rate": 0.087,
-        "reveal_rate": 0.122,
-        "wait_rate": 0.154,
-        "buy_rate": 0.046,
-        "sell_rate": 0.042,
-        "pass_rate": 0.0,
-        "take_opportunity_rate": 0.141,
-        "missed_take_rate": 0.6729999999999999,
-        "maker_volume_per_episode": 10.38,
-        "taker_volume_per_episode": 1.31,
-        "maker_markout": -2.87,
-        "taker_markout": 0.8,
-        "quote_mid_dispersion": 7.49
+        "take_opportunity_rate": 0.131,
+        "missed_take_rate": 0.47,
+        "maker_volume_per_episode": 10.59,
+        "taker_volume_per_episode": 2.25,
+        "maker_markout": -2.74,
+        "taker_markout": 3.28,
+        "quote_toxicity": 0.047,
+        "quote_mid_dispersion": 7.23
       },
       {
         "policy": "Wait",
@@ -846,6 +731,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.0,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.0,
         "quote_mid_dispersion": 0.0
       },
       {
@@ -864,6 +750,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.0,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.0,
         "quote_mid_dispersion": 0.0
       },
       {
@@ -882,6 +769,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.0,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.0,
         "quote_mid_dispersion": 0.0
       },
       {
@@ -900,6 +788,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.0,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.0,
         "quote_mid_dispersion": 0.0
       },
       {
@@ -918,6 +807,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.0,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.0,
         "quote_mid_dispersion": 0.0
       },
       {
@@ -936,6 +826,7 @@
         "taker_volume_per_episode": 2.23,
         "maker_markout": -0.36,
         "taker_markout": 0.46,
+        "quote_toxicity": 0.026,
         "quote_mid_dispersion": 2.79
       },
       {
@@ -954,6 +845,7 @@
         "taker_volume_per_episode": 1.44,
         "maker_markout": -0.62,
         "taker_markout": 0.51,
+        "quote_toxicity": 0.013,
         "quote_mid_dispersion": 3.48
       },
       {
@@ -972,6 +864,7 @@
         "taker_volume_per_episode": 1.85,
         "maker_markout": -1.84,
         "taker_markout": 0.49,
+        "quote_toxicity": 0.016,
         "quote_mid_dispersion": 4.61
       },
       {
@@ -990,6 +883,7 @@
         "taker_volume_per_episode": 1.79,
         "maker_markout": -1.57,
         "taker_markout": 1.25,
+        "quote_toxicity": 0.013,
         "quote_mid_dispersion": 5.31
       },
       {
@@ -1008,6 +902,7 @@
         "taker_volume_per_episode": 0.81,
         "maker_markout": -2.03,
         "taker_markout": 1.11,
+        "quote_toxicity": 0.005,
         "quote_mid_dispersion": 6.38
       },
       {
@@ -1026,6 +921,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": -0.26,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.006,
         "quote_mid_dispersion": 2.45
       },
       {
@@ -1044,6 +940,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.53,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.002,
         "quote_mid_dispersion": 3.38
       },
       {
@@ -1062,6 +959,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.52,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.001,
         "quote_mid_dispersion": 4.13
       },
       {
@@ -1080,6 +978,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.38,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.001,
         "quote_mid_dispersion": 5.25
       },
       {
@@ -1098,6 +997,7 @@
         "taker_volume_per_episode": 0.0,
         "maker_markout": 0.11,
         "taker_markout": 0.0,
+        "quote_toxicity": 0.0,
         "quote_mid_dispersion": 5.81
       },
       {
@@ -1116,6 +1016,7 @@
         "taker_volume_per_episode": 3.28,
         "maker_markout": -0.41,
         "taker_markout": 0.33,
+        "quote_toxicity": 0.03,
         "quote_mid_dispersion": 2.72
       },
       {
@@ -1134,6 +1035,7 @@
         "taker_volume_per_episode": 1.08,
         "maker_markout": -0.22,
         "taker_markout": 0.64,
+        "quote_toxicity": 0.009,
         "quote_mid_dispersion": 3.38
       },
       {
@@ -1152,6 +1054,7 @@
         "taker_volume_per_episode": 1.26,
         "maker_markout": -1.1,
         "taker_markout": 1.05,
+        "quote_toxicity": 0.009,
         "quote_mid_dispersion": 4.17
       },
       {
@@ -1170,6 +1073,7 @@
         "taker_volume_per_episode": 1.23,
         "maker_markout": -2.09,
         "taker_markout": 1.18,
+        "quote_toxicity": 0.01,
         "quote_mid_dispersion": 5.46
       },
       {
@@ -1188,57 +1092,54 @@
         "taker_volume_per_episode": 0.83,
         "maker_markout": -1.75,
         "taker_markout": 1.56,
+        "quote_toxicity": 0.004,
         "quote_mid_dispersion": 6.07
       }
     ],
     "role_balance": {
-      "policy": "linear-v2",
-      "maker_fill_rebate": 0.0,
-      "taker_fill_fee": 0.0,
+      "policy": "linear-v3",
+      "maker_fill_rebate": 0.001,
+      "taker_fill_fee": 0.001,
       "wide_quote_pass_penalty": 0.0,
       "tight_quote_refusal_penalty": 0.0,
-      "maker_pnl": -0.153,
-      "maker_ci95": 0.24,
-      "taker_pnl": 0.153,
-      "taker_ci95": 0.24,
-      "fills_per_episode": 1.06,
-      "maker_quote_rate": 0.539,
-      "taker_take_rate": 0.071,
-      "parity_gap": 0.153
+      "maker_pnl": -0.092,
+      "maker_ci95": 0.302,
+      "taker_pnl": 0.092,
+      "taker_ci95": 0.302,
+      "fills_per_episode": 1.7,
+      "maker_quote_rate": 0.672,
+      "taker_take_rate": 0.113,
+      "parity_gap": 0.092
     },
     "linear_vs_bootstrap": [
       {
         "seats": 2,
-        "uplift_vs_bootstrap": 0.8220000000000001
+        "uplift_vs_bootstrap": -0.6699999999999999
       },
       {
         "seats": 4,
-        "uplift_vs_bootstrap": 6.774
+        "uplift_vs_bootstrap": 5.296
       },
       {
         "seats": 6,
-        "uplift_vs_bootstrap": 12.41
+        "uplift_vs_bootstrap": 10.183
       },
       {
         "seats": 8,
-        "uplift_vs_bootstrap": 14.613999999999999
+        "uplift_vs_bootstrap": 15.204
       },
       {
         "seats": 10,
-        "uplift_vs_bootstrap": 21.816
+        "uplift_vs_bootstrap": 19.169
       }
     ],
     "alerts": [
       "Low take-rate warning on seats: 2, 4",
-      "Maker-toxicity warning on seats: 8, 10",
-      "Low take-rate warning on seats: 2, 4, 6, 8",
-      "Maker-toxicity warning on seats: 4, 6, 8, 10",
-      "taker-undertrade",
       "taker-favored",
       "taker-undertrade",
       "taker-favored"
     ],
-    "live_card_policy_ready": false,
-    "positioning": "research-benchmark"
+    "live_card_policy_ready": true,
+    "positioning": "live-default"
   }
 }

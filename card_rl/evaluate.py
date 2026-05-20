@@ -18,6 +18,7 @@ from .heuristic import (
     BASELINE_WAIT,
     decision_for_baseline,
     heuristic_decision,
+    quote_toxicity,
 )
 from .model import bootstrap_neural_policy, bootstrap_policy, policy_from_dict
 from .simulator import CardMarketSimulator, IncentiveSchedule, ROLE_BALANCE_SEAT_ROLES
@@ -27,6 +28,10 @@ ROLE_BALANCE_ACTIVITY_FLOORS = {
     "taker_take_rate_min": 0.10,
     "taker_take_rate_max": 0.35,
 }
+
+
+def maker_markout_floor(seat_count: int) -> float:
+    return -0.75 - max(0, int(seat_count) - 6) * 0.10
 
 
 def _format_duration(seconds: float) -> str:
@@ -117,7 +122,7 @@ def role_balance_incentive_grid() -> list[dict[str, float]]:
     schedules = [
         IncentiveSchedule().to_dict(),
     ]
-    fill_rates = [0.0005, 0.001]
+    fill_rates = [0.0005, 0.001, 0.002, 0.003]
     pass_rates = [0.0, 0.00075]
     for fill_rate in fill_rates:
         for pass_rate in pass_rates:
@@ -172,6 +177,9 @@ def _empty_metric_bucket() -> dict:
         "quote_mid_sum": 0.0,
         "quote_mid_sum_sq": 0.0,
         "quote_mid_count": 0,
+        "quote_toxicity_sum": 0.0,
+        "quote_toxicity_count": 0,
+        "toxic_quote_count": 0,
     }
 
 
@@ -371,6 +379,11 @@ def _evaluate_chunk(args: dict) -> dict:
                     metrics["quote_mid_sum"] += midpoint
                     metrics["quote_mid_sum_sq"] += midpoint * midpoint
                     metrics["quote_mid_count"] += 1
+                    toxicity = quote_toxicity(base, payload)
+                    metrics["quote_toxicity_sum"] += toxicity
+                    metrics["quote_toxicity_count"] += 1
+                    if toxicity > 0.2:
+                        metrics["toxic_quote_count"] += 1
             elif decision_type == "taker_action":
                 metrics["action_take"] += 1
                 action = decision.get("payload", {}).get("action", "pass")
@@ -564,6 +577,8 @@ def _evaluate_policy(
                     - (float(bucket["quote_mid_sum"]) / max(1, bucket["quote_mid_count"])) ** 2,
                 )
             ),
+            "quote_toxicity": bucket["quote_toxicity_sum"] / max(1, bucket["quote_toxicity_count"]),
+            "toxic_quote_rate": bucket["toxic_quote_count"] / max(1, bucket["quote_toxicity_count"]),
         }
     return summary, mode
 
@@ -710,6 +725,7 @@ def _print_behavior_table(title: str, summary: dict[int, dict]) -> None:
             f" | taker vol {row['taker_volume_per_episode']:.2f}"
             f" | maker mko {row['maker_markout']:.2f}"
             f" | taker mko {row['taker_markout']:.2f}"
+            f" | tox {row.get('quote_toxicity', 0.0):.3f}"
             f" | q-disp {row['quote_mid_dispersion']:.2f}"
         )
 
@@ -720,19 +736,24 @@ def _print_behavior_alerts(title: str, summary: dict[int, dict]) -> None:
         for seat_count, row in sorted(summary.items())
         if row["missed_take_rate"] > 0.7 and row["take_opportunity_rate"] > 0.03
     ]
-    if not low_take:
-        return
-    seats = ", ".join(str(seat_count) for seat_count in low_take)
-    print("")
-    print(f"{title} Alerts")
-    print(f"Low take-rate warning on seats: {seats}")
+    printed_header = False
+    if low_take:
+        seats = ", ".join(str(seat_count) for seat_count in low_take)
+        print("")
+        print(f"{title} Alerts")
+        printed_header = True
+        print(f"Low take-rate warning on seats: {seats}")
 
     maker_toxicity = [
         seat_count
         for seat_count, row in sorted(summary.items())
-        if row["maker_markout"] < -0.75 and row["maker_volume_per_episode"] >= 0.5
+        if (row["maker_markout"] < maker_markout_floor(seat_count) and row["maker_volume_per_episode"] >= 0.5) or row.get("toxic_quote_rate", 0.0) > 0.18
     ]
     if maker_toxicity:
+        if not printed_header:
+            print("")
+            print(f"{title} Alerts")
+            printed_header = True
         toxic_seats = ", ".join(str(seat_count) for seat_count in maker_toxicity)
         print(f"Maker-toxicity warning on seats: {toxic_seats}")
 
@@ -742,6 +763,10 @@ def _print_behavior_alerts(title: str, summary: dict[int, dict]) -> None:
         if row["take_rate"] > 0.45 and row["taker_markout"] < -0.1
     ]
     if taker_overtrade:
+        if not printed_header:
+            print("")
+            print(f"{title} Alerts")
+            printed_header = True
         overtrade_seats = ", ".join(str(seat_count) for seat_count in taker_overtrade)
         print(f"Taker-overtrade warning on seats: {overtrade_seats}")
 
@@ -751,6 +776,9 @@ def _print_behavior_alerts(title: str, summary: dict[int, dict]) -> None:
         if row["quote_rate"] < 0.05 and row["take_rate"] > 0.25
     ]
     if quote_absence:
+        if not printed_header:
+            print("")
+            print(f"{title} Alerts")
         quote_absence_seats = ", ".join(str(seat_count) for seat_count in quote_absence)
         print(f"Quote-absence warning on seats: {quote_absence_seats}")
 
@@ -984,7 +1012,10 @@ def main() -> None:
         _print_behavior_table(f"{policy_id} Behavior", summary)
         _print_behavior_alerts(policy_id, summary)
 
-    role_balance_focus_key = "linear-v2" if "linear-v2" in results else (selected_policy_ids[0] if selected_policy_ids else eval_jobs[0]["key"])
+    role_balance_focus_key = next(
+        (policy_id for policy_id in selected_policy_ids if results.get(policy_id, {}).get("job", {}).get("family") == "linear"),
+        selected_policy_ids[0] if selected_policy_ids else eval_jobs[0]["key"],
+    )
     role_balance_focus = results[role_balance_focus_key]
     chosen_schedule, chosen_focus_summary, sweep_rows = _choose_role_balance_schedule(
         name=role_balance_focus["job"]["name"],

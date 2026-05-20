@@ -7,13 +7,38 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Sequence
 
 from .features import BASE_FEATURE_NAMES, QUOTE_FEATURE_NAMES, TAKE_FEATURE_NAMES, base_feature_vector, quote_features, take_features
-from .heuristic import quote_from_template
+from .heuristic import hybrid_as_quote_from_params, quote_from_template
 from .rules import MAX_QUOTE_SIZE, QUOTE_TEMPLATES
 
 MODEL_COMPATIBILITY_VERSION = 2
 INTENT_LABELS = ["take", "quote", "reveal", "wait"]
 QUOTE_EXTRA_FEATURE_COUNT = len(QUOTE_FEATURE_NAMES) - len(BASE_FEATURE_NAMES)
 TAKE_EXTRA_FEATURE_COUNT = len(TAKE_FEATURE_NAMES) - len(BASE_FEATURE_NAMES)
+
+
+def build_hybrid_as_params(templates: Sequence[Dict] | None = None) -> List[Dict]:
+    params = []
+    for template in templates or QUOTE_TEMPLATES:
+        if template.get("noop"):
+            params.append({"id": "noop", "noop": True})
+            continue
+        offset = float(template.get("reservationOffset", 0.0))
+        spread = float(template.get("spreadScale", 1.0))
+        size = int(template.get("size", 1))
+        params.append(
+            {
+                "id": template.get("id", "hybrid"),
+                "risk_aversion": max(0.0, min(1.0, 0.28 + abs(offset) * 1.6 + (spread - 0.75) * 0.22)),
+                "inventory_skew": max(0.25, min(1.35, 0.55 + abs(offset) * 1.4)),
+                "spread_multiplier": max(0.7, min(2.2, spread)),
+                "quote_mode": "bid" if offset < -0.005 else "ask" if offset > 0.005 else "balanced",
+                "take_threshold": max(0.006, 0.012 + abs(offset) * 0.04 + max(0.0, spread - 1.0) * 0.01),
+                "reveal_threshold": max(0.08, min(0.32, 0.2 - (spread - 1.0) * 0.04)),
+                "private_skew_scale": max(0.0, min(0.65, 0.25 + abs(offset) * 1.1)),
+                "size": size,
+            }
+        )
+    return params
 
 
 def dot(weights: Sequence[float], values: Sequence[float]) -> float:
@@ -198,6 +223,7 @@ class LinearCardPolicy:
     reveal_bias: float = -0.65
     value_weights: List[float] = field(default_factory=list)
     value_bias: float = 0.0
+    hybrid_as_params: List[Dict] = field(default_factory=list)
     parameter_clip: float = 25.0
     model_type: str = "linear"
 
@@ -210,6 +236,8 @@ class LinearCardPolicy:
         self.take_pass_weights = _ensure_vector(len(BASE_FEATURE_NAMES), self.take_pass_weights)
         self.reveal_weights = _ensure_vector(len(BASE_FEATURE_NAMES), self.reveal_weights)
         self.value_weights = _ensure_vector(len(BASE_FEATURE_NAMES), self.value_weights)
+        if not self.hybrid_as_params or len(self.hybrid_as_params) != len(self.quote_templates):
+            self.hybrid_as_params = build_hybrid_as_params(self.quote_templates)
 
     def copy(self) -> "LinearCardPolicy":
         return LinearCardPolicy.from_dict(self.to_dict())
@@ -241,11 +269,13 @@ class LinearCardPolicy:
         probabilities = softmax(logits)
         action_index = sample_index(probabilities)
         template = self.quote_templates[action_index]
+        params = self.hybrid_as_params[action_index] if self.model_type == "linear_hybrid_as" else None
         return {
             "type": "submit_quote",
             "template_index": action_index,
             "template": template,
-            "payload": quote_from_template(state, player_id, template, now_step),
+            "hybridAsParams": params,
+            "payload": hybrid_as_quote_from_params(state, player_id, params, now_step) if params else quote_from_template(state, player_id, template, now_step),
             "probabilities": probabilities,
             "features": feature_rows,
             "base": resolved_base,
@@ -303,7 +333,8 @@ class LinearCardPolicy:
         locked_role = (state.get("role_constraints") or {}).get(player_id)
         strongest_take = _strongest_take_payload(base)
         take_floor, strong_take_floor = _take_edge_thresholds(self.model_type, base)
-        if locked_role == "taker" and strongest_take and strongest_take["edge"] >= take_floor:
+        role_take_floor = -0.005 if self.model_type == "linear_hybrid_as" else take_floor
+        if locked_role == "taker" and strongest_take and strongest_take["edge"] >= role_take_floor:
             action_type, payload = "taker_action", strongest_take["payload"]
         elif locked_role == "maker" and quote["payload"] is not None:
             action_type, payload = "submit_quote", quote["payload"]
@@ -458,6 +489,7 @@ class LinearCardPolicy:
             "modelType": self.model_type,
             "compatibilityVersion": MODEL_COMPATIBILITY_VERSION,
             "quoteTemplates": self.quote_templates,
+            "hybridAsParams": self.hybrid_as_params if self.model_type == "linear_hybrid_as" else [],
             "featureNames": {
                 "base": BASE_FEATURE_NAMES,
                 "quote": QUOTE_FEATURE_NAMES,
@@ -494,6 +526,7 @@ class LinearCardPolicy:
             reveal_bias=float(data.get("revealHead", {}).get("bias", -0.65)),
             value_weights=list(map(float, data.get("valueHead", {}).get("weights", []))),
             value_bias=float(data.get("valueHead", {}).get("bias", 0.0)),
+            hybrid_as_params=[dict(entry) for entry in data.get("hybridAsParams", [])],
             parameter_clip=float(data.get("parameterClip", 25.0)),
             model_type=str(data.get("modelType", "linear")),
         )
@@ -1005,6 +1038,13 @@ def bootstrap_policy() -> LinearCardPolicy:
     _seed_quote_head(policy)
     _seed_take_head(policy)
     _seed_reveal_and_value(policy)
+    return policy
+
+
+def bootstrap_hybrid_as_policy() -> LinearCardPolicy:
+    policy = bootstrap_policy()
+    policy.model_type = "linear_hybrid_as"
+    policy.hybrid_as_params = build_hybrid_as_params(policy.quote_templates)
     return policy
 
 
