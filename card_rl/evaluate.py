@@ -657,10 +657,13 @@ def _choose_role_balance_schedule(
     episodes: int,
     workers: int,
     seed: int,
+    show_progress: bool = False,
 ) -> tuple[dict, dict, list[dict]]:
     evaluations = []
     best_row = None
-    for index, schedule in enumerate(role_balance_incentive_grid()):
+    schedules = role_balance_incentive_grid()
+    sweep_progress = ProgressBar("Bal sweep", len(schedules)) if show_progress else NullProgressBar()
+    for index, schedule in enumerate(schedules):
         summary, mode = _evaluate_role_balance_policy(
             name=name,
             maker_policy_kind=policy_kind,
@@ -673,6 +676,10 @@ def _choose_role_balance_schedule(
             incentive_schedule=schedule,
             progress_label=f"Bal {index + 1}",
             show_progress=False,
+        )
+        sweep_progress.update(
+            index + 1,
+            detail=f"{mode} | parity {summary['parity_gap']:.3f} | take {summary['taker_take_rate'] * 100:.1f}%",
         )
         row = {
             "schedule": schedule,
@@ -690,6 +697,7 @@ def _choose_role_balance_schedule(
             continue
         if row["activity_ok"] == best_row["activity_ok"] and row["objective"] < best_row["objective"] - 1e-12:
             best_row = row
+    sweep_progress.finish(detail=f"best parity {best_row['summary']['parity_gap']:.3f}")
     return best_row["schedule"], best_row["summary"], evaluations
 
 
@@ -956,6 +964,33 @@ def main() -> None:
         print("Top-level jobs run sequentially; each job uses full internal parallelism.")
         for job, assigned_workers in zip(eval_jobs, worker_allocations):
             print(f"- {job['display']} | workers {assigned_workers} | seed {job['seed']}")
+    role_balance_job_keys = list(selected_policy_ids)
+    if args.compare_bootstrap:
+        role_balance_job_keys.extend(
+            [
+                "wait-baseline",
+                "balanced-baseline",
+                "public-maker-baseline",
+                "heuristic",
+            ]
+        )
+    unique_role_job_keys = []
+    seen_for_plan = set()
+    for job_key in role_balance_job_keys:
+        if job_key in seen_for_plan:
+            continue
+        seen_for_plan.add(job_key)
+        unique_role_job_keys.append(job_key)
+    estimated_role_followups = max(0, len([job_key for job_key in unique_role_job_keys if job_key in {job["key"] for job in eval_jobs}]) - 1)
+    overall_total = len(eval_jobs) + 1 + estimated_role_followups
+    print(
+        "Overall evaluation plan: "
+        f"{len(eval_jobs)} policy eval job(s), 1 role-balance schedule sweep, "
+        f"{estimated_role_followups} extra role-balance check(s). "
+        f"Each progress bar reports elapsed time and ETA."
+    )
+    overall_progress = ProgressBar("Overall", overall_total)
+    overall_completed = 0
     if len(eval_jobs) <= 1:
         job = eval_jobs[0]
         summary, mode = _evaluate_policy(
@@ -975,6 +1010,8 @@ def main() -> None:
             "mode": mode,
             "workers": workers,
         }
+        overall_completed += 1
+        overall_progress.update(overall_completed, detail=f"completed {job['display']}")
     else:
         for job, assigned_workers in zip(eval_jobs, worker_allocations):
             summary, mode = _evaluate_policy(
@@ -999,6 +1036,8 @@ def main() -> None:
                 "mode": mode,
                 "workers": assigned_workers,
             }
+            overall_completed += 1
+            overall_progress.update(overall_completed, detail=f"completed {job['display']}")
 
     family_summaries = {}
     for policy_id in selected_policy_ids:
@@ -1024,7 +1063,10 @@ def main() -> None:
         episodes=role_balance_episodes,
         workers=workers,
         seed=args.seed + 701,
+        show_progress=True,
     )
+    overall_completed += 1
+    overall_progress.update(overall_completed, detail=f"completed role sweep for {role_balance_focus_key}")
     print("")
     print(f"Role-balance sweep focus: {role_balance_focus_key}")
     for row in sweep_rows:
@@ -1041,18 +1083,8 @@ def main() -> None:
     _print_role_balance_summary(f"{role_balance_focus_key} Role Balance", chosen_focus_summary, chosen_schedule)
     _print_role_balance_alerts(role_balance_focus_key, chosen_focus_summary)
 
-    role_balance_jobs = list(selected_policy_ids)
-    if args.compare_bootstrap:
-        role_balance_jobs.extend(
-            [
-                "wait-baseline",
-                "balanced-baseline",
-                "public-maker-baseline",
-                "heuristic",
-            ]
-        )
     seen_role_jobs = set()
-    for job_key in role_balance_jobs:
+    for job_key in role_balance_job_keys:
         if job_key in seen_role_jobs or job_key not in results:
             continue
         seen_role_jobs.add(job_key)
@@ -1075,6 +1107,9 @@ def main() -> None:
         print(f"{job_key}: role balance ({mode}, workers {result['workers']})")
         _print_role_balance_summary(f"{job_key} Role Balance", summary, chosen_schedule)
         _print_role_balance_alerts(job_key, summary)
+        overall_completed += 1
+        overall_progress.update(overall_completed, detail=f"completed role {job_key}")
+    overall_progress.finish(detail="all evaluation jobs complete")
 
     if args.compare_bootstrap:
         bootstrap_result = results["bootstrap-linear"]

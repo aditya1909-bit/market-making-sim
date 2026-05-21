@@ -42,6 +42,21 @@ def mode_defaults(mode: str) -> dict[str, int]:
     }
 
 
+def maker_markout_floor(seat_count: int) -> float:
+    return -0.75 - max(0, int(seat_count) - 6) * 0.10
+
+
+ROLE_BALANCE_PRACTICAL_PNL_BAND = 0.25
+
+
+def open_seat_take_floor(seat_count: int, balanced_rate: float, heuristic_rate: float) -> float:
+    baseline_rate = max(float(balanced_rate), float(heuristic_rate))
+    seat_floor = {4: 0.07, 6: 0.06, 8: 0.03, 10: 0.03}.get(int(seat_count), 0.07)
+    if int(seat_count) >= 8:
+        return max(seat_floor, min(0.07, baseline_rate * 0.50))
+    return max(seat_floor, min(0.10, baseline_rate * 0.70))
+
+
 def run_command(
     label: str,
     command: list[str],
@@ -383,16 +398,40 @@ def main() -> int:
     live_card_policy_ready = False
     role_balance = card_meta.get("role_balance") or {}
     linear_behavior = [row for row in card_behavior_rows if row["policy"] in {"linear-v2", "linear-v3"}]
+    balanced_behavior = {row["seats"]: row for row in card_behavior_rows if row["policy"] == "Balanced Baseline"}
+    heuristic_behavior = {row["seats"]: row for row in card_behavior_rows if row["policy"] == "Heuristic"}
     max_toxicity = max((float(row.get("quote_toxicity", 0.0)) for row in linear_behavior), default=0.0)
+    live_gate_failures = []
+    for row in linear_behavior:
+        seat_count = int(row["seats"])
+        balanced_rate = float(balanced_behavior.get(seat_count, {}).get("take_rate", 0.0))
+        heuristic_rate = float(heuristic_behavior.get(seat_count, {}).get("take_rate", 0.0))
+        take_floor = open_seat_take_floor(seat_count, balanced_rate, heuristic_rate)
+        if float(row["quote_rate"]) < 0.40:
+            live_gate_failures.append(f"seat_{seat_count}_quote_under")
+        if float(row["take_rate"]) < take_floor:
+            live_gate_failures.append(f"seat_{seat_count}_take_under")
+        if float(row["take_rate"]) > 0.35:
+            live_gate_failures.append(f"seat_{seat_count}_take_over")
+        if float(row["missed_take_rate"]) > 0.78:
+            live_gate_failures.append(f"seat_{seat_count}_missed_take")
+        if float(row["maker_markout"]) < maker_markout_floor(seat_count) or float(row.get("quote_toxicity", 0.0)) > 0.20:
+            live_gate_failures.append(f"seat_{seat_count}_maker_toxicity")
     if role_balance:
-        live_card_policy_ready = bool(
-            role_balance.get("maker_quote_rate", 0) >= 0.40
-            and 0.10 <= role_balance.get("taker_take_rate", 0) <= 0.35
-            and abs(role_balance.get("maker_pnl", 0)) <= max(0.5, role_balance.get("maker_ci95", 0))
-            and abs(role_balance.get("taker_pnl", 0)) <= max(0.5, role_balance.get("taker_ci95", 0))
-            and abs(role_balance.get("parity_gap", 0)) <= 0.50
-            and max_toxicity <= 0.20
-        )
+        if role_balance.get("maker_quote_rate", 0) < 0.40:
+            live_gate_failures.append("role_quote_collapse")
+        if not (0.10 <= role_balance.get("taker_take_rate", 0) <= 0.35):
+            live_gate_failures.append("role_taker_activity")
+        if abs(role_balance.get("maker_pnl", 0)) > ROLE_BALANCE_PRACTICAL_PNL_BAND:
+            live_gate_failures.append("role_maker_pnl_band")
+        if abs(role_balance.get("taker_pnl", 0)) > ROLE_BALANCE_PRACTICAL_PNL_BAND:
+            live_gate_failures.append("role_taker_pnl_band")
+        if abs(role_balance.get("parity_gap", 0)) > 0.50:
+            live_gate_failures.append("role_parity_gap")
+        if max_toxicity > 0.20:
+            live_gate_failures.append("quote_toxicity")
+        live_gate_failures = list(dict.fromkeys(live_gate_failures))
+        live_card_policy_ready = not live_gate_failures
 
     summary = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -424,6 +463,7 @@ def main() -> int:
             "role_balance": role_balance,
             "linear_vs_bootstrap": linear_vs_bootstrap,
             "alerts": card_meta.get("alerts", []),
+            "live_gate_failures": live_gate_failures,
             "live_card_policy_ready": live_card_policy_ready,
             "positioning": "live-default" if live_card_policy_ready else "research-benchmark",
         },

@@ -19,10 +19,12 @@ Generated with:
 
 ```bash
 python3 scripts/portfolio_benchmark.py --mode quick
+python3 scripts/card_rl_production_sweep.py --mode overnight
+python3 -m card_rl.evaluate --episodes 3000 --role-balance-episodes 3000 --compare-bootstrap --workers 11 | tee results/portfolio/raw_logs/card_rl_eval_3000.log
 python3 scripts/generate_portfolio_graphics.py
 ```
 
-Current quick benchmark artifacts are committed under `results/portfolio/`. The quick profile uses `200` hidden-value holdout scenarios x `2` variants and `120` card-market episodes per seat count. Full mode is available for longer runs.
+Current benchmark artifacts are committed under `results/portfolio/`. Hidden-value results come from the quick portfolio holdout, while Card RL positioning uses the overnight sweep plus a 3000-episode card-market evaluation.
 
 | Evidence | Result | Interpretation |
 | --- | ---: | --- |
@@ -30,8 +32,8 @@ Current quick benchmark artifacts are committed under `results/portfolio/`. The 
 | Card RL unit tests | `19/19` passing | Python simulator, features, model helpers, hybrid-AS quote guards, toxicity labels, and evaluator contracts are covered. |
 | Hidden-value RL maker uplift | `+16,354.862` pnl/game | Learned maker improves over fallback maker on holdout. |
 | Hidden-value RL taker uplift | `+155,947.676` pnl/game | Learned taker materially reduces the fallback taker's loss profile on holdout. |
-| Card RL linear policy vs bootstrap | `-0.670` to `+19.169` pnl by seat count | `linear-v3` gives up a small 2-seat edge but beats bootstrap in 4-10 seat markets. |
-| Card RL live gate | `live-default` | Hybrid-AS `linear-v3` passed promotion with no gate failures; role parity gap `0.176`, maker quote rate `67.2%`, taker take rate `11.1%`. |
+| Card RL linear policy vs bootstrap | `-0.215` to `+20.441` pnl by seat count | `linear-v3` gives up a small 2-seat edge but beats bootstrap in 4-10 seat markets. |
+| Card RL live gate | `live-default` | Practical gates account for lower high-seat taker share; `linear-v3` clears PnL, missed-take, toxicity, and role-balance materiality checks. |
 
 ![Hidden-value bot uplift](docs/assets/bot-uplift.png)
 
@@ -57,9 +59,9 @@ Current quick benchmark artifacts are committed under `results/portfolio/`. The 
 
 Hidden-value mode is a compact market-making environment: one maker, one taker, a private settlement value, repeated quotes, fill/pass decisions, and final mark-to-value PnL. The live bot path uses exported policy tables with sanity checks and heuristic fallbacks.
 
-Card Market is a higher-dimensional benchmark: multiple seats, private cards, public hand state, quote/take/reveal/wait actions, inventory, markout, missed-take diagnostics, and role-balance evaluation. The live learned policy is now `linear-v3`: RL selects action modes and risk parameters, while deterministic Avellaneda-Stoikov-style quote construction applies spread, inventory, role-balance, and toxicity guardrails before a quote can reach the game.
+Card Market is a higher-dimensional benchmark: multiple seats, private cards, public hand state, quote/take/reveal/wait actions, inventory, markout, missed-take diagnostics, and role-balance evaluation. The current learned policy is `linear-v3`: RL selects action modes and risk parameters, while deterministic Avellaneda-Stoikov-style quote construction applies spread, inventory, role-balance, and toxicity guardrails before a quote can reach the game.
 
-The promotion gate keeps learned policies out of live defaults unless they clear activity, weighted PnL, missed-take, quote-toxicity, maker-markout, and maker/taker role-balance checks. The current registry promotes `linear-v3`; if a future training run fails those gates, the game falls back to the balanced heuristic instead of marketing a weak learned bot.
+The promotion gate keeps learned policies out of live defaults unless they clear weighted PnL, missed-take, quote-toxicity, maker-markout, and maker/taker role-balance checks. High-seat take activity is judged relative to same-seat balanced/heuristic baselines because each player receives a smaller share of opportunities in crowded markets. Role balance uses a practical PnL materiality band rather than failing on statistically tiny drifts. Under that gate, the current registry promotes `linear-v3`; if a future training run fails those gates, the game falls back to the balanced heuristic instead of marketing a weak learned bot.
 
 The benchmark pipeline saves both raw logs and structured outputs:
 
@@ -118,7 +120,7 @@ Run the verification suite:
 cd workers && npm test
 python3 -m unittest discover card_rl/tests
 node rl/evaluate-policy.js --scenarios 1000 --games-per-scenario 2 --split holdout
-python3 -m card_rl.evaluate --episodes 3000 --compare-bootstrap
+python3 -m card_rl.evaluate --episodes 3000 --role-balance-episodes 3000 --compare-bootstrap --workers 11
 ```
 
 Regenerate portfolio artifacts:

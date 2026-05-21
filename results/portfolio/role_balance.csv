@@ -1,2 +1,2 @@
 policy,maker_fill_rebate,taker_fill_fee,wide_quote_pass_penalty,tight_quote_refusal_penalty,maker_pnl,maker_ci95,taker_pnl,taker_ci95,fills_per_episode,maker_quote_rate,taker_take_rate,parity_gap
-linear-v3,0.001,0.001,0.0,0.0,-0.092,0.302,0.092,0.302,1.7,0.672,0.113,0.092
+linear-v3,0.003,0.003,0.00075,0.00075,-0.187,0.062,0.17,0.062,1.52,0.67,0.10099999999999999,0.187

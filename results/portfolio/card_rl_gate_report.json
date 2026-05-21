@@ -1,62 +1,62 @@
 {
-  "mode": "export-gate",
+  "mode": "practical-export-gate",
   "candidateCount": 1,
   "bestPolicyId": "linear-v3",
   "bestEvaluation": {
-    "mainSeatMean": 1.4243242424242424,
-    "vsHeuristic": 1.7409563636363636,
+    "mainSeatMean": 1.4650084848484846,
+    "vsHeuristic": 1.7816406060606058,
     "liveCandidate": true,
     "gateFailures": [],
     "promotionDecision": "live-default",
     "toxicity": {
       "4": {
-        "quoteToxicity": 0.003594498371611461,
+        "quoteToxicity": 0.002816594858362437,
         "toxicQuoteRate": 0.0,
-        "makerMarkout": -0.19010204081632656
+        "makerMarkout": 0.15948113207547168
       },
       "6": {
-        "quoteToxicity": 0.002874043144242074,
+        "quoteToxicity": 0.00136307861527238,
         "toxicQuoteRate": 0.0,
-        "makerMarkout": -0.3011065573770493
+        "makerMarkout": -0.039602649006622484
       },
       "8": {
-        "quoteToxicity": 0.0029273503463148266,
-        "toxicQuoteRate": 0.0008707009142359599,
-        "makerMarkout": -0.5705462184873951
+        "quoteToxicity": 0.0010896205868278273,
+        "toxicQuoteRate": 0.0,
+        "makerMarkout": -0.029275362318840585
       },
       "10": {
-        "quoteToxicity": 0.0023957381654630505,
+        "quoteToxicity": 0.0006953113422097311,
         "toxicQuoteRate": 0.0,
-        "makerMarkout": -0.4310126582278482
+        "makerMarkout": -0.29236842105263156
       }
     },
     "roleBalance": {
       "episodes": 100,
-      "maker_mean_pnl": -0.17620000000000005,
-      "maker_ci95": 0.28916859584844273,
-      "maker_stdev": 1.4753499788185853,
-      "taker_mean_pnl": 0.17010000000000008,
-      "taker_ci95": 0.28969867437708446,
-      "taker_stdev": 1.4780544611075737,
-      "fills_per_episode": 1.67,
-      "maker_quote_rate": 0.672,
-      "maker_reveal_rate": 0.14733333333333334,
-      "maker_wait_rate": 0.18066666666666667,
-      "taker_take_rate": 0.11133333333333334,
-      "taker_reveal_rate": 0.10933333333333334,
-      "taker_wait_rate": 0.7793333333333333,
-      "maker_markout": -0.10670658682634729,
-      "taker_markout": 0.10670658682634729,
-      "maker_fill_incentive_per_episode": 0.008100000000000001,
-      "taker_fill_fee_per_episode": 0.008100000000000001,
-      "maker_pass_penalty_per_episode": 0.006100000000000001,
+      "maker_mean_pnl": -0.14359999999999995,
+      "maker_ci95": 0.28948589832432253,
+      "maker_stdev": 1.4769688690016456,
+      "taker_mean_pnl": 0.13099999999999998,
+      "taker_ci95": 0.2919631026277122,
+      "taker_stdev": 1.4896076664679192,
+      "fills_per_episode": 1.6,
+      "maker_quote_rate": 0.6746666666666666,
+      "maker_reveal_rate": 0.21133333333333335,
+      "maker_wait_rate": 0.114,
+      "taker_take_rate": 0.10666666666666667,
+      "taker_reveal_rate": 0.046,
+      "taker_wait_rate": 0.8473333333333334,
+      "maker_markout": -0.08675,
+      "taker_markout": 0.08675,
+      "maker_fill_incentive_per_episode": 0.007799999999999999,
+      "taker_fill_fee_per_episode": 0.007799999999999999,
+      "maker_pass_penalty_per_episode": 0.012600000000000002,
       "taker_pass_penalty_per_episode": 0.0,
-      "parity_gap": 0.17620000000000005,
+      "parity_gap": 0.14359999999999995,
       "activity_ok": true,
       "quote_collapse": false,
       "taker_overtrade": false,
       "taker_undertrade": false,
-      "objective": 0.17620000000000005
+      "objective": 0.14359999999999995
     },
     "roleBalanceIncentiveSchedule": {
       "maker_fill_rebate": 0.0005,
@@ -68,69 +68,20 @@
   "defaultPolicyIds": {
     "linear": "linear-v3"
   },
-  "policies": {
-    "linear-v3": {
-      "mainSeatMean": 1.4243242424242424,
-      "vsHeuristic": 1.7409563636363636,
+  "gateDefinition": {
+    "roleBalancePracticalPnlBand": 0.25,
+    "highSeatTakeRule": "for 8+ seats, require at least max(seat_floor, min(0.07, 0.50 * same-seat baseline take rate)); rely on missed-take, PnL, toxicity, and role gates for production safety"
+  },
+  "candidates": [
+    {
+      "candidate": 1,
+      "seed": "current-registry",
+      "status": "ok",
       "liveCandidate": true,
-      "gateFailures": [],
+      "mainSeatMean": 1.4650084848484846,
+      "vsHeuristic": 1.7816406060606058,
       "promotionDecision": "live-default",
-      "toxicity": {
-        "4": {
-          "quoteToxicity": 0.003594498371611461,
-          "toxicQuoteRate": 0.0,
-          "makerMarkout": -0.19010204081632656
-        },
-        "6": {
-          "quoteToxicity": 0.002874043144242074,
-          "toxicQuoteRate": 0.0,
-          "makerMarkout": -0.3011065573770493
-        },
-        "8": {
-          "quoteToxicity": 0.0029273503463148266,
-          "toxicQuoteRate": 0.0008707009142359599,
-          "makerMarkout": -0.5705462184873951
-        },
-        "10": {
-          "quoteToxicity": 0.0023957381654630505,
-          "toxicQuoteRate": 0.0,
-          "makerMarkout": -0.4310126582278482
-        }
-      },
-      "roleBalance": {
-        "episodes": 100,
-        "maker_mean_pnl": -0.17620000000000005,
-        "maker_ci95": 0.28916859584844273,
-        "maker_stdev": 1.4753499788185853,
-        "taker_mean_pnl": 0.17010000000000008,
-        "taker_ci95": 0.28969867437708446,
-        "taker_stdev": 1.4780544611075737,
-        "fills_per_episode": 1.67,
-        "maker_quote_rate": 0.672,
-        "maker_reveal_rate": 0.14733333333333334,
-        "maker_wait_rate": 0.18066666666666667,
-        "taker_take_rate": 0.11133333333333334,
-        "taker_reveal_rate": 0.10933333333333334,
-        "taker_wait_rate": 0.7793333333333333,
-        "maker_markout": -0.10670658682634729,
-        "taker_markout": 0.10670658682634729,
-        "maker_fill_incentive_per_episode": 0.008100000000000001,
-        "taker_fill_fee_per_episode": 0.008100000000000001,
-        "maker_pass_penalty_per_episode": 0.006100000000000001,
-        "taker_pass_penalty_per_episode": 0.0,
-        "parity_gap": 0.17620000000000005,
-        "activity_ok": true,
-        "quote_collapse": false,
-        "taker_overtrade": false,
-        "taker_undertrade": false,
-        "objective": 0.17620000000000005
-      },
-      "roleBalanceIncentiveSchedule": {
-        "maker_fill_rebate": 0.0005,
-        "taker_fill_fee": 0.0005,
-        "wide_quote_pass_penalty": 0.00075,
-        "tight_quote_refusal_penalty": 0.00075
-      }
+      "gateFailures": ""
     }
-  }
+  ]
 }

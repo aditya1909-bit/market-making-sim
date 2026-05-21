@@ -1,36 +1,41 @@
 policy,seats,mean_pnl,ci95,stdev,avg_abs_inventory
-linear-v3,2,0.308,0.48,2.683,0.858
-linear-v3,4,0.67,0.681,3.808,0.883
-linear-v3,6,0.395,0.92,5.144,1.117
-linear-v3,8,2.186,1.26,7.043,0.975
-linear-v3,10,1.971,1.425,7.965,1.083
-Bootstrap,2,0.978,0.688,3.848,1.142
-Bootstrap,4,-4.626,1.381,7.719,1.208
-Bootstrap,6,-9.788,2.081,11.63,1.425
-Bootstrap,8,-13.018,2.732,15.269,1.708
-Bootstrap,10,-17.198,3.606,20.152,1.417
-Neural Bootstrap,2,0.546,0.707,3.953,1.042
-Neural Bootstrap,4,-4.809,1.523,8.512,1.117
-Neural Bootstrap,6,-9.344,2.001,11.185,1.342
-Neural Bootstrap,8,-11.015,2.822,15.771,1.2
-Neural Bootstrap,10,-21.597,4.746,26.526,1.292
+linear-v3,2,0.291,0.128,3.57,1.086
+linear-v3,4,0.347,0.13,3.631,0.87
+linear-v3,6,1.161,0.158,4.428,0.71
+linear-v3,8,2.324,0.211,5.897,0.654
+linear-v3,10,2.015,0.21,5.869,0.439
+neural-v1,2,0.521,0.139,3.874,1.107
+neural-v1,4,-3.989,0.272,7.594,1.206
+neural-v1,6,-8.917,0.429,11.979,1.303
+neural-v1,8,-13.239,0.599,16.741,1.329
+neural-v1,10,-18.986,0.743,20.76,1.324
+Bootstrap,2,0.506,0.137,3.834,1.099
+Bootstrap,4,-4.007,0.272,7.611,1.245
+Bootstrap,6,-8.545,0.431,12.043,1.305
+Bootstrap,8,-12.82,0.575,16.079,1.43
+Bootstrap,10,-18.426,0.757,21.167,1.405
+Neural Bootstrap,2,0.66,0.139,3.89,1.13
+Neural Bootstrap,4,-4.128,0.278,7.779,1.182
+Neural Bootstrap,6,-8.986,0.428,11.972,1.259
+Neural Bootstrap,8,-12.824,0.58,16.199,1.37
+Neural Bootstrap,10,-19.389,0.751,20.991,1.285
 Wait Baseline,2,0.0,0.0,0.0,0.0
 Wait Baseline,4,0.0,0.0,0.0,0.0
 Wait Baseline,6,0.0,0.0,0.0,0.0
 Wait Baseline,8,0.0,0.0,0.0,0.0
 Wait Baseline,10,0.0,0.0,0.0,0.0
-Balanced Baseline,2,0.253,0.615,3.439,0.742
-Balanced Baseline,4,-0.055,1.032,5.765,0.433
-Balanced Baseline,6,-1.629,1.647,9.203,0.767
-Balanced Baseline,8,-0.337,1.444,8.072,0.7
-Balanced Baseline,10,-0.808,1.513,8.454,0.433
-Public Maker Baseline,2,-0.06,0.09,0.504,0.233
-Public Maker Baseline,4,0.416,0.201,1.123,0.133
-Public Maker Baseline,6,0.406,0.223,1.248,0.167
-Public Maker Baseline,8,0.396,0.166,0.927,0.125
-Public Maker Baseline,10,0.061,0.139,0.776,0.083
-Heuristic,2,-0.154,0.482,2.696,0.967
-Heuristic,4,0.426,0.976,5.454,0.342
-Heuristic,6,0.095,1.537,8.592,0.392
-Heuristic,8,-0.98,1.694,9.47,0.617
-Heuristic,10,0.016,1.477,8.256,0.483
+Balanced Baseline,2,-0.033,0.104,2.91,0.765
+Balanced Baseline,4,-0.165,0.184,5.132,0.505
+Balanced Baseline,6,0.18,0.252,7.045,0.539
+Balanced Baseline,8,-0.129,0.342,9.566,0.697
+Balanced Baseline,10,-0.011,0.232,6.492,0.396
+Public Maker Baseline,2,-0.02,0.019,0.526,0.19
+Public Maker Baseline,4,0.358,0.046,1.287,0.134
+Public Maker Baseline,6,0.493,0.049,1.368,0.139
+Public Maker Baseline,8,0.506,0.045,1.253,0.147
+Public Maker Baseline,10,0.185,0.034,0.955,0.103
+Heuristic,2,0.079,0.101,2.813,0.765
+Heuristic,4,-0.029,0.186,5.195,0.493
+Heuristic,6,-0.035,0.256,7.165,0.541
+Heuristic,8,-0.391,0.33,9.21,0.637
+Heuristic,10,-0.003,0.215,6.014,0.39

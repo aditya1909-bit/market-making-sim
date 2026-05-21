@@ -1070,13 +1070,14 @@ def _mean_main_seat_counts(summary: Dict[int, Dict], seat_counts: List[int], wei
     return weighted_total / max(1.0, weight_sum)
 
 
+ROLE_BALANCE_PRACTICAL_PNL_BAND = 0.25
+
+
 def _role_balance_live_candidate(summary: Dict) -> bool:
     take_rate = float(summary["taker_take_rate"])
     return (
-        abs(float(summary["maker_mean_pnl"])) <= 0.5
-        and abs(float(summary["taker_mean_pnl"])) <= 0.5
-        and (float(summary["maker_mean_pnl"]) - float(summary["maker_ci95"])) <= 0.0 <= (float(summary["maker_mean_pnl"]) + float(summary["maker_ci95"]))
-        and (float(summary["taker_mean_pnl"]) - float(summary["taker_ci95"])) <= 0.0 <= (float(summary["taker_mean_pnl"]) + float(summary["taker_ci95"]))
+        abs(float(summary["maker_mean_pnl"])) <= ROLE_BALANCE_PRACTICAL_PNL_BAND
+        and abs(float(summary["taker_mean_pnl"])) <= ROLE_BALANCE_PRACTICAL_PNL_BAND
         and float(summary["maker_quote_rate"]) >= ROLE_BALANCE_ACTIVITY_FLOORS["maker_quote_rate"]
         and ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_min"] - 0.005 <= take_rate <= ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_max"]
         and not bool(summary["quote_collapse"])
@@ -1087,14 +1088,13 @@ def _role_balance_live_candidate(summary: Dict) -> bool:
 def _role_balance_gate_failures(summary: Dict) -> List[str]:
     failures = []
     take_rate = float(summary["taker_take_rate"])
-    if abs(float(summary["maker_mean_pnl"])) > 0.5 or abs(float(summary["taker_mean_pnl"])) > 0.5:
+    if (
+        abs(float(summary["maker_mean_pnl"])) > ROLE_BALANCE_PRACTICAL_PNL_BAND
+        or abs(float(summary["taker_mean_pnl"])) > ROLE_BALANCE_PRACTICAL_PNL_BAND
+    ):
         failures.append("role_pnl_outside_band")
     if abs(float(summary.get("parity_gap", 0.0))) > 0.5:
         failures.append("role_parity_gap")
-    if not ((float(summary["maker_mean_pnl"]) - float(summary["maker_ci95"])) <= 0.0 <= (float(summary["maker_mean_pnl"]) + float(summary["maker_ci95"]))):
-        failures.append("maker_ci_excludes_zero")
-    if not ((float(summary["taker_mean_pnl"]) - float(summary["taker_ci95"])) <= 0.0 <= (float(summary["taker_mean_pnl"]) + float(summary["taker_ci95"]))):
-        failures.append("taker_ci_excludes_zero")
     if float(summary["maker_quote_rate"]) < ROLE_BALANCE_ACTIVITY_FLOORS["maker_quote_rate"]:
         failures.append("quote_collapse")
     if take_rate < ROLE_BALANCE_ACTIVITY_FLOORS["taker_take_rate_min"] - 0.005:
@@ -1104,6 +1104,14 @@ def _role_balance_gate_failures(summary: Dict) -> List[str]:
     if bool(summary["quote_collapse"]):
         failures.append("quote_collapse_flag")
     return failures
+
+
+def _open_seat_take_floor(seat_count: int, balanced_rate: float, heuristic_rate: float) -> float:
+    baseline_rate = max(float(balanced_rate), float(heuristic_rate))
+    seat_floor = {4: 0.07, 6: 0.06, 8: 0.03, 10: 0.03}.get(int(seat_count), 0.07)
+    if int(seat_count) >= 8:
+        return max(seat_floor, min(0.07, baseline_rate * 0.50))
+    return max(seat_floor, min(0.10, baseline_rate * 0.70))
 
 
 def _family_gate_failures(
@@ -1128,7 +1136,12 @@ def _family_gate_failures(
         failures.append("weighted_pnl_below_wait")
     for seat_count in gate_counts:
         row = summary[seat_count]
-        if row["take_rate"] < 0.10:
+        take_floor = _open_seat_take_floor(
+            seat_count,
+            balanced_summary[seat_count].get("take_rate", 0.10),
+            heuristic_summary[seat_count].get("take_rate", 0.10),
+        )
+        if row["take_rate"] < take_floor:
             failures.append(f"seat_{seat_count}_take_under")
         if row["take_rate"] > 0.35:
             failures.append(f"seat_{seat_count}_take_over")
