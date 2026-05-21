@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,7 +60,26 @@ def style_axis(ax: plt.Axes) -> None:
     ax.set_axisbelow(True)
 
 
-def draw_box(ax: plt.Axes, xy: tuple[float, float], wh: tuple[float, float], title: str, body: str, color: str) -> None:
+def wrap_for_box(text: str, width: float, chars_per_axis: int) -> str:
+    line_width = max(8, int(width * chars_per_axis))
+    wrapped_lines = []
+    for line in str(text).splitlines() or [""]:
+        wrapped_lines.extend(textwrap.wrap(line, width=line_width, break_long_words=False) or [""])
+    return "\n".join(wrapped_lines)
+
+
+def draw_box(
+    ax: plt.Axes,
+    xy: tuple[float, float],
+    wh: tuple[float, float],
+    title: str,
+    body: str,
+    color: str,
+    *,
+    title_font: float = 10.8,
+    body_font: float = 8.8,
+    body_linespacing: float = 1.28,
+) -> None:
     x, y = xy
     w, h = wh
     patch = FancyBboxPatch(
@@ -72,8 +92,33 @@ def draw_box(ax: plt.Axes, xy: tuple[float, float], wh: tuple[float, float], tit
         facecolor=COLORS["panel"],
     )
     ax.add_patch(patch)
-    ax.text(x + 0.03, y + h - 0.08, title, color=color, fontsize=12, fontweight="bold", va="top")
-    ax.text(x + 0.03, y + h - 0.18, body, color=COLORS["ink"], fontsize=9.5, va="top", linespacing=1.35)
+    title_text = wrap_for_box(title, w, 58)
+    body_text = wrap_for_box(body, w, 48)
+    title_artist = ax.text(
+        x + 0.03,
+        y + h - 0.055,
+        title_text,
+        color=color,
+        fontsize=title_font,
+        fontweight="bold",
+        va="top",
+        linespacing=1.15,
+        clip_on=True,
+    )
+    title_lines = max(1, title_text.count("\n") + 1)
+    body_y = y + h - 0.105 - (title_lines - 1) * 0.045
+    body_artist = ax.text(
+        x + 0.03,
+        body_y,
+        body_text,
+        color=COLORS["ink"],
+        fontsize=body_font,
+        va="top",
+        linespacing=body_linespacing,
+        clip_on=True,
+    )
+    title_artist.set_clip_path(patch)
+    body_artist.set_clip_path(patch)
 
 
 def draw_arrow(ax: plt.Axes, start: tuple[float, float], end: tuple[float, float], color: str = COLORS["muted"]) -> None:
@@ -82,7 +127,7 @@ def draw_arrow(ax: plt.Axes, start: tuple[float, float], end: tuple[float, float
 
 
 def architecture(summary: dict) -> None:
-    fig, ax = plt.subplots(figsize=(12, 6.8))
+    fig, ax = plt.subplots(figsize=(12.5, 7.0))
     fig.patch.set_facecolor(COLORS["bg"])
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -97,20 +142,21 @@ def architecture(summary: dict) -> None:
         va="top",
     )
 
-    draw_box(ax, (0.04, 0.58), (0.22, 0.22), "Static Frontend", "index.html\napp.js\nmobile-first live UI", COLORS["blue"])
-    draw_box(ax, (0.39, 0.58), (0.22, 0.22), "Worker Edge API", "HTTP routes\nWebSocket upgrade\nbot-room APIs", COLORS["cyan"])
-    draw_box(ax, (0.74, 0.58), (0.22, 0.22), "Room Durable Object", "authoritative state\nhidden settlement\nreconnect/rematch", COLORS["green"])
+    arch_box = {"title_font": 9.6, "body_font": 7.6, "body_linespacing": 1.12}
+    draw_box(ax, (0.04, 0.56), (0.23, 0.27), "Static Frontend", "HTML/CSS/JS\nlive room UI\nmobile layouts", COLORS["blue"], **arch_box)
+    draw_box(ax, (0.385, 0.56), (0.23, 0.27), "Worker Edge API", "HTTP routes\nWebSocket upgrade\nbot APIs", COLORS["cyan"], **arch_box)
+    draw_box(ax, (0.73, 0.56), (0.23, 0.27), "Room Durable Object", "authoritative state\nsettlement + timers\nreconnect/rematch", COLORS["green"], **arch_box)
 
-    draw_box(ax, (0.04, 0.18), (0.22, 0.22), "Self-Play Benchmarks", "hidden-value eval\ncard-market eval\nquality gates", COLORS["orange"])
-    draw_box(ax, (0.39, 0.18), (0.22, 0.22), "Policy Registry", "JS exported weights\nversioned metadata\nfallback policies", COLORS["red"])
-    draw_box(ax, (0.74, 0.18), (0.22, 0.22), "Live Bots", "balanced heuristics\nsanity wrappers\nhuman pacing", COLORS["green"])
+    draw_box(ax, (0.04, 0.16), (0.23, 0.27), "Self-Play Benchmarks", "hidden-value eval\ncard-market eval\nquality gates", COLORS["orange"], **arch_box)
+    draw_box(ax, (0.385, 0.16), (0.23, 0.27), "Policy Registry", "exported weights\nversioned metadata\nfallback policies", COLORS["red"], **arch_box)
+    draw_box(ax, (0.73, 0.16), (0.23, 0.27), "Live Bots", "balanced heuristics\nsanity wrappers\nhuman pacing", COLORS["green"], **arch_box)
 
-    draw_arrow(ax, (0.26, 0.69), (0.39, 0.69))
-    draw_arrow(ax, (0.61, 0.69), (0.74, 0.69))
-    draw_arrow(ax, (0.15, 0.58), (0.15, 0.40), COLORS["orange"])
-    draw_arrow(ax, (0.26, 0.29), (0.39, 0.29), COLORS["orange"])
-    draw_arrow(ax, (0.61, 0.29), (0.74, 0.29), COLORS["red"])
-    draw_arrow(ax, (0.85, 0.40), (0.85, 0.58), COLORS["green"])
+    draw_arrow(ax, (0.27, 0.70), (0.385, 0.70))
+    draw_arrow(ax, (0.615, 0.70), (0.73, 0.70))
+    draw_arrow(ax, (0.155, 0.56), (0.155, 0.43), COLORS["orange"])
+    draw_arrow(ax, (0.27, 0.29), (0.385, 0.29), COLORS["orange"])
+    draw_arrow(ax, (0.615, 0.29), (0.73, 0.29), COLORS["red"])
+    draw_arrow(ax, (0.845, 0.43), (0.845, 0.56), COLORS["green"])
 
     tests = summary.get("tests", {})
     worker = tests.get("worker", {}).get("pass")
@@ -243,16 +289,16 @@ def quality_panel(summary: dict) -> None:
         ("Card RL live gate", "pass" if live_ready else "research only", COLORS["orange"] if not live_ready else COLORS["green"]),
     ]
 
-    fig, ax = plt.subplots(figsize=(9.5, 4.6))
+    fig, ax = plt.subplots(figsize=(10.5, 5.4))
     fig.patch.set_facecolor(COLORS["bg"])
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
     ax.text(0.04, 0.92, "Quality Gates And Evidence", fontsize=17, fontweight="bold", color=COLORS["ink"], va="top")
     for index, (title, value, color) in enumerate(items):
-        x = 0.05 + (index % 2) * 0.47
-        y = 0.55 - (index // 2) * 0.30
-        draw_box(ax, (x, y), (0.40, 0.20), title, value, color)
+        x = 0.06 + (index % 2) * 0.47
+        y = 0.53 - (index // 2) * 0.31
+        draw_box(ax, (x, y), (0.39, 0.25), title, value, color)
     save(fig, "quality-gates.png")
 
 
